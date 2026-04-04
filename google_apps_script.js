@@ -28,7 +28,7 @@ const SHEET_SOURCES = {
 };
 
 // === 伺服器端快取設定 ===
-const SERVER_CACHE_TTL = 600; // 10 分鐘 (秒)
+const SERVER_CACHE_TTL = 21600; // 6 小時 (秒) — CacheService 最大值
 const CACHE_KEY_PREFIX = 'cb_api_';
 
 function doGet(e) {
@@ -252,4 +252,23 @@ function testAllData() {
       Logger.log(key + ': object with ' + Object.keys(val).length + ' keys');
     }
   }
+}
+
+/**
+ * 定時暖機：每小時自動刷新快取，確保使用者永遠不會碰到冷啟動
+ *
+ * 設定步驟：
+ * 1. 在 Apps Script 編輯器，點左側「觸發條件」（鬧鐘圖示）
+ * 2. 點「+ 新增觸發條件」
+ * 3. 選擇函式：warmUpCache
+ * 4. 事件來源：時間驅動
+ * 5. 類型：每小時 (或每 30 分鐘 更佳)
+ * 6. 儲存
+ */
+function warmUpCache() {
+  Logger.log('[warmUp] 開始刷新快取...');
+  const startTime = new Date().getTime();
+  getAllDataCached();
+  const elapsed = (new Date().getTime() - startTime) / 1000;
+  Logger.log('[warmUp] 快取刷新完成，耗時 ' + elapsed + ' 秒');
 }
