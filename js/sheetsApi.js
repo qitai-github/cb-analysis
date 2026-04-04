@@ -147,5 +147,41 @@ const SheetsAPI = (() => {
     cache.clear();
   }
 
-  return { fetchSheet, fetchCBIssuance, loadAll, clearCache };
+  // === localStorage 持久快取 ===
+  const STORAGE_KEY = 'cb_data_cache';
+  const STORAGE_EXPIRY = 60 * 60 * 1000; // 1 小時過期
+
+  function saveToStorage(rawResults) {
+    try {
+      const payload = {
+        data: rawResults,
+        time: Date.now()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) {
+      // localStorage 滿了就忽略
+      console.warn('localStorage 儲存失敗:', e);
+    }
+  }
+
+  function loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const payload = JSON.parse(raw);
+      if (Date.now() - payload.time > STORAGE_EXPIRY) {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
+      return payload;
+    } catch {
+      return null;
+    }
+  }
+
+  function clearStorage() {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+
+  return { fetchSheet, fetchCBIssuance, loadAll, clearCache, saveToStorage, loadFromStorage, clearStorage };
 })();

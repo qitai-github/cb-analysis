@@ -7,6 +7,23 @@ const App = (() => {
 
   async function init() {
     showLoading(true);
+
+    // 嘗試從 localStorage 快取載入（瞬間顯示）
+    const cached = SheetsAPI.loadFromStorage();
+    if (cached) {
+      updateStatus('從快取載入...');
+      const result = DataProcessor.mergeAllData(cached.data);
+      stockMap = result.stockMap;
+      latestDataDate = result.latestDataDate;
+      updateDateDisplay();
+      showLoading(false);
+      buildFilterPanel();
+      applyCurrentFilters();
+      // 背景靜默更新
+      silentRefresh();
+      return;
+    }
+
     updateStatus('正在載入資料...');
 
     try {
@@ -18,6 +35,9 @@ const App = (() => {
       const result = DataProcessor.mergeAllData(rawResults);
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
+
+      // 儲存到 localStorage 供下次快速載入
+      SheetsAPI.saveToStorage(rawResults);
 
       // 顯示更新日期
       updateDateDisplay();
@@ -502,8 +522,26 @@ const App = (() => {
 
   function getSelectedStock() { return selectedStock; }
 
+  /** 背景靜默更新：不顯示 loading，完成後刷新畫面 */
+  async function silentRefresh() {
+    try {
+      SheetsAPI.clearCache();
+      const rawResults = await SheetsAPI.loadAll();
+      const result = DataProcessor.mergeAllData(rawResults);
+      stockMap = result.stockMap;
+      latestDataDate = result.latestDataDate;
+      SheetsAPI.saveToStorage(rawResults);
+      updateDateDisplay();
+      applyCurrentFilters();
+      console.log('[silentRefresh] 背景更新完成');
+    } catch (err) {
+      console.warn('[silentRefresh] 背景更新失敗:', err);
+    }
+  }
+
   function refreshData() {
     SheetsAPI.clearCache();
+    SheetsAPI.clearStorage();
     init();
   }
 
