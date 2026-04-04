@@ -1,0 +1,216 @@
+// 表格渲染模組
+const Table = (() => {
+  let currentData = [];
+  let currentSort = { key: 'code', asc: true };
+  let currentPage = 0;
+  let onRowClick = null;
+
+  const columns = [
+    { key: '_star', label: '\u2606', width: '36px', sticky: true, format: 'star', noSort: false },
+    { key: 'code', label: '代碼', width: '70px', sticky: true },
+    { key: 'name', label: '名稱', width: '100px', sticky: true },
+    { key: 'latestClose', label: '收盤價', width: '75px', format: 'price', align: 'right' },
+    { key: 'priceChangePercent', label: '漲跌%', width: '70px', format: 'percent_color', align: 'right' },
+    { key: 'latestVolume', label: '成交量(張)', width: '85px', format: 'volume', align: 'right' },
+    { key: 'foreign_5d', label: '外資5日', width: '85px', format: 'inst', align: 'right' },
+    { key: 'investment_5d', label: '投信5日', width: '85px', format: 'inst', align: 'right' },
+    { key: 'dealer_5d', label: '自營5日', width: '85px', format: 'inst', align: 'right' },
+    { key: 'totalInst_5d', label: '法人合計', width: '85px', format: 'inst', align: 'right' },
+    { key: 'mainCB.cbCode', label: 'CB代碼', width: '75px' },
+    { key: 'mainCB.close', label: 'CB價格', width: '75px', format: 'price', align: 'right' },
+    { key: 'mainCB.change', label: 'CB漲跌', width: '70px', format: 'change_color', align: 'right' },
+    { key: 'conversionPrice', label: '轉換價', width: '75px', format: 'price', align: 'right' },
+    { key: 'cbPremiumRate', label: 'CB溢價%', width: '80px', format: 'percent_color', align: 'right' },
+    { key: 'conversionPeriod', label: '轉換日期(起)', width: '100px' }
+  ];
+
+  function render(containerId, data, options = {}) {
+    currentData = data;
+    if (options.onRowClick) onRowClick = options.onRowClick;
+
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    const stats = document.createElement('div');
+    stats.className = 'table-stats';
+    stats.textContent = `共 ${data.length} 檔標的`;
+    container.appendChild(stats);
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'table-wrapper';
+
+    const table = document.createElement('table');
+    table.className = 'data-table';
+
+    // 表頭
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    for (const col of columns) {
+      const th = document.createElement('th');
+      th.textContent = col.label;
+      th.style.width = col.width;
+      th.style.minWidth = col.width;
+      if (col.sticky) th.className = 'sticky-col';
+      if (col.align === 'right') th.classList.add('text-right');
+      th.dataset.sortKey = col.key;
+      th.addEventListener('click', () => handleSort(col.key, containerId));
+      if (currentSort.key === col.key) {
+        th.classList.add(currentSort.asc ? 'sort-asc' : 'sort-desc');
+      }
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    // 表身
+    const tbody = document.createElement('tbody');
+    const pageSize = APP_CONFIG.pageSize;
+    const start = currentPage * pageSize;
+    const end = Math.min(start + pageSize, data.length);
+
+    for (let i = start; i < end; i++) {
+      const stock = data[i];
+      const tr = document.createElement('tr');
+      tr.addEventListener('click', () => { if (onRowClick) onRowClick(stock); });
+
+      for (const col of columns) {
+        const td = document.createElement('td');
+        if (col.sticky) td.className = 'sticky-col';
+        const val = getVal(stock, col.key);
+        formatCell(td, val, col.format, stock);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    container.appendChild(wrapper);
+
+    if (data.length > pageSize) {
+      container.appendChild(createPager(data.length, pageSize, containerId));
+    }
+  }
+
+  function handleSort(key, containerId) {
+    if (currentSort.key === key) {
+      currentSort.asc = !currentSort.asc;
+    } else {
+      currentSort = { key, asc: true };
+    }
+    currentPage = 0;
+    currentData = Filters.sortResults(currentData, key, currentSort.asc);
+    render(containerId, currentData);
+  }
+
+  function createPager(total, pageSize, containerId) {
+    const totalPages = Math.ceil(total / pageSize);
+    const pager = document.createElement('div');
+    pager.className = 'pager';
+
+    const info = document.createElement('span');
+    info.className = 'pager-info';
+    info.textContent = `第 ${currentPage + 1} / ${totalPages} 頁`;
+    pager.appendChild(info);
+
+    const btnGroup = document.createElement('div');
+    btnGroup.className = 'pager-buttons';
+
+    const mkBtn = (text, fn, disabled) => {
+      const btn = document.createElement('button');
+      btn.textContent = text;
+      btn.className = 'pager-btn';
+      btn.disabled = disabled;
+      btn.addEventListener('click', fn);
+      return btn;
+    };
+
+    btnGroup.append(
+      mkBtn('\u29EA', () => { currentPage = 0; render(containerId, currentData); }, currentPage === 0),
+      mkBtn('\u25C2', () => { currentPage--; render(containerId, currentData); }, currentPage === 0),
+      mkBtn('\u25B8', () => { currentPage++; render(containerId, currentData); }, currentPage >= totalPages - 1),
+      mkBtn('\u29EB', () => { currentPage = totalPages - 1; render(containerId, currentData); }, currentPage >= totalPages - 1)
+    );
+    pager.appendChild(btnGroup);
+    return pager;
+  }
+
+  function formatCell(td, val, format, stock) {
+    if (format === 'star') {
+      const starred = Watchlist.has(stock.code);
+      td.textContent = starred ? '\u2605' : '\u2606';
+      td.style.cursor = 'pointer';
+      td.style.fontSize = '16px';
+      td.style.textAlign = 'center';
+      td.style.color = starred ? '#f59e0b' : 'var(--text-dim)';
+      td.addEventListener('click', (e) => {
+        e.stopPropagation();
+        Watchlist.toggle(stock.code);
+        td.textContent = Watchlist.has(stock.code) ? '\u2605' : '\u2606';
+        td.style.color = Watchlist.has(stock.code) ? '#f59e0b' : 'var(--text-dim)';
+      });
+      return;
+    }
+
+    if (val == null || val === '') {
+      td.textContent = '-';
+      td.classList.add('text-muted');
+      return;
+    }
+
+    switch (format) {
+      case 'price':
+        td.textContent = Number(val).toFixed(2);
+        td.classList.add('text-right');
+        break;
+      case 'percent_color': {
+        const pct = Number(val);
+        td.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+        td.classList.add('text-right', pct > 0 ? 'text-up' : pct < 0 ? 'text-down' : 'text-neutral');
+        break;
+      }
+      case 'change_color': {
+        const chg = Number(val);
+        td.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2);
+        td.classList.add('text-right', chg > 0 ? 'text-up' : chg < 0 ? 'text-down' : 'text-neutral');
+        break;
+      }
+      case 'volume':
+        td.textContent = fmtVol(Number(val));
+        td.classList.add('text-right');
+        break;
+      case 'inst': {
+        const n = Number(val);
+        td.textContent = n === 0 ? '0' : (n > 0 ? '+' : '') + fmtVol(n);
+        td.classList.add('text-right', n > 0 ? 'text-up' : n < 0 ? 'text-down' : 'text-neutral');
+        break;
+      }
+      default:
+        td.textContent = String(val);
+    }
+  }
+
+  function fmtVol(v) {
+    const sign = v < 0 ? '-' : '';
+    return sign + Math.abs(v).toLocaleString();
+  }
+
+  function getVal(obj, key) {
+    if (!key) return null;
+    if (key === '_star') return Watchlist.has(obj.code) ? 1 : 0;
+    return key.split('.').reduce((o, k) => o?.[k], obj) ?? null;
+  }
+
+  function updateInstDays(days) {
+    columns[6].label = `外資${days}日`;
+    columns[6].key = `foreign_${days}d`;
+    columns[7].label = `投信${days}日`;
+    columns[7].key = `investment_${days}d`;
+    columns[8].label = `自營${days}日`;
+    columns[8].key = `dealer_${days}d`;
+    columns[9].key = `totalInst_${days}d`;
+  }
+
+  function getCurrentData() { return currentData; }
+
+  return { render, updateInstDays, getCurrentData, columns };
+})();

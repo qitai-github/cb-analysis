@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CB 可轉債分析平台</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- 頂部導覽 -->
+  <header class="header">
+    <div class="header-title">
+      <div class="logo">CB</div>
+      <span>可轉債分析平台</span>
+    </div>
+    <div class="header-actions">
+      <span class="header-date" id="header-date"></span>
+      <span class="header-status" id="header-status"></span>
+      <button class="btn-icon" onclick="App.refreshData()" title="重新載入資料">&#x21BB;</button>
+    </div>
+  </header>
+
+  <!-- 主版面 -->
+  <div class="main-layout">
+    <!-- 左側篩選面板 -->
+    <aside class="sidebar" id="filter-panel">
+      <!-- 由 JS 動態產生 -->
+    </aside>
+
+    <!-- 主內容區 -->
+    <main class="content">
+      <div id="main-table">
+        <!-- 由 JS 動態產生 -->
+      </div>
+    </main>
+  </div>
+
+  <!-- 右側詳情面板 -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-header">
+      <div class="detail-title" id="detail-title"></div>
+      <button class="detail-close" onclick="App.closeDetail()">&times;</button>
+    </div>
+
+    <!-- 股價資訊 -->
+    <div class="detail-section">
+      <h3>股價資訊</h3>
+      <div id="detail-price-info"></div>
+      <div class="chart-container">
+        <canvas id="detail-price-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- CB 資訊 -->
+    <div class="detail-section">
+      <h3>CB 可轉債資訊</h3>
+      <div id="detail-cb-info"></div>
+    </div>
+
+    <!-- 法人資訊 -->
+    <div class="detail-section">
+      <h3>三大法人買賣超</h3>
+      <div id="detail-inst-info"></div>
+      <div class="chart-container">
+        <canvas id="detail-inst-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 載入畫面 -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-text">正在載入資料...</div>
+  </div>
+
+  <!-- 載入 JS 模組 (順序重要) -->
+  <script src="js/config.js"></script>
+  <script src="js/watchlist.js"></script>
+  <script src="js/sheetsApi.js"></script>
+  <script src="js/dataProcessor.js"></script>
+  <script src="js/filters.js"></script>
+  <script src="js/table.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/exportCsv.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
