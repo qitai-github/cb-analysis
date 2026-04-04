@@ -1,5 +1,5 @@
 /**
- * Google Apps Script - CB 發行資訊彙整 API
+ * Google Apps Script - CB 可轉債分析平台 統一 API
  *
  * 部署步驟：
  * 1. 前往 https://script.google.com/ 建立新專案
@@ -9,13 +9,33 @@
  * 5. 執行身份：「我」
  * 6. 存取權限：「所有人」
  * 7. 部署後取得網址，貼到 config.js 的 APPS_SCRIPT_URL
+ *
+ * API 用法：
+ *   ?mode=all      → 回傳所有資料（5張表 + CB發行資訊），前端只需 1 次請求
+ *   ?mode=issuance → 僅回傳 CB 發行資訊（預設，向下相容）
  */
 
 const ISSUANCE_SHEET_ID = '1-9O7y6LCc7mMaM_QBZCeywj8q96EOXFr3PigERJXZJU';
 
+// 所有資料來源 (對應 config.js 的 DATA_SOURCES)
+const SHEET_SOURCES = {
+  cbInstitutional: { sheetId: '1oulqms1FJo4QYzgP4UQyABjFfHpguiBq4a2p6AWJHaU', gid: 450965581 },
+  stockTrading:    { sheetId: '1yijLlFRR_RiUEBQ6zzGuP9Wj4wSIHwbYD3tz-L0hFy0', gid: 656366568 },
+  cbDailyReport:   { sheetId: '1pZL7SHhojT2FtB00cDWyZ1b7HSPhQF5Nkf4oIaTTNqc', gid: 1519719436 },
+  fubonPrimary:    { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 953953291 },
+  yuantaPrimary:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 1557790812 }
+};
+
 function doGet(e) {
+  const mode = (e && e.parameter && e.parameter.mode) || 'issuance';
+
   try {
-    const data = getAllCBIssuanceInfo();
+    let data;
+    if (mode === 'all') {
+      data = getAllData();
+    } else {
+      data = getAllCBIssuanceInfo();
+    }
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok', data, timestamp: new Date().toISOString() }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -26,6 +46,51 @@ function doGet(e) {
   }
 }
 
+/**
+ * 統一 API：一次讀取所有資料來源
+ * 回傳格式與前端 loadAll() 的 results 相同
+ */
+function getAllData() {
+  const result = {};
+
+  for (const [key, source] of Object.entries(SHEET_SOURCES)) {
+    try {
+      result[key] = readSheetByGid(source.sheetId, source.gid);
+    } catch (err) {
+      Logger.log('讀取 ' + key + ' 失敗: ' + err.message);
+      result[key] = null;
+    }
+  }
+
+  // CB 發行資訊
+  try {
+    result.cbIssuance = getAllCBIssuanceInfo();
+  } catch (err) {
+    Logger.log('讀取 CB 發行資訊失敗: ' + err.message);
+    result.cbIssuance = null;
+  }
+
+  return result;
+}
+
+/**
+ * 依 spreadsheetId + gid 讀取整張工作表
+ * 回傳 2D 字串陣列 (與 gviz parseGvizTable 格式相容)
+ */
+function readSheetByGid(spreadsheetId, gid) {
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const sheets = ss.getSheets();
+  for (const sheet of sheets) {
+    if (sheet.getSheetId() == gid) {
+      return sheet.getDataRange().getDisplayValues();
+    }
+  }
+  return [];
+}
+
+/**
+ * CB 發行資訊 (從個別分頁讀取關鍵欄位)
+ */
 function getAllCBIssuanceInfo() {
   const ss = SpreadsheetApp.openById(ISSUANCE_SHEET_ID);
   const sheets = ss.getSheets();
@@ -35,23 +100,17 @@ function getAllCBIssuanceInfo() {
     try {
       const name = sheet.getName();
 
-      // 讀取關鍵儲存格
-      const a1 = sheet.getRange('A1').getValue(); // 公司名稱 + 債券名稱
-      const d7 = sheet.getRange('D7').getValue(); // 轉(交)換期間 (有些在D7,有些在D8)
-      const d8 = sheet.getRange('D8').getValue(); // 轉(交)換期間
-      const d9 = sheet.getRange('D9').getValue(); // 最新轉(交)換價格
-      const a6 = sheet.getRange('A6').getValue(); // 發行日期
-      const a7 = sheet.getRange('A7').getValue(); // 到期日期
-      const d6 = sheet.getRange('D6').getValue(); // 發行時轉換價格
-      const d4 = sheet.getRange('D4').getValue(); // 發行面額/張數
-      const b2 = sheet.getRange('B2').getValue(); // 資料來源(含bond_id)
+      const a1 = sheet.getRange('A1').getValue();
+      const d7 = sheet.getRange('D7').getValue();
+      const d8 = sheet.getRange('D8').getValue();
+      const d9 = sheet.getRange('D9').getValue();
+      const a7 = sheet.getRange('A7').getValue();
+      const d6 = sheet.getRange('D6').getValue();
+      const b2 = sheet.getRange('B2').getValue();
 
-      // 從 A1 提取 CB 名稱中的代碼
-      // 從 B2 的 URL 提取 bond_id
       const bondIdMatch = String(b2).match(/bond_id=(\d+)/);
       const bondId = bondIdMatch ? bondIdMatch[1] : '';
 
-      // 提取轉換期間 (可能在 D7 或 D8)
       let convPeriod = '';
       const d8Str = String(d8);
       const d7Str = String(d7);
@@ -61,7 +120,6 @@ function getAllCBIssuanceInfo() {
         convPeriod = d7Str.replace(/轉\(交\)換期間[：:]\s*/, '');
       }
 
-      // 提取最新轉換價格
       let convPrice = null;
       const d9Str = String(d9);
       if (d9Str.includes('轉') && d9Str.includes('價格')) {
@@ -69,19 +127,16 @@ function getAllCBIssuanceInfo() {
         if (priceMatch) convPrice = parseFloat(priceMatch[1].replace(/,/g, ''));
       }
 
-      // 提取發行時轉換價格
       let issueConvPrice = null;
       const d6Str = String(d6);
       const issuePriceMatch = d6Str.match(/([\d,]+\.?\d*)\s*元/);
       if (issuePriceMatch) issueConvPrice = parseFloat(issuePriceMatch[1].replace(/,/g, ''));
 
-      // 提取到期日期
       let maturityDate = '';
       const a7Str = String(a7);
       const maturityMatch = a7Str.match(/(\d{2,3}\/\d{2}\/\d{2})/);
       if (maturityMatch) maturityDate = maturityMatch[1];
 
-      // 提取股票代碼 (bond_id前4碼)
       const stockCode = bondId ? bondId.substring(0, 4) : '';
 
       results.push({
@@ -95,7 +150,6 @@ function getAllCBIssuanceInfo() {
         maturityDate
       });
     } catch (e) {
-      // 跳過無法讀取的分頁
       continue;
     }
   }
@@ -108,4 +162,15 @@ function testRun() {
   const data = getAllCBIssuanceInfo();
   Logger.log(JSON.stringify(data.slice(0, 3), null, 2));
   Logger.log('Total sheets: ' + data.length);
+}
+
+function testAllData() {
+  const data = getAllData();
+  for (const [key, val] of Object.entries(data)) {
+    if (Array.isArray(val)) {
+      Logger.log(key + ': ' + val.length + ' rows');
+    } else if (val && typeof val === 'object') {
+      Logger.log(key + ': object with ' + Object.keys(val).length + ' keys');
+    }
+  }
 }

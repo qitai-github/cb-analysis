@@ -104,14 +104,40 @@ const SheetsAPI = (() => {
   }
 
   /**
+   * 統一 API：一次請求取得所有資料 (Apps Script ?mode=all)
+   */
+  async function fetchUnifiedAPI() {
+    if (!APPS_SCRIPT_URL) throw new Error('未設定 APPS_SCRIPT_URL');
+    const url = APPS_SCRIPT_URL + '?mode=all';
+    const response = await fetchWithTimeout(url, 60000);
+    const json = await response.json();
+    if (json.status !== 'ok') throw new Error(json.message || 'API 錯誤');
+    return json.data;
+  }
+
+  /**
    * 批次載入所有資料來源
+   * 優先使用統一 API (1 次請求)，失敗則 fallback 到 gviz (6 次請求)
    */
   async function loadAll(onProgress) {
+    // === 優先：統一 API ===
+    try {
+      if (onProgress) onProgress(0, 1, '統一API載入中...');
+      const data = await fetchUnifiedAPI();
+      data._errors = [];
+      if (onProgress) onProgress(1, 1, '完成');
+      console.log('[loadAll] 統一API載入成功');
+      return data;
+    } catch (err) {
+      console.warn('[loadAll] 統一API失敗，改用 gviz:', err.message);
+    }
+
+    // === Fallback：gviz 逐一載入 ===
     const sources = Object.entries(DATA_SOURCES);
     const results = {};
     const errors = [];
     let loaded = 0;
-    const total = sources.length + 1; // +1 for CB issuance
+    const total = sources.length + 1;
 
     const promises = sources.map(async ([key, source]) => {
       try {
@@ -126,7 +152,6 @@ const SheetsAPI = (() => {
       if (onProgress) onProgress(loaded, total, source.name);
     });
 
-    // 同時載入 CB 發行資訊
     const issuancePromise = (async () => {
       try {
         results.cbIssuance = await fetchCBIssuance();
