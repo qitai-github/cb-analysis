@@ -13,6 +13,7 @@
  * API 用法：
  *   ?mode=all      → 回傳所有資料（5張表 + CB發行資訊），前端只需 1 次請求
  *   ?mode=issuance → 僅回傳 CB 發行資訊（預設，向下相容）
+ *   ?mode=flush    → 清除伺服器快取，強制重新讀取
  */
 
 const ISSUANCE_SHEET_ID = '1-9O7y6LCc7mMaM_QBZCeywj8q96EOXFr3PigERJXZJU';
@@ -26,24 +27,102 @@ const SHEET_SOURCES = {
   yuantaPrimary:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 1557790812 }
 };
 
+// === 伺服器端快取設定 ===
+const SERVER_CACHE_TTL = 600; // 10 分鐘 (秒)
+const CACHE_KEY_PREFIX = 'cb_api_';
+
 function doGet(e) {
   const mode = (e && e.parameter && e.parameter.mode) || 'issuance';
 
   try {
     let data;
+
+    if (mode === 'flush') {
+      flushServerCache();
+      return jsonResponse({ status: 'ok', message: 'cache cleared' });
+    }
+
     if (mode === 'all') {
-      data = getAllData();
+      data = getAllDataCached();
     } else {
       data = getAllCBIssuanceInfo();
     }
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'ok', data, timestamp: new Date().toISOString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+
+    return jsonResponse({ status: 'ok', data, timestamp: new Date().toISOString() });
   } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse({ status: 'error', message: err.message });
   }
+}
+
+function jsonResponse(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// === 伺服器快取邏輯 ===
+
+/**
+ * 帶快取的 getAllData
+ * CacheService 單一 key 上限 100KB，資料大時需分塊儲存
+ */
+function getAllDataCached() {
+  const cache = CacheService.getScriptCache();
+
+  // 嘗試從快取讀取
+  const meta = cache.get(CACHE_KEY_PREFIX + 'meta');
+  if (meta) {
+    try {
+      const { chunks } = JSON.parse(meta);
+      const keys = [];
+      for (let i = 0; i < chunks; i++) {
+        keys.push(CACHE_KEY_PREFIX + 'chunk_' + i);
+      }
+      const parts = cache.getAll(keys);
+      // 確認所有 chunk 都在
+      if (Object.keys(parts).length === chunks) {
+        let jsonStr = '';
+        for (let i = 0; i < chunks; i++) {
+          jsonStr += parts[CACHE_KEY_PREFIX + 'chunk_' + i];
+        }
+        return JSON.parse(jsonStr);
+      }
+    } catch (e) {
+      Logger.log('快取讀取失敗，重新載入: ' + e.message);
+    }
+  }
+
+  // 快取未命中，從 Sheets 讀取
+  const data = getAllData();
+
+  // 寫入快取 (分塊，每塊 90KB 以內)
+  try {
+    const jsonStr = JSON.stringify(data);
+    const CHUNK_SIZE = 90000; // 90KB per chunk (留餘量)
+    const chunks = Math.ceil(jsonStr.length / CHUNK_SIZE);
+    const cacheEntries = {};
+
+    for (let i = 0; i < chunks; i++) {
+      cacheEntries[CACHE_KEY_PREFIX + 'chunk_' + i] = jsonStr.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    }
+
+    cache.putAll(cacheEntries, SERVER_CACHE_TTL);
+    cache.put(CACHE_KEY_PREFIX + 'meta', JSON.stringify({ chunks, time: new Date().toISOString() }), SERVER_CACHE_TTL);
+  } catch (e) {
+    Logger.log('快取寫入失敗: ' + e.message);
+  }
+
+  return data;
+}
+
+function flushServerCache() {
+  const cache = CacheService.getScriptCache();
+  // 清除所有已知的 chunk keys
+  const keysToRemove = [CACHE_KEY_PREFIX + 'meta'];
+  for (let i = 0; i < 20; i++) {
+    keysToRemove.push(CACHE_KEY_PREFIX + 'chunk_' + i);
+  }
+  cache.removeAll(keysToRemove);
 }
 
 /**

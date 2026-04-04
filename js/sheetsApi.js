@@ -109,7 +109,7 @@ const SheetsAPI = (() => {
   async function fetchUnifiedAPI() {
     if (!APPS_SCRIPT_URL) throw new Error('未設定 APPS_SCRIPT_URL');
     const url = APPS_SCRIPT_URL + '?mode=all';
-    const response = await fetchWithTimeout(url, 60000);
+    const response = await fetchWithTimeout(url, 90000);
     const json = await response.json();
     if (json.status !== 'ok') throw new Error(json.message || 'API 錯誤');
     return json.data;
