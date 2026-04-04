@@ -134,14 +134,6 @@ const DataProcessor = (() => {
         : rawData.length;
     }
 
-    console.log('[detectSections]', found.map(s =>
-      `${s.title}: keywordRow=${s.keywordRow}, range=${s.keywordRow + 1}~${s.endRow}`
-    ));
-    // Debug: 印出每個關鍵字列的實際內容
-    for (const s of found) {
-      const row = rawData[s.keywordRow];
-      console.log(`[detectSections] "${s.title}" row ${s.keywordRow} content:`, row?.slice(0, 5));
-    }
     return found;
   }
 

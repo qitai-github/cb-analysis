@@ -36,9 +36,6 @@ const App = (() => {
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
 
-      // 儲存到 localStorage 供下次快速載入
-      SheetsAPI.saveToStorage(rawResults);
-
       // 顯示更新日期
       updateDateDisplay();
 
@@ -56,6 +53,9 @@ const App = (() => {
 
       applyCurrentFilters();
       buildFilterPanel();
+
+      // 畫面顯示後才背景存快取（不卡 UI）
+      setTimeout(() => SheetsAPI.saveToStorage(rawResults), 100);
 
     } catch (err) {
       console.error('初始化失敗:', err);
