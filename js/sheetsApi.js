@@ -14,7 +14,7 @@ const SheetsAPI = (() => {
       return response;
     } catch (err) {
       clearTimeout(timer);
-      if (err.name === 'AbortError') throw new Error('請求超時 (30秒)');
+      if (err.name === 'AbortError') throw new Error(`請求超時 (${Math.round(timeoutMs/1000)}秒)`);
       throw err;
     }
   }
