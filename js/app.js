@@ -545,7 +545,14 @@ const App = (() => {
     init();
   }
 
-  return { init, closeDetail, getSelectedStock, refreshData };
+  function toggleMobileFilter() {
+    const sidebar = document.getElementById('filter-panel');
+    const backdrop = document.getElementById('mobile-filter-backdrop');
+    const isOpen = sidebar.classList.toggle('mobile-open');
+    if (backdrop) backdrop.classList.toggle('show', isOpen);
+  }
+
+  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

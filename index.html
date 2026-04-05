@@ -19,6 +19,7 @@
     <div class="header-actions">
       <span class="header-date" id="header-date"></span>
       <span class="header-status" id="header-status"></span>
+      <button class="btn-icon mobile-filter-toggle" onclick="App.toggleMobileFilter()" title="篩選">&#x2630;</button>
       <button class="btn-icon" onclick="App.refreshData()" title="重新載入資料">&#x21BB;</button>
     </div>
   </header>
@@ -69,6 +70,9 @@
       </div>
     </div>
   </div>
+
+  <!-- 手機篩選遮罩 -->
+  <div class="mobile-filter-backdrop" id="mobile-filter-backdrop" onclick="App.toggleMobileFilter()"></div>
 
   <!-- 載入畫面 -->
   <div class="loading-overlay" id="loading-overlay">
