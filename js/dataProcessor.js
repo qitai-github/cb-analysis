@@ -502,6 +502,11 @@ const DataProcessor = (() => {
       stock.ma20 = calcMA(stock.trading['收盤價'], tradingDates, 20);
       const rawAvgVol5 = calcMA(stock.trading['成交股數'], tradingDates, 5);
       stock.avgVolume5 = rawAvgVol5 != null ? Math.round(rawAvgVol5 / 1000) : null;
+
+      // 線型T & 第一根表態
+      const ohlcv = buildOHLCVArray(stock);
+      stock.tPatternDays = calcTPatternDays(ohlcv);
+      stock.firstBarSignal = checkFirstBarSignal(ohlcv);
     }
 
     // === 法人累計 (股→張 ÷1000) ===
@@ -567,6 +572,176 @@ const DataProcessor = (() => {
       const conversionValue = (100 / stock.conversionPrice) * stock.latestClose;
       stock.cbPremiumRate = ((stock.mainCB.close - conversionValue) / conversionValue) * 100;
     }
+  }
+
+  // === 技術指標：線型T & 第一根表態 ===
+
+  /**
+   * 將 stock.trading 物件格式轉換為陣列格式
+   * 回傳 [{date, open, high, low, close, volume}, ...]
+   * volume 單位: 張 (已除以1000)
+   */
+  function buildOHLCVArray(stock) {
+    const dates = stock.tradingDates || [];
+    if (dates.length === 0) return [];
+    const arr = [];
+    for (const d of dates) {
+      const close = stock.trading['收盤價']?.[d];
+      if (close == null) continue;
+      arr.push({
+        date: d,
+        open:   stock.trading['開盤價']?.[d] ?? close,
+        high:   stock.trading['最高價']?.[d] ?? close,
+        low:    stock.trading['最低價']?.[d] ?? close,
+        close:  close,
+        volume: (stock.trading['成交股數']?.[d] ?? 0) / 1000
+      });
+    }
+    return arr;
+  }
+
+  /**
+   * 計算線型T連續天數 (從最新日往回數)
+   * 條件: 每天 漲跌幅 < 前一天漲跌幅, 最低價 > 前一天最低價, 最高價 <= 前一天最高價
+   */
+  function calcTPatternDays(data) {
+    if (data.length < 3) return 0;
+    let count = 0;
+    for (let i = data.length - 1; i >= 2; i--) {
+      const today = data[i];
+      const prev  = data[i - 1];
+      const prev2 = data[i - 2];
+      // 今日 vs 前一日 的漲跌幅
+      const todayChange = prev.close ? ((today.close - prev.close) / prev.close * 100) : 0;
+      const prevChange  = prev2.close ? ((prev.close - prev2.close) / prev2.close * 100) : 0;
+      if (todayChange < prevChange && today.low > prev.low && today.high <= prev.high) {
+        count++;
+      } else {
+        break;
+      }
+    }
+    return count;
+  }
+
+  // --- 第一根表態 技術指標計算 ---
+
+  function sma(data, period, idx, key) {
+    if (idx < period - 1) return 0;
+    let sum = 0;
+    for (let i = 0; i < period; i++) sum += data[idx - i][key];
+    return sum / period;
+  }
+
+  function stdDev(data, period, idx, mean, key) {
+    if (idx < period - 1) return 0;
+    let sumSq = 0;
+    for (let i = 0; i < period; i++) {
+      const diff = data[idx - i][key] - mean;
+      sumSq += diff * diff;
+    }
+    return Math.sqrt(sumSq / period);
+  }
+
+  function calcKDJ(data, n, m1, m2) {
+    const K = [], D = [];
+    let kVal = 50, dVal = 50;
+    for (let i = 0; i < data.length; i++) {
+      if (i < n - 1) { K.push(50); D.push(50); continue; }
+      let lowest = data[i].low, highest = data[i].high;
+      for (let j = 0; j < n; j++) {
+        if (data[i - j].low < lowest) lowest = data[i - j].low;
+        if (data[i - j].high > highest) highest = data[i - j].high;
+      }
+      const rsv = (highest !== lowest) ? (data[i].close - lowest) / (highest - lowest) * 100 : 50;
+      kVal = (2 / 3) * kVal + (1 / 3) * rsv;
+      dVal = (2 / 3) * dVal + (1 / 3) * kVal;
+      K.push(kVal);
+      D.push(dVal);
+    }
+    return { K, D };
+  }
+
+  function calcDMI(data, n) {
+    const PDI = [], MDI = [];
+    let trSmooth = 0, pdmSmooth = 0, mdmSmooth = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (i === 0) { PDI.push(0); MDI.push(0); continue; }
+      const prevClose = data[i - 1].close;
+      const prevHigh  = data[i - 1].high;
+      const prevLow   = data[i - 1].low;
+      const tr = Math.max(data[i].high - data[i].low, Math.abs(data[i].high - prevClose), Math.abs(data[i].low - prevClose));
+      const up = data[i].high - prevHigh;
+      const down = prevLow - data[i].low;
+      const pdm = (up > down && up > 0) ? up : 0;
+      const mdm = (down > up && down > 0) ? down : 0;
+      if (i < n) {
+        trSmooth += tr; pdmSmooth += pdm; mdmSmooth += mdm;
+        PDI.push(0); MDI.push(0);
+      } else if (i === n) {
+        PDI.push(trSmooth ? (pdmSmooth / trSmooth) * 100 : 0);
+        MDI.push(trSmooth ? (mdmSmooth / trSmooth) * 100 : 0);
+      } else {
+        trSmooth  = trSmooth  - (trSmooth  / n) + tr;
+        pdmSmooth = pdmSmooth - (pdmSmooth / n) + pdm;
+        mdmSmooth = mdmSmooth - (mdmSmooth / n) + mdm;
+        PDI.push(trSmooth ? (pdmSmooth / trSmooth) * 100 : 0);
+        MDI.push(trSmooth ? (mdmSmooth / trSmooth) * 100 : 0);
+      }
+    }
+    return { PDI, MDI };
+  }
+
+  /**
+   * 第一根表態 策略判斷
+   * 五個維度同時亮燈: 能量(量能爆發) + 動能(KDJ金叉) + 乖離(收斂後發散) + 趨勢(DMI正向) + 壓力(布林突破)
+   */
+  function checkFirstBarSignal(data) {
+    if (data.length < 30) return false;
+    const idx = data.length - 1;
+    const prev = idx - 1;
+
+    // 1. 能量: volMA2 > volMA20
+    const volMA2  = sma(data, 2,  idx, 'volume');
+    const volMA20 = sma(data, 20, idx, 'volume');
+    if (!(volMA2 > volMA20)) return false;
+
+    // 2. 乖離: 今天 (bias6 - bias3) > 0，昨天 <= 0
+    const ma3     = sma(data, 3, idx,  'close');
+    const ma6     = sma(data, 6, idx,  'close');
+    const bias3   = (data[idx].close - ma3) / ma3 * 100;
+    const bias6   = (data[idx].close - ma6) / ma6 * 100;
+    const prevMa3 = sma(data, 3, prev, 'close');
+    const prevMa6 = sma(data, 6, prev, 'close');
+    const prevBias3 = (data[prev].close - prevMa3) / prevMa3 * 100;
+    const prevBias6 = (data[prev].close - prevMa6) / prevMa6 * 100;
+    if (!((bias6 - bias3) > 0)) return false;
+    if (!((prevBias6 - prevBias3) <= 0)) return false;
+
+    // 3. 動能: KDJ(5,3,3) 金叉 — 今天 K>D, 昨天 K<=D
+    const kdj = calcKDJ(data, 5, 3, 3);
+    const jToday = 3 * kdj.K[idx] - 2 * kdj.D[idx];
+    if (!(kdj.K[idx] > kdj.D[idx])) return false;
+    if (!(jToday > kdj.D[idx])) return false;
+    if (!(kdj.K[prev] <= kdj.D[prev])) return false;
+
+    // 4. 趨勢: DMI(5) PDI > MDI
+    const dmi = calcDMI(data, 5);
+    if (!(dmi.PDI[idx] - dmi.MDI[idx] > 0)) return false;
+
+    // 5. 壓力: 布林(7,2) 昨天 high < upper, 今天 close >= upper*0.99
+    const bbUpper = [];
+    for (let i = 0; i < data.length; i++) {
+      const m = sma(data, 7, i, 'close');
+      const sd = stdDev(data, 7, i, m, 'close');
+      bbUpper.push(m + 2 * sd);
+    }
+    if (!(data[prev].high < bbUpper[prev])) return false;
+    if (!(data[idx].close >= bbUpper[idx] * 0.99)) return false;
+
+    // 6. 最低成交量門檻
+    if (data[idx].volume < 500) return false;
+
+    return true;
   }
 
   // === 工具函數 ===

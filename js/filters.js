@@ -20,30 +20,19 @@ const Filters = (() => {
       apply: (stock, val) => !val || Watchlist.has(stock.code)
     },
 
-    // 股價
-    priceMin: {
-      label: '股價 >=',
+    // 股價篩選
+    tPatternDays: {
+      label: '線型T >= N日',
       type: 'number',
+      placeholder: '天數...',
       group: '股價篩選',
-      apply: (stock, val) => !val || (stock.latestClose != null && stock.latestClose >= val)
+      apply: (stock, val) => !val || (stock.tPatternDays != null && stock.tPatternDays >= val)
     },
-    priceMax: {
-      label: '股價 <=',
-      type: 'number',
+    firstBarSignal: {
+      label: '第一根表態',
+      type: 'checkbox',
       group: '股價篩選',
-      apply: (stock, val) => !val || (stock.latestClose != null && stock.latestClose <= val)
-    },
-    priceChangeMin: {
-      label: '漲跌幅% >=',
-      type: 'number',
-      group: '股價篩選',
-      apply: (stock, val) => !val || (stock.priceChangePercent != null && stock.priceChangePercent >= val)
-    },
-    priceChangeMax: {
-      label: '漲跌幅% <=',
-      type: 'number',
-      group: '股價篩選',
-      apply: (stock, val) => !val || (stock.priceChangePercent != null && stock.priceChangePercent <= val)
+      apply: (stock, val) => !val || stock.firstBarSignal === true
     },
 
     // 成交量
