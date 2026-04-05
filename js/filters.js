@@ -58,7 +58,7 @@ const Filters = (() => {
       label: '法人累計天數',
       type: 'select',
       options: [1, 3, 5, 10, 20, 60, 120, 360],
-      default: 5,
+      default: 1,
       group: '法人篩選',
       isHelper: true
     },
