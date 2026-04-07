@@ -183,8 +183,9 @@ function getAllCBIssuanceInfo() {
       const d7 = sheet.getRange('D7').getValue();
       const d8 = sheet.getRange('D8').getValue();
       const d9 = sheet.getRange('D9').getValue();
-      const a7 = sheet.getRange('A7').getValue();
+      const a8 = sheet.getRange('A8').getValue();
       const d6 = sheet.getRange('D6').getValue();
+      const d10 = sheet.getRange('D10').getValue();
       const b2 = sheet.getRange('B2').getValue();
 
       const bondIdMatch = String(b2).match(/bond_id=(\d+)/);
@@ -212,9 +213,14 @@ function getAllCBIssuanceInfo() {
       if (issuePriceMatch) issueConvPrice = parseFloat(issuePriceMatch[1].replace(/,/g, ''));
 
       let maturityDate = '';
-      const a7Str = String(a7);
-      const maturityMatch = a7Str.match(/(\d{2,3}\/\d{2}\/\d{2})/);
+      const a8Str = String(a8);
+      const maturityMatch = a8Str.match(/(\d{2,3}\/\d{2}\/\d{2})/);
       if (maturityMatch) maturityDate = maturityMatch[1];
+
+      let nextPutDate = '';
+      const d10Str = String(d10);
+      const putDateMatch = d10Str.match(/(\d{2,3}\/\d{2}\/\d{2})/);
+      if (putDateMatch) nextPutDate = putDateMatch[1];
 
       const stockCode = bondId ? bondId.substring(0, 4) : '';
 
@@ -226,7 +232,8 @@ function getAllCBIssuanceInfo() {
         conversionPeriod: convPeriod,
         conversionPrice: convPrice,
         issueConversionPrice: issueConvPrice,
-        maturityDate
+        maturityDate,
+        nextPutDate
       });
     } catch (e) {
       continue;

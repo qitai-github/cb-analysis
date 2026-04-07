@@ -351,6 +351,10 @@ const App = (() => {
               <span class="info-label">到期日</span>
               <span class="info-value">${cb.maturityDate || '-'}</span>
             </div>
+            <div class="info-item">
+              <span class="info-label">賣回權日</span>
+              <span class="info-value">${cb.nextPutDate || '-'}</span>
+            </div>
           </div>
         </div>`;
     }

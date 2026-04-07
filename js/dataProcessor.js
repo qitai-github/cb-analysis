@@ -359,6 +359,7 @@ const DataProcessor = (() => {
         conversionPrice: item.conversionPrice,
         conversionPeriod: item.conversionPeriod,
         maturityDate: item.maturityDate,
+        nextPutDate: item.nextPutDate,
         issueConversionPrice: item.issueConversionPrice,
         title: item.title
       });
@@ -415,6 +416,7 @@ const DataProcessor = (() => {
           cb.conversionPrice = issuance.conversionPrice;
           cb.conversionPeriod = issuance.conversionPeriod;
           cb.maturityDate = issuance.maturityDate;
+          cb.nextPutDate = issuance.nextPutDate;
         }
 
         const entry = getOrCreate(stockMap, cb.stockCode, '');
