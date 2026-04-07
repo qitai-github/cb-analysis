@@ -268,6 +268,7 @@ function testAllData() {
 function warmUpCache() {
   Logger.log('[warmUp] 開始刷新快取...');
   const startTime = new Date().getTime();
+  flushServerCache();
   getAllDataCached();
   const elapsed = (new Date().getTime() - startTime) / 1000;
   Logger.log('[warmUp] 快取刷新完成，耗時 ' + elapsed + ' 秒');
