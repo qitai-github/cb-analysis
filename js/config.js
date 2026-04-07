@@ -45,7 +45,7 @@ const DATA_SOURCES = {
 
 // Google Apps Script 部署 URL (CB發行資訊彙整API)
 // 部署 google_apps_script.js 後將網址貼在這裡
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyVo7cbaQPFdwjbkuVyxdUVQkH0nA8v-4EnacK0q6o8ONGjBfVXgQoiEzBVcmzZFSD_6A/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyvdzJSF9bda934pUnjsbpMB-InFeoBfnVEWtbLFttve97q25sIjywdWVe7O2EVh9pK/exec';
 
 // 應用程式設定
 const APP_CONFIG = {

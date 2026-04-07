@@ -137,7 +137,13 @@ const App = (() => {
     const btnApply = document.createElement('button');
     btnApply.textContent = '套用篩選';
     btnApply.className = 'btn btn-primary';
-    btnApply.addEventListener('click', applyCurrentFilters);
+    btnApply.addEventListener('click', () => {
+      applyCurrentFilters();
+      // 手機版：只有按套用按鈕才收起篩選面板
+      document.getElementById('filter-panel').classList.remove('mobile-open');
+      var bd = document.getElementById('mobile-filter-backdrop');
+      if (bd) bd.classList.remove('show');
+    });
 
     const btnReset = document.createElement('button');
     btnReset.textContent = '清除條件';
@@ -219,11 +225,6 @@ const App = (() => {
   }
 
   function applyCurrentFilters() {
-    // 手機版：套用後自動收起篩選面板
-    document.getElementById('filter-panel').classList.remove('mobile-open');
-    var bd = document.getElementById('mobile-filter-backdrop');
-    if (bd) bd.classList.remove('show');
-
     if (!stockMap) return;
     const filters = getFilterValues();
     filteredData = Filters.applyFilters(stockMap, filters);
