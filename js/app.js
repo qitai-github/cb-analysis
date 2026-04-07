@@ -545,7 +545,11 @@ const App = (() => {
     }
   }
 
-  function refreshData() {
+  async function refreshData() {
+    // 先清除伺服器端快取
+    if (typeof APPS_SCRIPT_URL !== 'undefined' && APPS_SCRIPT_URL) {
+      try { await fetch(APPS_SCRIPT_URL + '?mode=flush'); } catch(e) {}
+    }
     SheetsAPI.clearCache();
     SheetsAPI.clearStorage();
     init();
