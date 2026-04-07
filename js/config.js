@@ -20,8 +20,8 @@ const DATA_SOURCES = {
 
   // 3. CB交易日報 - CB即時交易資訊
   cbDailyReport: {
-    sheetId: '1pZL7SHhojT2FtB00cDWyZ1b7HSPhQF5Nkf4oIaTTNqc',
-    gid: '1519719436',
+    sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw',
+    gid: '803170134',
     name: 'CB交易日報',
     type: 'table'
   },

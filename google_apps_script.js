@@ -22,7 +22,7 @@ const ISSUANCE_SHEET_ID = '1-9O7y6LCc7mMaM_QBZCeywj8q96EOXFr3PigERJXZJU';
 const SHEET_SOURCES = {
   cbInstitutional: { sheetId: '1oulqms1FJo4QYzgP4UQyABjFfHpguiBq4a2p6AWJHaU', gid: 450965581 },
   stockTrading:    { sheetId: '1yijLlFRR_RiUEBQ6zzGuP9Wj4wSIHwbYD3tz-L0hFy0', gid: 656366568 },
-  cbDailyReport:   { sheetId: '1pZL7SHhojT2FtB00cDWyZ1b7HSPhQF5Nkf4oIaTTNqc', gid: 1519719436 },
+  cbDailyReport:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 803170134 },
   fubonPrimary:    { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 953953291 },
   yuantaPrimary:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 1557790812 }
 };
