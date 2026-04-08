@@ -120,7 +120,24 @@ const SheetsAPI = (() => {
    * 優先使用統一 API (1 次請求)，失敗則 fallback 到 gviz (6 次請求)
    */
   async function loadAll(onProgress) {
-    // === 優先：統一 API ===
+    // === 最優先：靜態 JSON 檔案 ===
+    if (typeof STATIC_DATA_URL !== 'undefined' && STATIC_DATA_URL) {
+      try {
+        if (onProgress) onProgress(0, 1, '載入資料中...');
+        const resp = await fetchWithTimeout(STATIC_DATA_URL, 15000);
+        const data = await resp.json();
+        if (data && Object.keys(data).length > 1) {
+          data._errors = [];
+          if (onProgress) onProgress(1, 1, '完成');
+          console.log('[loadAll] 靜態JSON載入成功');
+          return data;
+        }
+      } catch (err) {
+        console.warn('[loadAll] 靜態JSON失敗，改用統一API:', err.message);
+      }
+    }
+
+    // === 次優先：統一 API ===
     try {
       if (onProgress) onProgress(0, 1, '統一API載入中...');
       const data = await fetchUnifiedAPI();

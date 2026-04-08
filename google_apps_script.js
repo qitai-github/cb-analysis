@@ -280,3 +280,83 @@ function warmUpCache() {
   const elapsed = (new Date().getTime() - startTime) / 1000;
   Logger.log('[warmUp] 快取刷新完成，耗時 ' + elapsed + ' 秒');
 }
+
+// === GitHub 靜態 JSON 匯出 ===
+// Token 存放在 Script Properties 中（不可寫在程式碼裡）
+// 設定方式：Apps Script 編輯器 → 專案設定(齒輪) → 指令碼屬性 → 新增
+//   屬性名稱: GITHUB_TOKEN    值: 你的 GitHub Personal Access Token
+const GITHUB_OWNER = 'qitai-github';
+const GITHUB_REPO = 'cb-analysis';
+const GITHUB_FILE_PATH = 'data/all-data.json';
+
+/**
+ * 將所有資料匯出為 JSON 並推送到 GitHub
+ *
+ * 設定定時觸發：
+ * 1. 觸發條件 → + 新增觸發條件
+ * 2. 選擇函式：exportToGitHub
+ * 3. 事件來源：時間驅動
+ * 4. 類型：每日計時器 → 下午 7 點到 8 點
+ */
+function exportToGitHub() {
+  Logger.log('[exportToGitHub] 開始匯出...');
+  const startTime = new Date().getTime();
+
+  const GITHUB_TOKEN = PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN');
+  if (!GITHUB_TOKEN) {
+    Logger.log('[exportToGitHub] 錯誤：未設定 GITHUB_TOKEN，請到專案設定 → 指令碼屬性中新增');
+    return;
+  }
+
+  // 取得最新資料
+  const data = getAllData();
+  const jsonStr = JSON.stringify(data);
+  const contentB64 = Utilities.base64Encode(Utilities.newBlob(jsonStr).getBytes());
+
+  // 取得現有檔案的 SHA（更新檔案時需要）
+  let sha = '';
+  try {
+    const getResp = UrlFetchApp.fetch(
+      'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/contents/' + GITHUB_FILE_PATH,
+      {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer ' + GITHUB_TOKEN },
+        muteHttpExceptions: true
+      }
+    );
+    if (getResp.getResponseCode() === 200) {
+      sha = JSON.parse(getResp.getContentText()).sha;
+    }
+  } catch (e) {
+    Logger.log('[exportToGitHub] 取得 SHA 失敗（可能是新檔案）: ' + e.message);
+  }
+
+  // 推送到 GitHub
+  const payload = {
+    message: '更新資料 ' + new Date().toISOString().substring(0, 10),
+    content: contentB64
+  };
+  if (sha) payload.sha = sha;
+
+  const putResp = UrlFetchApp.fetch(
+    'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/contents/' + GITHUB_FILE_PATH,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + GITHUB_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    }
+  );
+
+  const code = putResp.getResponseCode();
+  const elapsed = (new Date().getTime() - startTime) / 1000;
+
+  if (code === 200 || code === 201) {
+    Logger.log('[exportToGitHub] 推送成功，耗時 ' + elapsed + ' 秒');
+  } else {
+    Logger.log('[exportToGitHub] 推送失敗 (' + code + '): ' + putResp.getContentText());
+  }
+}

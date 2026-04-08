@@ -47,6 +47,9 @@ const DATA_SOURCES = {
 // 部署 google_apps_script.js 後將網址貼在這裡
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyvdzJSF9bda934pUnjsbpMB-InFeoBfnVEWtbLFttve97q25sIjywdWVe7O2EVh9pK/exec';
 
+// 靜態 JSON 資料路徑（由 GAS exportToGitHub 每日更新）
+const STATIC_DATA_URL = 'data/all-data.json';
+
 // 應用程式設定
 const APP_CONFIG = {
   defaultRecentDays: 20,
