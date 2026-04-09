@@ -22,10 +22,20 @@ const Watchlist = (() => {
     save();
   }
 
+  function add(code) {
+    watchSet.add(code);
+    save();
+  }
+
+  function addBatch(codes) {
+    for (const c of codes) watchSet.add(c);
+    save();
+  }
+
   function getAll() { return [...watchSet]; }
 
   // 初始載入
   load();
 
-  return { has, toggle, getAll };
+  return { has, toggle, add, addBatch, getAll };
 })();

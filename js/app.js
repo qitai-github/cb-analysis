@@ -155,7 +155,41 @@ const App = (() => {
     btnExport.className = 'btn btn-accent';
     btnExport.addEventListener('click', () => ExportCSV.exportFiltered(filteredData));
 
-    btnRow.append(btnApply, btnReset, btnExport);
+    const btnImport = document.createElement('button');
+    btnImport.textContent = '匯入 CSV 追蹤';
+    btnImport.className = 'btn btn-secondary';
+    btnImport.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.csv';
+      input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const text = ev.target.result;
+          const lines = text.trim().split('\n');
+          if (lines.length < 2) return;
+          const codes = [];
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            const code = cols[0] && cols[0].trim();
+            if (code && /^\d+$/.test(code)) codes.push(code);
+          }
+          if (codes.length === 0) {
+            alert('CSV 中未找到有效的股票代碼');
+            return;
+          }
+          Watchlist.addBatch(codes);
+          alert(`已將 ${codes.length} 檔標的加入追蹤：${codes.join(', ')}`);
+          applyCurrentFilters();
+        };
+        reader.readAsText(file);
+      });
+      input.click();
+    });
+
+    btnRow.append(btnApply, btnReset, btnExport, btnImport);
     panel.appendChild(btnRow);
   }
 
