@@ -404,6 +404,14 @@ const DataProcessor = (() => {
       }
     }
 
+    // 3a. CB 每日交易明細 (CB 自身 OHLCV 時間序列)
+    //     以 cbCode 為 key 儲存，稍後在計算衍生欄位時接到 mainCB
+    let cbTradingByCode = null;
+    if (rawResults.cbDailyTrading) {
+      const { dates, stocks } = parseTimeSeries(rawResults.cbDailyTrading);
+      cbTradingByCode = { dates, stocks };
+    }
+
     // 3. CB 交易日報
     if (rawResults.cbDailyReport) {
       const cbDaily = parseCBDailyReport(rawResults.cbDailyReport);
@@ -449,7 +457,7 @@ const DataProcessor = (() => {
 
     // 計算衍生欄位
     for (const [, stock] of stockMap) {
-      computeDerivedFields(stock, issuanceMap);
+      computeDerivedFields(stock, issuanceMap, cbTradingByCode);
     }
 
     return { stockMap, latestDataDate };
@@ -476,7 +484,7 @@ const DataProcessor = (() => {
   /**
    * 計算衍生欄位
    */
-  function computeDerivedFields(stock, issuanceMap) {
+  function computeDerivedFields(stock, issuanceMap, cbTradingByCode) {
     const tradingDates = stock.tradingDates || [];
     const instDates = stock.institutionalDates || [];
 
@@ -567,6 +575,24 @@ const DataProcessor = (() => {
       }
     }
 
+    // === CB 自身價格走勢 (cbDailyTrading) ===
+    if (cbTradingByCode && stock.mainCB?.cbCode) {
+      const cbEntry = cbTradingByCode.stocks[stock.mainCB.cbCode];
+      if (cbEntry) {
+        stock.cbTrading = cbEntry.data;       // { 收盤價:{date:val}, ... }
+        stock.cbTradingDates = cbTradingByCode.dates;
+
+        const cbOhlcv = buildCBOHLCVArray(cbEntry.data, cbTradingByCode.dates);
+        if (cbOhlcv.length > 0) {
+          stock.cbOhlcv = cbOhlcv;
+          stock.cbFirstBarSignal = checkFirstBarSignal(cbOhlcv);
+          stock.cbHighDays = calcNewHighDays(cbOhlcv);
+          const last = cbOhlcv[cbOhlcv.length - 1];
+          stock.cbLatestClose = last.close;
+        }
+      }
+    }
+
     // === CB 溢價率 ===
     // 公式: (CB市價 - 轉換價值) / 轉換價值 × 100%
     // 轉換價值 = (面額100 / 轉換價) × 股價
@@ -600,6 +626,43 @@ const DataProcessor = (() => {
       });
     }
     return arr;
+  }
+
+  /**
+   * 將 cbDailyTrading 的 category→{date:val} 結構轉成 OHLCV 陣列
+   */
+  function buildCBOHLCVArray(dataObj, dates) {
+    if (!dataObj || !dates || dates.length === 0) return [];
+    const arr = [];
+    for (const d of dates) {
+      const close = dataObj['收盤價']?.[d];
+      if (close == null || close === 0) continue;
+      arr.push({
+        date: d,
+        open:   dataObj['開盤價']?.[d] ?? close,
+        high:   dataObj['最高價']?.[d] ?? close,
+        low:    dataObj['最低價']?.[d] ?? close,
+        close:  close,
+        volume: dataObj['成交量(張)']?.[d] ?? 0
+      });
+    }
+    return arr;
+  }
+
+  /**
+   * 回傳「今天收盤價創幾日新高」— 今日收盤 >= 過去 N 日(不含今日)最高收盤的最大 N
+   * 若今日未創新高回 0
+   */
+  function calcNewHighDays(data) {
+    if (!data || data.length < 2) return 0;
+    const idx = data.length - 1;
+    const todayClose = data[idx].close;
+    let days = 0;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (data[i].close > todayClose) break;
+      days++;
+    }
+    return days;
   }
 
   /**

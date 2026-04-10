@@ -2,6 +2,7 @@
 const Charts = (() => {
   let priceChart = null;
   let instChart = null;
+  let cbPriceChart = null;
 
   /**
    * 計算移動平均線陣列
@@ -286,6 +287,126 @@ const Charts = (() => {
     });
   }
 
+  /**
+   * 繪製 CB 自身價格 K 線走勢圖 (使用 stock.cbOhlcv)
+   */
+  function renderCBPriceChart(canvasId, stock) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (cbPriceChart) { cbPriceChart.destroy(); cbPriceChart = null; }
+
+    const ohlcv = stock.cbOhlcv;
+    if (!ohlcv || ohlcv.length === 0) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = APP_CONFIG.colors.textMuted;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('無 CB 交易資料', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
+    const recent = ohlcv.slice(-APP_CONFIG.defaultRecentDays);
+    const labels = recent.map(r => formatDateLabel(r.date));
+    const openData = recent.map(r => r.open);
+    const highData = recent.map(r => r.high);
+    const lowData = recent.map(r => r.low);
+    const closeData = recent.map(r => r.close);
+    const volumeData = recent.map(r => r.volume);
+
+    const volumeColors = recent.map(r => r.close >= r.open
+      ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)');
+
+    const ma5Data = calcMAArray(closeData, 5);
+    const ma10Data = calcMAArray(closeData, 10);
+    const ma20Data = calcMAArray(closeData, 20);
+
+    const allPrices = [...highData, ...lowData, ...ma5Data, ...ma10Data, ...ma20Data].filter(v => v != null);
+    const priceMin = allPrices.length > 0 ? Math.min(...allPrices) * 0.995 : 0;
+    const priceMax = allPrices.length > 0 ? Math.max(...allPrices) * 1.005 : 100;
+
+    const candlestickPlugin = {
+      id: 'cbCandlestick',
+      afterDatasetsDraw(chart) {
+        const ctx = chart.ctx;
+        const xScale = chart.scales.x;
+        const yPrice = chart.scales.yPrice;
+        if (!yPrice) return;
+        const barWidth = Math.max(3, Math.min(12, (chart.chartArea.width / recent.length) * 0.4));
+        ctx.save();
+        for (let i = 0; i < recent.length; i++) {
+          const o = openData[i], h = highData[i], l = lowData[i], c = closeData[i];
+          if (o == null || h == null || l == null || c == null) continue;
+          const x = xScale.getPixelForValue(i);
+          const yOpen = yPrice.getPixelForValue(o);
+          const yHigh = yPrice.getPixelForValue(h);
+          const yLow = yPrice.getPixelForValue(l);
+          const yClose = yPrice.getPixelForValue(c);
+          const isUp = c >= o;
+          const color = isUp ? APP_CONFIG.colors.up : APP_CONFIG.colors.down;
+          ctx.beginPath();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.moveTo(x, yHigh);
+          ctx.lineTo(x, yLow);
+          ctx.stroke();
+          const bodyTop = Math.min(yOpen, yClose);
+          const bodyHeight = Math.abs(yOpen - yClose) || 1;
+          ctx.fillStyle = color;
+          ctx.fillRect(x - barWidth, bodyTop, barWidth * 2, bodyHeight);
+        }
+        ctx.restore();
+      }
+    };
+
+    cbPriceChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { type: 'line', label: 'MA5',  data: ma5Data,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA10', data: ma10Data, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA20', data: ma20Data, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'bar',  label: '成交量', data: volumeData, backgroundColor: volumeColors, yAxisID: 'yVolume', order: 3, barPercentage: 0.6 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              afterTitle: (items) => {
+                if (!items.length) return '';
+                const i = items[0].dataIndex;
+                const o = openData[i], h = highData[i], l = lowData[i], c = closeData[i];
+                if (o == null) return '';
+                return `開:${o.toFixed(2)}  高:${h.toFixed(2)}  低:${l.toFixed(2)}  收:${c.toFixed(2)}`;
+              },
+              label: (ctx) => {
+                if (ctx.dataset.label === '成交量') return `成交量: ${Number(ctx.raw).toLocaleString()} 張`;
+                return `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yPrice: { position: 'left', min: priceMin, max: priceMax, ticks: { color: APP_CONFIG.colors.text }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yVolume: {
+            position: 'right',
+            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
+            grid: { display: false },
+            max: (Math.max(...volumeData.filter(v => v != null && v > 0)) || 1) * 3
+          }
+        }
+      },
+      plugins: [candlestickPlugin]
+    });
+  }
+
   function formatDateLabel(dateStr) {
     if (!dateStr || dateStr.length < 8) return dateStr;
     return dateStr.substring(4, 6) + '/' + dateStr.substring(6, 8);
@@ -294,7 +415,8 @@ const Charts = (() => {
   function destroy() {
     if (priceChart) { priceChart.destroy(); priceChart = null; }
     if (instChart) { instChart.destroy(); instChart = null; }
+    if (cbPriceChart) { cbPriceChart.destroy(); cbPriceChart = null; }
   }
 
-  return { renderPriceChart, renderInstChart, destroy };
+  return { renderPriceChart, renderInstChart, renderCBPriceChart, destroy };
 })();

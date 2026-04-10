@@ -3,7 +3,7 @@ const DATA_SOURCES = {
   // 1. CB法人資料 - 三大法人每日買賣超 (時間序列)
   cbInstitutional: {
     sheetId: '1oulqms1FJo4QYzgP4UQyABjFfHpguiBq4a2p6AWJHaU',
-    gid: '450965581',
+    gid: '1046567092',
     name: 'CB法人資料',
     type: 'timeseries',
     categories: ['外資買賣超', '投信買賣超', '自營商買賣超']
@@ -12,10 +12,18 @@ const DATA_SOURCES = {
   // 2. CB對應個股每日交易明細 - 股價量資料 (時間序列)
   stockTrading: {
     sheetId: '1yijLlFRR_RiUEBQ6zzGuP9Wj4wSIHwbYD3tz-L0hFy0',
-    gid: '656366568',
+    gid: '749753136',
     name: 'CB對應個股每日交易明細',
     type: 'timeseries',
     categories: ['成交股數', '開盤價', '最高價', '最低價', '收盤價']
+  },
+
+  // 6. CB每日交易明細 (CB 自身的成交/收盤價)
+  cbDailyTrading: {
+    sheetId: '1RBdEvyRSE55paVWRjV4-MG3l2m4bPtUjyqpnHKVppbo',
+    gid: '1832010025',
+    name: 'CB每日交易明細',
+    type: 'timeseries'
   },
 
   // 3. CB交易日報 - CB即時交易資訊

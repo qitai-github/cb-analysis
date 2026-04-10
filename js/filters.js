@@ -126,6 +126,19 @@ const Filters = (() => {
       type: 'number',
       group: 'CB篩選',
       apply: (stock, val) => !val || (stock.mainCB?.close != null && stock.mainCB.close <= val)
+    },
+    cbFirstBarSignal: {
+      label: 'CB價格第一根表態',
+      type: 'checkbox',
+      group: 'CB篩選',
+      apply: (stock, val) => !val || stock.cbFirstBarSignal === true
+    },
+    cbHighDaysMin: {
+      label: 'CB價格創 N 日新高',
+      type: 'number',
+      placeholder: '天數...',
+      group: 'CB篩選',
+      apply: (stock, val) => !val || (stock.cbHighDays != null && stock.cbHighDays >= val)
     }
   };
 

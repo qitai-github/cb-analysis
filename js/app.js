@@ -291,6 +291,7 @@ const App = (() => {
 
     setTimeout(() => {
       Charts.renderPriceChart('detail-price-chart', stock);
+      Charts.renderCBPriceChart('detail-cb-price-chart', stock);
       Charts.renderInstChart('detail-inst-chart', stock);
     }, 100);
   }

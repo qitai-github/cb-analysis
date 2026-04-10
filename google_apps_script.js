@@ -20,11 +20,12 @@ const ISSUANCE_SHEET_ID = '1-9O7y6LCc7mMaM_QBZCeywj8q96EOXFr3PigERJXZJU';
 
 // 所有資料來源 (對應 config.js 的 DATA_SOURCES)
 const SHEET_SOURCES = {
-  cbInstitutional: { sheetId: '1oulqms1FJo4QYzgP4UQyABjFfHpguiBq4a2p6AWJHaU', gid: 450965581 },
-  stockTrading:    { sheetId: '1yijLlFRR_RiUEBQ6zzGuP9Wj4wSIHwbYD3tz-L0hFy0', gid: 656366568 },
+  cbInstitutional: { sheetId: '1oulqms1FJo4QYzgP4UQyABjFfHpguiBq4a2p6AWJHaU', gid: 1046567092 },
+  stockTrading:    { sheetId: '1yijLlFRR_RiUEBQ6zzGuP9Wj4wSIHwbYD3tz-L0hFy0', gid: 749753136 },
   cbDailyReport:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 803170134 },
   fubonPrimary:    { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 953953291 },
-  yuantaPrimary:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 1557790812 }
+  yuantaPrimary:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 1557790812 },
+  cbDailyTrading:  { sheetId: '1RBdEvyRSE55paVWRjV4-MG3l2m4bPtUjyqpnHKVppbo', gid: 1832010025 }
 };
 
 // === 伺服器端快取設定 ===
