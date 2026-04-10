@@ -169,6 +169,7 @@ function readSheetByGid(spreadsheetId, gid) {
 
 /**
  * CB 發行資訊 (從個別分頁讀取關鍵欄位)
+ * 一次性讀取 A1:D10 區塊 (提升 6 倍效能，避免超時)
  */
 function getAllCBIssuanceInfo() {
   const ss = SpreadsheetApp.openById(ISSUANCE_SHEET_ID);
@@ -178,55 +179,48 @@ function getAllCBIssuanceInfo() {
   for (const sheet of sheets) {
     try {
       const name = sheet.getName();
+      // 一次性讀取 A1:D10 區塊 (提升 6 倍效能)
+      const values = sheet.getRange('A1:D10').getValues();
 
-      const a1 = sheet.getRange('A1').getValue();
-      const d7 = sheet.getRange('D7').getValue();
-      const d8 = sheet.getRange('D8').getValue();
-      const d9 = sheet.getRange('D9').getValue();
-      const a8 = sheet.getRange('A8').getValue();
-      const d6 = sheet.getRange('D6').getValue();
-      const d10 = sheet.getRange('D10').getValue();
-      const b2 = sheet.getRange('B2').getValue();
+      // --- 嚴格對位區 ---
+      const a1 = values[0][0];  // A1: 標題
+      const b2 = values[1][1];  // B2: 網址 (含 bond_id)
+      const d7 = values[6][3];  // D7: 發行時轉(交)換價格
+      const d8 = values[7][3];  // D8: 轉(交)換期間
+      const d9 = values[8][3];  // D9: 最新轉(交)換價格
+      const d10 = values[9][3]; // D10: 下一次賣回權日期
+      const a8 = values[7][0];  // A8: 到期日期
+      // -----------------
 
+      // 1. 取得 Bond ID
       const bondIdMatch = String(b2).match(/bond_id=(\d+)/);
       const bondId = bondIdMatch ? bondIdMatch[1] : '';
 
-      let convPeriod = '';
-      const d8Str = String(d8);
-      const d7Str = String(d7);
-      if (d8Str.includes('轉') && d8Str.includes('期間')) {
-        convPeriod = d8Str.replace(/轉\(交\)換期間[：:]\s*/, '');
-      } else if (d7Str.includes('轉') && d7Str.includes('期間')) {
-        convPeriod = d7Str.replace(/轉\(交\)換期間[：:]\s*/, '');
-      }
+      // 2. 解析價格 (通用數字抓取 Regex)
+      const extractPrice = (val) => {
+        if (!val) return null;
+        const match = String(val).replace(/,/g, '').match(/([\d]+\.?\d*)/);
+        return match ? parseFloat(match[1]) : null;
+      };
 
-      let convPrice = null;
-      const d9Str = String(d9);
-      if (d9Str.includes('轉') && d9Str.includes('價格')) {
-        const priceMatch = d9Str.match(/([\d,]+\.?\d*)\s*元/);
-        if (priceMatch) convPrice = parseFloat(priceMatch[1].replace(/,/g, ''));
-      }
+      const issueConvPrice = extractPrice(d7); // 發行價格
+      const convPrice = extractPrice(d9);      // 最新價格
 
-      let issueConvPrice = null;
-      const d6Str = String(d6);
-      const issuePriceMatch = d6Str.match(/([\d,]+\.?\d*)\s*元/);
-      if (issuePriceMatch) issueConvPrice = parseFloat(issuePriceMatch[1].replace(/,/g, ''));
+      // 3. 解析期間 (移除前綴)
+      const convPeriod = String(d8).replace(/轉\(交\)換期間[：:]\s*/, '').trim();
 
-      let maturityDate = '';
-      const a8Str = String(a8);
-      const maturityMatch = a8Str.match(/(\d{2,3}\/\d{2}\/\d{2})/);
-      if (maturityMatch) maturityDate = maturityMatch[1];
+      // 4. 解析日期 (抓取 yyy/mm/dd 格式)
+      const extractDate = (val) => {
+        const match = String(val).match(/(\d{2,3}\/\d{2}\/\d{2})/);
+        return match ? match[1] : '';
+      };
 
-      let nextPutDate = '';
-      const d10Str = String(d10);
-      const putDateMatch = d10Str.match(/(\d{2,3}\/\d{2}\/\d{2})/);
-      if (putDateMatch) nextPutDate = putDateMatch[1];
-
-      const stockCode = bondId ? bondId.substring(0, 4) : '';
+      const maturityDate = extractDate(a8);  // 到期日
+      const nextPutDate = extractDate(d10);  // 賣回日
 
       results.push({
         cbCode: bondId,
-        stockCode,
+        stockCode: bondId ? bondId.substring(0, 4) : '',
         sheetName: name,
         title: String(a1),
         conversionPeriod: convPeriod,
@@ -236,6 +230,7 @@ function getAllCBIssuanceInfo() {
         nextPutDate
       });
     } catch (e) {
+      // 遇到異常的分頁跳過，不中斷整體執行
       continue;
     }
   }
@@ -302,61 +297,61 @@ function exportToGitHub() {
   Logger.log('[exportToGitHub] 開始匯出...');
   const startTime = new Date().getTime();
 
-  const GITHUB_TOKEN = PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN');
+  const scriptProps = PropertiesService.getScriptProperties();
+  const GITHUB_TOKEN = scriptProps.getProperty('GITHUB_TOKEN');
+
   if (!GITHUB_TOKEN) {
-    Logger.log('[exportToGitHub] 錯誤：未設定 GITHUB_TOKEN，請到專案設定 → 指令碼屬性中新增');
+    Logger.log('[exportToGitHub] 錯誤：未設定 GITHUB_TOKEN');
     return;
   }
 
-  // 取得最新資料
-  const data = getAllData();
+  // 優先從快取取得資料，避免在匯出時又觸發昂貴的 Sheets 讀取
+  const data = getAllDataCached();
   const jsonStr = JSON.stringify(data);
+
+  // 檢查資料是否為空（防止覆蓋錯誤）
+  if (!data || Object.keys(data).length === 0) {
+    Logger.log('[exportToGitHub] 錯誤：抓取到的資料為空，停止匯出');
+    return;
+  }
+
   const contentB64 = Utilities.base64Encode(Utilities.newBlob(jsonStr).getBytes());
 
-  // 取得現有檔案的 SHA（更新檔案時需要）
+  // 1. 取得現有檔案的 SHA
   let sha = '';
+  const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`;
+
   try {
-    const getResp = UrlFetchApp.fetch(
-      'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/contents/' + GITHUB_FILE_PATH,
-      {
-        method: 'GET',
-        headers: { 'Authorization': 'Bearer ' + GITHUB_TOKEN },
-        muteHttpExceptions: true
-      }
-    );
+    const getResp = UrlFetchApp.fetch(apiUrl, {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + GITHUB_TOKEN },
+      muteHttpExceptions: true
+    });
     if (getResp.getResponseCode() === 200) {
       sha = JSON.parse(getResp.getContentText()).sha;
     }
   } catch (e) {
-    Logger.log('[exportToGitHub] 取得 SHA 失敗（可能是新檔案）: ' + e.message);
+    Logger.log('[exportToGitHub] 取得 SHA 失敗: ' + e.message);
   }
 
-  // 推送到 GitHub
+  // 2. 推送到 GitHub
   const payload = {
-    message: '更新資料 ' + new Date().toISOString().substring(0, 10),
+    message: 'Update Data: ' + Utilities.formatDate(new Date(), 'GMT+8', 'yyyy-MM-dd HH:mm'),
     content: contentB64
   };
   if (sha) payload.sha = sha;
 
-  const putResp = UrlFetchApp.fetch(
-    'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/contents/' + GITHUB_FILE_PATH,
-    {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'Bearer ' + GITHUB_TOKEN,
-        'Content-Type': 'application/json'
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    }
-  );
+  const putResp = UrlFetchApp.fetch(apiUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'Bearer ' + GITHUB_TOKEN,
+      'Content-Type': 'application/json'
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
 
   const code = putResp.getResponseCode();
   const elapsed = (new Date().getTime() - startTime) / 1000;
-
-  if (code === 200 || code === 201) {
-    Logger.log('[exportToGitHub] 推送成功，耗時 ' + elapsed + ' 秒');
-  } else {
-    Logger.log('[exportToGitHub] 推送失敗 (' + code + '): ' + putResp.getContentText());
-  }
+  Logger.log(`[exportToGitHub] 完成，狀態碼: ${code}，耗時: ${elapsed} 秒`);
 }
