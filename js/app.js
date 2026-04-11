@@ -288,11 +288,13 @@ const App = (() => {
     document.getElementById('detail-price-info').innerHTML = buildPriceInfoHTML(stock);
     document.getElementById('detail-cb-info').innerHTML = buildCBInfoHTML(stock);
     document.getElementById('detail-inst-info').innerHTML = buildInstInfoHTML(stock);
+    document.getElementById('detail-cb-inst-info').innerHTML = buildCBInstInfoHTML(stock);
 
     setTimeout(() => {
       Charts.renderPriceChart('detail-price-chart', stock);
-      Charts.renderCBPriceChart('detail-cb-price-chart', stock);
       Charts.renderInstChart('detail-inst-chart', stock);
+      Charts.renderCBPriceChart('detail-cb-price-chart', stock);
+      Charts.renderCBInstChart('detail-cb-inst-chart', stock);
     }, 100);
   }
 
@@ -347,11 +349,16 @@ const App = (() => {
       }
       const premCls = cbPrem != null ? (cbPrem > 0 ? 'text-up' : cbPrem < 0 ? 'text-down' : '') : '';
 
+      const auctionBtn = cb.auction
+        ? `<button class="btn-auction" onclick="App.showAuctionModal('${cb.cbCode}')">CB開標統計表</button>`
+        : '';
+
       html += `
         <div class="cb-card">
           <div class="cb-card-header">
             <span class="cb-code">${cb.cbCode}</span>
             <span class="cb-name">${cb.cbName}</span>
+            ${auctionBtn}
           </div>
           <div class="info-grid info-grid-sm">
             <div class="info-item">
@@ -540,6 +547,91 @@ const App = (() => {
     return html;
   }
 
+  function buildCBInstInfoHTML(stock) {
+    const inst = stock.cbBondInstitutional;
+    const dates = stock.cbBondInstitutionalDates || [];
+    if (!inst || dates.length === 0) {
+      return '<div class="text-muted">無 CB 三大法人資料</div>';
+    }
+
+    const recent = dates.slice(-10).reverse();
+    let html = `<table class="inst-summary-table"><thead><tr>
+      <th>日期</th><th>外資(張)</th><th>投信(張)</th><th>自營商(張)</th><th>合計(張)</th>
+    </tr></thead><tbody>`;
+
+    for (const d of recent) {
+      const rawF = inst['外資買賣超']?.[d] ?? null;
+      const rawI = inst['投信買賣超']?.[d] ?? null;
+      const rawD = inst['自營商買賣超']?.[d] ?? null;
+      const f = rawF != null ? Math.round(rawF / 1000) : null;
+      const inv = rawI != null ? Math.round(rawI / 1000) : null;
+      const deal = rawD != null ? Math.round(rawD / 1000) : null;
+      const total = (f || 0) + (inv || 0) + (deal || 0);
+      const dateLabel = d.length >= 8 ? d.substring(4, 6) + '/' + d.substring(6, 8) : d;
+      html += `<tr>
+        <td>${dateLabel}</td>
+        <td class="${cc(f)}">${fmtInst(f)}</td>
+        <td class="${cc(inv)}">${fmtInst(inv)}</td>
+        <td class="${cc(deal)}">${fmtInst(deal)}</td>
+        <td class="${cc(total)}"><strong>${fmtInst(total)}</strong></td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+    return html;
+  }
+
+  function showAuctionModal(cbCode) {
+    if (!selectedStock || !selectedStock.cbs) return;
+    const cb = selectedStock.cbs.find(c => String(c.cbCode) === String(cbCode));
+    if (!cb || !cb.auction) return;
+
+    const a = cb.auction;
+    const pdf = a.pdf || {};
+    const info = pdf.info || {};
+    const priceRows = pdf.priceRows || [];
+
+    document.getElementById('auction-modal-title').textContent =
+      `${cb.cbCode} ${cb.cbName} 開標統計表`;
+
+    const f = (label, val) => `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val ?? '-'}</span></div>`;
+
+    let html = '<div class="info-grid info-grid-sm">' +
+      f('發行公司', a['發行公司']) +
+      f('主辦承銷商', a['主辦承銷商']) +
+      f('發行性質', a['發行性質']) +
+      f('承銷股數', a['承銷股數']) +
+      f('競拍股數', a['競拍股數']) +
+      f('投標期間', a['投標期間']) +
+      f('最低承銷價格', a['最低承銷價格']) +
+      f('競拍方式', info.auctionType) +
+      f('最低得標價', info.minWin) +
+      f('最高得標價', info.maxWin) +
+      f('平均得標價', info.avgWin) +
+      f('公開承銷價', info.pubOffer) +
+      f('開標日期', info.openDate) +
+      '</div>';
+
+    if (priceRows.length > 0) {
+      html += `<h4 style="margin-top:16px">得標明細</h4>
+        <div class="auction-table-wrap"><table class="inst-summary-table">
+          <thead><tr><th>序號</th><th>價格</th><th>股數(千股)</th><th>金額(千元)</th></tr></thead>
+          <tbody>`;
+      for (const row of priceRows) {
+        html += `<tr><td>${row[0] ?? '-'}</td><td>${row[1] ?? '-'}</td><td>${row[2] ?? '-'}</td><td>${row[3] ?? '-'}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    document.getElementById('auction-modal-body').innerHTML = html;
+    document.getElementById('auction-modal').classList.add('show');
+  }
+
+  function closeAuctionModal(event) {
+    // 若是事件觸發：只有點擊背景遮罩 (#auction-modal 本身) 時才關閉
+    if (event && event.target && event.target.id !== 'auction-modal') return;
+    document.getElementById('auction-modal').classList.remove('show');
+  }
+
   function cc(v) { return v == null || v === 0 ? 'text-neutral' : v > 0 ? 'text-up' : 'text-down'; }
 
   function fmtInst(v) {
@@ -601,7 +693,7 @@ const App = (() => {
     if (backdrop) backdrop.classList.toggle('show', isOpen);
   }
 
-  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter };
+  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

@@ -455,12 +455,36 @@ const DataProcessor = (() => {
       }
     }
 
+    // 6. twsa 競拍開標統計表 (以 cbCode 為 key)
+    const auctionMap = parseTwsaAuction(rawResults.twsaAuction);
+
+    // 7. CB三大法人 (以 cbCode 為 key 的 timeseries)
+    let cbBondInstByCode = null;
+    if (rawResults.cbBondInstitutional) {
+      const { dates, stocks } = parseTimeSeries(rawResults.cbBondInstitutional);
+      cbBondInstByCode = { dates, stocks };
+    }
+
     // 計算衍生欄位
     for (const [, stock] of stockMap) {
-      computeDerivedFields(stock, issuanceMap, cbTradingByCode);
+      computeDerivedFields(stock, issuanceMap, cbTradingByCode, auctionMap, cbBondInstByCode);
     }
 
     return { stockMap, latestDataDate };
+  }
+
+  /**
+   * 解析 twsa 競拍資料 → Map<cbCode, auctionObj>
+   */
+  function parseTwsaAuction(twsaData) {
+    const map = new Map();
+    if (!twsaData || !Array.isArray(twsaData.auction)) return map;
+    for (const item of twsaData.auction) {
+      const cbCode = item?.pdf?.stockId;
+      if (!cbCode) continue;
+      map.set(String(cbCode), item);
+    }
+    return map;
   }
 
   function getOrCreate(map, code, name) {
@@ -484,7 +508,7 @@ const DataProcessor = (() => {
   /**
    * 計算衍生欄位
    */
-  function computeDerivedFields(stock, issuanceMap, cbTradingByCode) {
+  function computeDerivedFields(stock, issuanceMap, cbTradingByCode, auctionMap, cbBondInstByCode) {
     const tradingDates = stock.tradingDates || [];
     const instDates = stock.institutionalDates || [];
 
@@ -561,6 +585,23 @@ const DataProcessor = (() => {
       if (stock.mainCB) {
         stock.conversionPrice = stock.mainCB.conversionPrice || null;
         stock.conversionPeriod = extractConvStartDate(stock.mainCB.conversionPeriod);
+      }
+
+      // 附加競拍資料 (twsa)
+      if (auctionMap) {
+        for (const cb of stock.cbs) {
+          const auction = auctionMap.get(String(cb.cbCode));
+          if (auction) cb.auction = auction;
+        }
+      }
+    }
+
+    // === CB三大法人 ===
+    if (cbBondInstByCode && stock.mainCB?.cbCode) {
+      const cbInstEntry = cbBondInstByCode.stocks[stock.mainCB.cbCode];
+      if (cbInstEntry) {
+        stock.cbBondInstitutional = cbInstEntry.data;
+        stock.cbBondInstitutionalDates = cbBondInstByCode.dates;
       }
     }
 

@@ -25,7 +25,8 @@ const SHEET_SOURCES = {
   cbDailyReport:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 803170134 },
   fubonPrimary:    { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 953953291 },
   yuantaPrimary:   { sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw', gid: 1557790812 },
-  cbDailyTrading:  { sheetId: '1RBdEvyRSE55paVWRjV4-MG3l2m4bPtUjyqpnHKVppbo', gid: 1832010025 }
+  cbDailyTrading:  { sheetId: '1RBdEvyRSE55paVWRjV4-MG3l2m4bPtUjyqpnHKVppbo', gid: 1832010025 },
+  cbBondInstitutional: { sheetId: '1fVmPcxRP3izWYMuhI1y2pPObr0DJ_CetUUeCfWp4OiA', gid: 2077160446 }
 };
 
 // === 伺服器端快取設定 ===

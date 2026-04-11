@@ -46,7 +46,7 @@
       <button class="detail-close" onclick="App.closeDetail()">&times;</button>
     </div>
 
-    <!-- 股價資訊 -->
+    <!-- 1. 股價資訊 + 2. 個股K線 -->
     <div class="detail-section">
       <h3>股價資訊</h3>
       <div id="detail-price-info"></div>
@@ -55,7 +55,16 @@
       </div>
     </div>
 
-    <!-- CB 資訊 -->
+    <!-- 3. 個股三大法人 -->
+    <div class="detail-section">
+      <h3>個股三大法人買賣超</h3>
+      <div id="detail-inst-info"></div>
+      <div class="chart-container">
+        <canvas id="detail-inst-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- 4. CB 資訊 + 5. CB K線 -->
     <div class="detail-section">
       <h3>CB 可轉債資訊</h3>
       <div id="detail-cb-info"></div>
@@ -64,13 +73,24 @@
       </div>
     </div>
 
-    <!-- 法人資訊 -->
+    <!-- 6. CB 三大法人 -->
     <div class="detail-section">
-      <h3>三大法人買賣超</h3>
-      <div id="detail-inst-info"></div>
+      <h3>CB 三大法人買賣超</h3>
+      <div id="detail-cb-inst-info"></div>
       <div class="chart-container">
-        <canvas id="detail-inst-chart"></canvas>
+        <canvas id="detail-cb-inst-chart"></canvas>
       </div>
+    </div>
+  </div>
+
+  <!-- CB 開標統計表 Modal -->
+  <div class="auction-modal" id="auction-modal" onclick="App.closeAuctionModal(event)">
+    <div class="auction-modal-content" onclick="event.stopPropagation()">
+      <div class="auction-modal-header">
+        <div class="auction-modal-title" id="auction-modal-title"></div>
+        <button class="detail-close" onclick="App.closeAuctionModal()">&times;</button>
+      </div>
+      <div class="auction-modal-body" id="auction-modal-body"></div>
     </div>
   </div>
 

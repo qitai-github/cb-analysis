@@ -3,6 +3,7 @@ const Charts = (() => {
   let priceChart = null;
   let instChart = null;
   let cbPriceChart = null;
+  let cbInstChart = null;
 
   /**
    * 計算移動平均線陣列
@@ -407,6 +408,69 @@ const Charts = (() => {
     });
   }
 
+  /**
+   * 繪製 CB 三大法人買賣超走勢圖
+   */
+  function renderCBInstChart(canvasId, stock) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (cbInstChart) { cbInstChart.destroy(); cbInstChart = null; }
+
+    const dates = stock.cbBondInstitutionalDates || [];
+    const inst = stock.cbBondInstitutional;
+    if (!inst || dates.length === 0) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = APP_CONFIG.colors.textMuted;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('無 CB 三大法人資料', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
+    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const labels = recentDates.map(d => formatDateLabel(d));
+    const toLots = v => v != null ? Math.round(v / 1000) : null;
+    const foreignData = recentDates.map(d => toLots(inst['外資買賣超']?.[d] ?? null));
+    const investData = recentDates.map(d => toLots(inst['投信買賣超']?.[d] ?? null));
+    const dealerData = recentDates.map(d => toLots(inst['自營商買賣超']?.[d] ?? null));
+
+    cbInstChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: '外資', data: foreignData, backgroundColor: 'rgba(34,197,94,0.7)', borderColor: 'rgba(34,197,94,1)', borderWidth: 1, stack: 'inst' },
+          { label: '投信', data: investData, backgroundColor: 'rgba(251,146,60,0.7)', borderColor: 'rgba(251,146,60,1)', borderWidth: 1, stack: 'inst' },
+          { label: '自營商', data: dealerData, backgroundColor: 'rgba(168,85,247,0.7)', borderColor: 'rgba(168,85,247,1)', borderWidth: 1, stack: 'inst' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString()} 張`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          },
+          y: {
+            stacked: true,
+            ticks: { color: APP_CONFIG.colors.text, callback: v => v.toLocaleString() },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          }
+        }
+      }
+    });
+  }
+
   function formatDateLabel(dateStr) {
     if (!dateStr || dateStr.length < 8) return dateStr;
     return dateStr.substring(4, 6) + '/' + dateStr.substring(6, 8);
@@ -416,7 +480,8 @@ const Charts = (() => {
     if (priceChart) { priceChart.destroy(); priceChart = null; }
     if (instChart) { instChart.destroy(); instChart = null; }
     if (cbPriceChart) { cbPriceChart.destroy(); cbPriceChart = null; }
+    if (cbInstChart) { cbInstChart.destroy(); cbInstChart = null; }
   }
 
-  return { renderPriceChart, renderInstChart, renderCBPriceChart, destroy };
+  return { renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, destroy };
 })();

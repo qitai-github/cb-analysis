@@ -26,6 +26,15 @@ const DATA_SOURCES = {
     type: 'timeseries'
   },
 
+  // 7. CB三大法人 (CB 本身的法人買賣超 timeseries)
+  cbBondInstitutional: {
+    sheetId: '1fVmPcxRP3izWYMuhI1y2pPObr0DJ_CetUUeCfWp4OiA',
+    gid: '2077160446',
+    name: 'CB三大法人',
+    type: 'timeseries',
+    categories: ['外資買賣超', '投信買賣超', '自營商買賣超']
+  },
+
   // 3. CB交易日報 - CB即時交易資訊
   cbDailyReport: {
     sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw',

@@ -128,6 +128,13 @@ const SheetsAPI = (() => {
         const data = await resp.json();
         if (data && Object.keys(data).length > 1) {
           data._errors = [];
+          // 併發載入 twsa 競拍資料 (靜態 JSON，失敗不影響主流程)
+          try {
+            const twsaResp = await fetchWithTimeout('data/twsa.json', 10000);
+            data.twsaAuction = await twsaResp.json();
+          } catch (e) {
+            console.warn('[loadAll] twsa.json 載入失敗:', e.message);
+          }
           if (onProgress) onProgress(1, 1, '完成');
           console.log('[loadAll] 靜態JSON載入成功');
           return data;
