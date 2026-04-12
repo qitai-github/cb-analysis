@@ -138,7 +138,6 @@ const Table = (() => {
 
   function formatCell(td, val, format, stock) {
     if (format === 'star') {
-      td.style.position = 'relative';
       const starred = Watchlist.has(stock.code);
       td.textContent = starred ? '\u2605' : '\u2606';
       td.style.cursor = 'pointer';
@@ -232,7 +231,11 @@ const Table = (() => {
       menu.appendChild(row);
     }
 
-    td.appendChild(menu);
+    // 用 fixed 定位，避免被 table-wrapper overflow 裁切
+    const rect = td.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.top = rect.bottom + 'px';
+    document.body.appendChild(menu);
 
     // 點擊外部關閉
     const close = (e) => {
