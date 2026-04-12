@@ -65,6 +65,14 @@ const DATA_SOURCES = {
     gid: '699020116',
     name: '台股公司主檔',
     type: 'table'
+  },
+
+  // 9. 新聞資訊 (時間/股票名稱/標題/連結)
+  stockNews: {
+    sheetId: '1kAExOpabAvR2gsbTyNoM_oGWSZXHkiFm_60FH_6DTbw',
+    gid: '1094399736',
+    name: '新聞資訊',
+    type: 'table'
   }
 };
 

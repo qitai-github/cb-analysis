@@ -144,6 +144,15 @@ const SheetsAPI = (() => {
               console.warn('[loadAll] stockIndustry 載入失敗:', e.message);
             }
           }
+          // 併發載入新聞資訊 — 靜態 JSON 可能尚未包含此 key
+          if (!data.stockNews) {
+            try {
+              const s = DATA_SOURCES.stockNews;
+              data.stockNews = await fetchSheet(s.sheetId, s.gid);
+            } catch (e) {
+              console.warn('[loadAll] stockNews 載入失敗:', e.message);
+            }
+          }
           if (onProgress) onProgress(1, 1, '完成');
           console.log('[loadAll] 靜態JSON載入成功');
           return data;

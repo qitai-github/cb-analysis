@@ -465,6 +465,24 @@ const DataProcessor = (() => {
       if (ind) stock.industryCategory = ind;
     }
 
+    // 6c. 新聞資訊 (以股票名稱對應到代碼)
+    if (rawResults.stockNews) {
+      // 建立 name → code 的對照表
+      const nameToCode = new Map();
+      for (const [code, stock] of stockMap) {
+        if (stock.name) nameToCode.set(stock.name, code);
+      }
+      const newsItems = parseStockNews(rawResults.stockNews);
+      for (const item of newsItems) {
+        const code = nameToCode.get(item.stockName);
+        if (!code) continue;
+        const entry = stockMap.get(code);
+        if (!entry) continue;
+        if (!entry.news) entry.news = [];
+        entry.news.push(item);
+      }
+    }
+
     // 7. CB三大法人 (以 cbCode 為 key 的 timeseries)
     let cbBondInstByCode = null;
     if (rawResults.cbBondInstitutional) {
@@ -501,6 +519,29 @@ const DataProcessor = (() => {
       if (cats.length > 0) map.set(code, cats.join('、'));
     }
     return map;
+  }
+
+  /**
+   * 解析新聞資訊 → Array<{ stockName, date, title, link }>
+   * 欄位：A=時間, B=股票(名稱), C=標題, D=連結
+   * 按時間倒序排列（最新在前）
+   */
+  function parseStockNews(rawData) {
+    const items = [];
+    if (!Array.isArray(rawData) || rawData.length < 2) return items;
+    for (let i = 1; i < rawData.length; i++) {
+      const row = rawData[i];
+      if (!row) continue;
+      const date = String(row[0] || '').trim();
+      const stockName = String(row[1] || '').trim();
+      const title = String(row[2] || '').trim();
+      const link = String(row[3] || '').trim();
+      if (!stockName || !title) continue;
+      items.push({ stockName, date, title, link });
+    }
+    // 按日期倒序（最新在前）
+    items.sort((a, b) => b.date.localeCompare(a.date));
+    return items;
   }
 
   /**

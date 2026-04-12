@@ -470,6 +470,47 @@ body {
   white-space: nowrap;
 }
 
+/* === 新聞列表 === */
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.news-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.news-item:last-child {
+  border-bottom: none;
+}
+
+.news-date {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 75px;
+}
+
+.news-title {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.news-title:hover {
+  text-decoration: underline;
+  color: #60a5fa;
+}
+
 /* === 文字顏色 === */
 .text-up { color: var(--up) !important; }
 .text-down { color: var(--down) !important; }

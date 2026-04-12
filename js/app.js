@@ -400,6 +400,7 @@ const App = (() => {
     document.getElementById('detail-cb-info').innerHTML = buildCBInfoHTML(stock);
     document.getElementById('detail-inst-info').innerHTML = buildInstInfoHTML(stock);
     document.getElementById('detail-cb-inst-info').innerHTML = buildCBInstInfoHTML(stock);
+    document.getElementById('detail-news-info').innerHTML = buildNewsHTML(stock);
 
     setTimeout(() => {
       Charts.renderPriceChart('detail-price-chart', stock);
@@ -688,6 +689,24 @@ const App = (() => {
       </tr>`;
     }
     html += `</tbody></table>`;
+    return html;
+  }
+
+  function buildNewsHTML(stock) {
+    const news = stock.news;
+    if (!news || news.length === 0) {
+      return '<div class="text-muted">無相關新聞</div>';
+    }
+
+    let html = '<div class="news-list">';
+    for (const item of news) {
+      const dateStr = item.date || '';
+      html += `<div class="news-item">
+        <span class="news-date">${dateStr}</span>
+        <a class="news-title" href="${item.link}" target="_blank" rel="noopener">${item.title}</a>
+      </div>`;
+    }
+    html += '</div>';
     return html;
   }
 
