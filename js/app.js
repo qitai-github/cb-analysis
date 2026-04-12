@@ -404,9 +404,7 @@ const App = (() => {
 
     setTimeout(() => {
       Charts.renderPriceChart('detail-price-chart', stock);
-      Charts.renderInstChart('detail-inst-chart', stock);
       Charts.renderCBPriceChart('detail-cb-price-chart', stock);
-      Charts.renderCBInstChart('detail-cb-inst-chart', stock);
     }, 100);
   }
 
@@ -651,11 +649,7 @@ const App = (() => {
       </tr>`;
     }
 
-    html += `</tbody></table>
-      <div class="detail-export-buttons">
-        <button class="btn btn-sm btn-accent" onclick="ExportCSV.exportInstitutional(App.getSelectedStock())">匯出法人資料</button>
-        <button class="btn btn-sm btn-accent" onclick="ExportCSV.exportTrading(App.getSelectedStock())">匯出交易明細</button>
-      </div>`;
+    html += `</tbody></table>`;
     return html;
   }
 
