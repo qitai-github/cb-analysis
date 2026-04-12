@@ -458,6 +458,13 @@ const DataProcessor = (() => {
     // 6. twsa 競拍開標統計表 (以 cbCode 為 key)
     const auctionMap = parseTwsaAuction(rawResults.twsaAuction);
 
+    // 6b. 台股公司主檔 (以股票代碼為 key 的產業分類字串)
+    const industryMap = parseStockIndustry(rawResults.stockIndustry);
+    for (const [code, stock] of stockMap) {
+      const ind = industryMap.get(code);
+      if (ind) stock.industryCategory = ind;
+    }
+
     // 7. CB三大法人 (以 cbCode 為 key 的 timeseries)
     let cbBondInstByCode = null;
     if (rawResults.cbBondInstitutional) {
@@ -471,6 +478,29 @@ const DataProcessor = (() => {
     }
 
     return { stockMap, latestDataDate };
+  }
+
+  /**
+   * 解析台股公司主檔 → Map<stockCode, industryCategoryString>
+   * 欄位：A=代碼, B=股名, C=公司名, D/E/F...=產業分類 (可自動擴充 G 欄以後)
+   * 多個分類以「、」串接，略過空字串與 "-"
+   */
+  function parseStockIndustry(rawData) {
+    const map = new Map();
+    if (!Array.isArray(rawData) || rawData.length < 2) return map;
+    for (let i = 1; i < rawData.length; i++) {
+      const row = rawData[i];
+      if (!row) continue;
+      const code = String(row[0] || '').trim();
+      if (!code) continue;
+      const cats = [];
+      for (let j = 3; j < row.length; j++) {
+        const v = String(row[j] || '').trim();
+        if (v && v !== '-') cats.push(v);
+      }
+      if (cats.length > 0) map.set(code, cats.join('、'));
+    }
+    return map;
   }
 
   /**

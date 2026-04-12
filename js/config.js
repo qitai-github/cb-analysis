@@ -57,6 +57,14 @@ const DATA_SOURCES = {
     gid: '1557790812',
     name: '元大CB初級案件',
     type: 'table'
+  },
+
+  // 8. 台股公司主檔 (代碼/股名/公司名/產業分類1/產業分類2/產品組合...)
+  stockIndustry: {
+    sheetId: '1JdhzgbEWFlJwYA_7WYxhQxYIV2gadvXfK4-zv0timvA',
+    gid: '699020116',
+    name: '台股公司主檔',
+    type: 'table'
   }
 };
 

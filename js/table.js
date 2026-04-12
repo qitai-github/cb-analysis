@@ -9,6 +9,7 @@ const Table = (() => {
     { key: '_star', label: '\u2606', width: '36px', sticky: true, format: 'star', noSort: false },
     { key: 'code', label: '代碼', width: '70px', sticky: true },
     { key: 'name', label: '名稱', width: '100px', sticky: true },
+    { key: 'industryCategory', label: '產業分類', width: '180px' },
     { key: 'latestClose', label: '收盤價', width: '75px', format: 'price', align: 'right' },
     { key: 'priceChangePercent', label: '漲跌%', width: '70px', format: 'percent_color', align: 'right' },
     { key: 'latestVolume', label: '成交量(張)', width: '85px', format: 'volume', align: 'right' },
@@ -201,13 +202,13 @@ const Table = (() => {
   }
 
   function updateInstDays(days) {
-    columns[6].label = `外資${days}日`;
-    columns[6].key = `foreign_${days}d`;
-    columns[7].label = `投信${days}日`;
-    columns[7].key = `investment_${days}d`;
-    columns[8].label = `自營${days}日`;
-    columns[8].key = `dealer_${days}d`;
-    columns[9].key = `totalInst_${days}d`;
+    columns[7].label = `外資${days}日`;
+    columns[7].key = `foreign_${days}d`;
+    columns[8].label = `投信${days}日`;
+    columns[8].key = `investment_${days}d`;
+    columns[9].label = `自營${days}日`;
+    columns[9].key = `dealer_${days}d`;
+    columns[10].key = `totalInst_${days}d`;
   }
 
   function getCurrentData() { return currentData; }

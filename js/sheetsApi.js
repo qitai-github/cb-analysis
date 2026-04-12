@@ -135,6 +135,15 @@ const SheetsAPI = (() => {
           } catch (e) {
             console.warn('[loadAll] twsa.json 載入失敗:', e.message);
           }
+          // 併發載入台股公司主檔 (產業分類) — 靜態 JSON 可能尚未包含此 key
+          if (!data.stockIndustry) {
+            try {
+              const s = DATA_SOURCES.stockIndustry;
+              data.stockIndustry = await fetchSheet(s.sheetId, s.gid);
+            } catch (e) {
+              console.warn('[loadAll] stockIndustry 載入失敗:', e.message);
+            }
+          }
           if (onProgress) onProgress(1, 1, '完成');
           console.log('[loadAll] 靜態JSON載入成功');
           return data;
