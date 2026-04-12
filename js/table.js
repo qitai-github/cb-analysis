@@ -138,6 +138,7 @@ const Table = (() => {
 
   function formatCell(td, val, format, stock) {
     if (format === 'star') {
+      td.style.position = 'relative';
       const starred = Watchlist.has(stock.code);
       td.textContent = starred ? '\u2605' : '\u2606';
       td.style.cursor = 'pointer';
@@ -146,9 +147,7 @@ const Table = (() => {
       td.style.color = starred ? '#f59e0b' : 'var(--text-dim)';
       td.addEventListener('click', (e) => {
         e.stopPropagation();
-        Watchlist.toggle(stock.code);
-        td.textContent = Watchlist.has(stock.code) ? '\u2605' : '\u2606';
-        td.style.color = Watchlist.has(stock.code) ? '#f59e0b' : 'var(--text-dim)';
+        showStarMenu(td, stock.code);
       });
       return;
     }
@@ -199,6 +198,50 @@ const Table = (() => {
   function fmtVol(v) {
     const sign = v < 0 ? '-' : '';
     return sign + Math.abs(v).toLocaleString();
+  }
+
+  function updateStarCell(td, code) {
+    const starred = Watchlist.has(code);
+    td.textContent = starred ? '\u2605' : '\u2606';
+    td.style.color = starred ? '#f59e0b' : 'var(--text-dim)';
+  }
+
+  function showStarMenu(td, code) {
+    // 關閉已開啟的選單
+    const existing = document.querySelector('.star-menu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.className = 'star-menu';
+
+    const lists = Watchlist.getListNames();
+    for (const name of lists) {
+      const row = document.createElement('label');
+      row.className = 'star-menu-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = Watchlist.isInList(code, name);
+      cb.addEventListener('change', () => {
+        if (cb.checked) Watchlist.addToList(code, name);
+        else Watchlist.removeFromList(code, name);
+        updateStarCell(td, code);
+      });
+      const span = document.createElement('span');
+      span.textContent = name;
+      row.append(cb, span);
+      menu.appendChild(row);
+    }
+
+    td.appendChild(menu);
+
+    // 點擊外部關閉
+    const close = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', close, true);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', close, true), 0);
   }
 
   function getVal(obj, key) {
