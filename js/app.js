@@ -666,12 +666,9 @@ const App = (() => {
     </tr></thead><tbody>`;
 
     for (const d of recent) {
-      const rawF = inst['外資買賣超']?.[d] ?? null;
-      const rawI = inst['投信買賣超']?.[d] ?? null;
-      const rawD = inst['自營商買賣超']?.[d] ?? null;
-      const f = rawF != null ? Math.round(rawF / 1000) : null;
-      const inv = rawI != null ? Math.round(rawI / 1000) : null;
-      const deal = rawD != null ? Math.round(rawD / 1000) : null;
+      const f = inst['外資買賣超']?.[d] ?? null;
+      const inv = inst['投信買賣超']?.[d] ?? null;
+      const deal = inst['自營商買賣超']?.[d] ?? null;
       const total = (f || 0) + (inv || 0) + (deal || 0);
       const dateLabel = d.length >= 8 ? d.substring(4, 6) + '/' + d.substring(6, 8) : d;
       html += `<tr>
