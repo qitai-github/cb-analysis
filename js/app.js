@@ -191,6 +191,9 @@ const App = (() => {
 
     btnRow.append(btnApply, btnReset, btnExport, btnImport);
     panel.appendChild(btnRow);
+
+    // 追蹤清單管理區
+    panel.appendChild(buildWatchlistManager());
   }
 
   function createFilterInput(key, def) {
@@ -209,6 +212,21 @@ const App = (() => {
       span.textContent = def.label;
       label.appendChild(span);
       container.appendChild(label);
+    } else if (def.type === 'watchlist_select') {
+      const label = document.createElement('label');
+      label.textContent = def.label;
+      label.className = 'filter-label';
+      container.appendChild(label);
+      const select = document.createElement('select');
+      select.id = `filter-${key}`;
+      select.className = 'filter-select';
+      rebuildWatchlistSelect(select);
+      select.addEventListener('change', () => {
+        const v = select.value;
+        Watchlist.setActiveList(v && v !== '__all__' ? v : '');
+        applyCurrentFilters();
+      });
+      container.appendChild(select);
     } else if (def.type === 'select') {
       const label = document.createElement('label');
       label.textContent = def.label;
@@ -244,6 +262,99 @@ const App = (() => {
     }
 
     return container;
+  }
+
+  function rebuildWatchlistSelect(select) {
+    if (!select) select = document.getElementById('filter-watchlistFilter');
+    if (!select) return;
+    const prev = select.value;
+    select.innerHTML = '';
+    const optAll = document.createElement('option');
+    optAll.value = '';
+    optAll.textContent = '— 全部 —';
+    select.appendChild(optAll);
+    const optAny = document.createElement('option');
+    optAny.value = '__all__';
+    optAny.textContent = '所有追蹤';
+    select.appendChild(optAny);
+    for (const name of Watchlist.getListNames()) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    }
+    select.value = prev || '';
+  }
+
+  function buildWatchlistManager() {
+    const section = document.createElement('div');
+    section.className = 'watchlist-manager';
+
+    const title = document.createElement('div');
+    title.className = 'wl-manager-title';
+    title.textContent = '追蹤清單管理';
+    section.appendChild(title);
+
+    const addRow = document.createElement('div');
+    addRow.className = 'wl-add-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'filter-input wl-add-input';
+    input.placeholder = '新增清單名稱...';
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doAdd();
+    });
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary wl-add-btn';
+    btn.textContent = '+';
+    btn.addEventListener('click', doAdd);
+    addRow.append(input, btn);
+    section.appendChild(addRow);
+
+    const listContainer = document.createElement('div');
+    listContainer.id = 'wl-list-container';
+    section.appendChild(listContainer);
+
+    function doAdd() {
+      const name = input.value.trim();
+      if (!name) return;
+      if (Watchlist.addList(name)) {
+        input.value = '';
+        renderListItems();
+        rebuildWatchlistSelect();
+      } else {
+        alert('清單名稱已存在');
+      }
+    }
+
+    function renderListItems() {
+      listContainer.innerHTML = '';
+      for (const name of Watchlist.getListNames()) {
+        const row = document.createElement('div');
+        row.className = 'wl-list-item';
+        const label = document.createElement('span');
+        label.className = 'wl-list-name';
+        const count = Watchlist.getCodesInList(name).length;
+        label.textContent = `${name} (${count})`;
+        row.appendChild(label);
+        const delBtn = document.createElement('button');
+        delBtn.className = 'wl-del-btn';
+        delBtn.textContent = '\u00d7';
+        delBtn.title = `刪除「${name}」`;
+        delBtn.addEventListener('click', () => {
+          if (!confirm(`確定刪除清單「${name}」？\n清單內的 ${count} 檔標的將不再追蹤。`)) return;
+          Watchlist.removeList(name);
+          renderListItems();
+          rebuildWatchlistSelect();
+          applyCurrentFilters();
+        });
+        row.appendChild(delBtn);
+        listContainer.appendChild(row);
+      }
+    }
+
+    renderListItems();
+    return section;
   }
 
   function getFilterValues() {

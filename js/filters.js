@@ -13,11 +13,15 @@ const Filters = (() => {
           (stock.cbs || []).some(cb => cb.cbCode?.includes(q) || cb.cbName?.toLowerCase().includes(q));
       }
     },
-    watchlistOnly: {
-      label: '僅顯示追蹤標的',
-      type: 'checkbox',
+    watchlistFilter: {
+      label: '追蹤清單',
+      type: 'watchlist_select',
       group: '基本',
-      apply: (stock, val) => !val || Watchlist.has(stock.code)
+      apply: (stock, val) => {
+        if (!val) return true;
+        if (val === '__all__') return Watchlist.isInAnyList(stock.code);
+        return Watchlist.isInList(stock.code, val);
+      }
     },
 
     // 個股篩選
