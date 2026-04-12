@@ -35,17 +35,6 @@ const Charts = (() => {
     const highData = recentDates.map(d => stock.trading['最高價']?.[d] ?? null);
     const lowData = recentDates.map(d => stock.trading['最低價']?.[d] ?? null);
     const closeData = recentDates.map(d => stock.trading['收盤價']?.[d] ?? null);
-    const volumeData = recentDates.map(d => {
-      const raw = stock.trading['成交股數']?.[d] ?? null;
-      return raw != null ? Math.round(raw / 1000) : null;
-    });
-
-    // 成交量顏色: 漲紅跌綠
-    const volumeColors = recentDates.map((d, i) => {
-      const o = openData[i], c = closeData[i];
-      if (o == null || c == null) return 'rgba(148,163,184,0.4)';
-      return c >= o ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)';
-    });
 
     // MA 均線
     const ma5Data = calcMAArray(closeData, 5);
@@ -102,71 +91,21 @@ const Charts = (() => {
     };
 
     priceChart = new Chart(canvas, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels,
         datasets: [
-          {
-            type: 'line',
-            label: 'MA5',
-            data: ma5Data,
-            borderColor: '#f59e0b',
-            backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            yAxisID: 'yPrice',
-            order: 1,
-            tension: 0.1
-          },
-          {
-            type: 'line',
-            label: 'MA10',
-            data: ma10Data,
-            borderColor: '#3b82f6',
-            backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            yAxisID: 'yPrice',
-            order: 1,
-            tension: 0.1
-          },
-          {
-            type: 'line',
-            label: 'MA20',
-            data: ma20Data,
-            borderColor: '#a855f7',
-            backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            yAxisID: 'yPrice',
-            order: 1,
-            tension: 0.1
-          },
-          {
-            type: 'bar',
-            label: '成交量',
-            data: volumeData,
-            backgroundColor: volumeColors,
-            yAxisID: 'yVolume',
-            order: 3,
-            barPercentage: 0.6
-          }
+          { label: 'MA5',  data: ma5Data,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', tension: 0.1 },
+          { label: 'MA10', data: ma10Data, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', tension: 0.1 },
+          { label: 'MA20', data: ma20Data, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', tension: 0.1 }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: {
-          mode: 'index',
-          intersect: false
-        },
+        interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: {
-            labels: { color: APP_CONFIG.colors.text, font: { size: 11 } }
-          },
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
           tooltip: {
             callbacks: {
               afterTitle: (items) => {
@@ -176,12 +115,7 @@ const Charts = (() => {
                 if (o == null) return '';
                 return `開:${o.toFixed(2)}  高:${h.toFixed(2)}  低:${l.toFixed(2)}  收:${c.toFixed(2)}`;
               },
-              label: (ctx) => {
-                if (ctx.dataset.label === '成交量') {
-                  return `成交量: ${Number(ctx.raw).toLocaleString()} 張`;
-                }
-                return `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`;
-              }
+              label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`
             }
           }
         },
@@ -196,12 +130,6 @@ const Charts = (() => {
             max: priceMax,
             ticks: { color: APP_CONFIG.colors.text },
             grid: { color: 'rgba(71,85,105,0.3)' }
-          },
-          yVolume: {
-            position: 'right',
-            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
-            grid: { display: false },
-            max: Math.max(...volumeData.filter(v => v !== null)) * 3
           }
         }
       },
@@ -313,10 +241,6 @@ const Charts = (() => {
     const highData = recent.map(r => r.high);
     const lowData = recent.map(r => r.low);
     const closeData = recent.map(r => r.close);
-    const volumeData = recent.map(r => r.volume);
-
-    const volumeColors = recent.map(r => r.close >= r.open
-      ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)');
 
     const ma5Data = calcMAArray(closeData, 5);
     const ma10Data = calcMAArray(closeData, 10);
@@ -361,14 +285,13 @@ const Charts = (() => {
     };
 
     cbPriceChart = new Chart(canvas, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels,
         datasets: [
-          { type: 'line', label: 'MA5',  data: ma5Data,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
-          { type: 'line', label: 'MA10', data: ma10Data, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
-          { type: 'line', label: 'MA20', data: ma20Data, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
-          { type: 'bar',  label: '成交量', data: volumeData, backgroundColor: volumeColors, yAxisID: 'yVolume', order: 3, barPercentage: 0.6 }
+          { label: 'MA5',  data: ma5Data,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', tension: 0.1 },
+          { label: 'MA10', data: ma10Data, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', tension: 0.1 },
+          { label: 'MA20', data: ma20Data, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', tension: 0.1 }
         ]
       },
       options: {
@@ -386,22 +309,13 @@ const Charts = (() => {
                 if (o == null) return '';
                 return `開:${o.toFixed(2)}  高:${h.toFixed(2)}  低:${l.toFixed(2)}  收:${c.toFixed(2)}`;
               },
-              label: (ctx) => {
-                if (ctx.dataset.label === '成交量') return `成交量: ${Number(ctx.raw).toLocaleString()} 張`;
-                return `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`;
-              }
+              label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`
             }
           }
         },
         scales: {
           x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
-          yPrice: { position: 'left', min: priceMin, max: priceMax, ticks: { color: APP_CONFIG.colors.text }, grid: { color: 'rgba(71,85,105,0.3)' } },
-          yVolume: {
-            position: 'right',
-            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
-            grid: { display: false },
-            max: (Math.max(...volumeData.filter(v => v != null && v > 0)) || 1) * 3
-          }
+          yPrice: { position: 'left', min: priceMin, max: priceMax, ticks: { color: APP_CONFIG.colors.text }, grid: { color: 'rgba(71,85,105,0.3)' } }
         }
       },
       plugins: [candlestickPlugin]
