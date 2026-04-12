@@ -20,18 +20,29 @@ const Filters = (() => {
       apply: (stock, val) => !val || Watchlist.has(stock.code)
     },
 
-    // 股價篩選
+    // 個股篩選
+    industryKeyword: {
+      label: '產業搜尋',
+      type: 'text',
+      placeholder: '例：電子、食品...',
+      group: '個股篩選',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const q = val.toLowerCase();
+        return (stock.industryCategory || '').toLowerCase().includes(q);
+      }
+    },
     tPatternDays: {
       label: '線型T >= N日',
       type: 'number',
       placeholder: '天數...',
-      group: '股價篩選',
+      group: '個股篩選',
       apply: (stock, val) => !val || (stock.tPatternDays != null && stock.tPatternDays >= val)
     },
     firstBarSignal: {
       label: '第一根表態',
       type: 'checkbox',
-      group: '股價篩選',
+      group: '個股篩選',
       apply: (stock, val) => !val || stock.firstBarSignal === true
     },
 

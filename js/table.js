@@ -9,7 +9,7 @@ const Table = (() => {
     { key: '_star', label: '\u2606', width: '36px', sticky: true, format: 'star', noSort: false },
     { key: 'code', label: '代碼', width: '70px', sticky: true },
     { key: 'name', label: '名稱', width: '100px', sticky: true },
-    { key: 'industryCategory', label: '產業分類', width: '180px' },
+    { key: 'industryCategory', label: '產業分類', width: '140px', format: 'industry' },
     { key: 'latestClose', label: '收盤價', width: '75px', format: 'price', align: 'right' },
     { key: 'priceChangePercent', label: '漲跌%', width: '70px', format: 'percent_color', align: 'right' },
     { key: 'latestVolume', label: '成交量(張)', width: '85px', format: 'volume', align: 'right' },
@@ -185,6 +185,11 @@ const Table = (() => {
         td.classList.add('text-right', n > 0 ? 'text-up' : n < 0 ? 'text-down' : 'text-neutral');
         break;
       }
+      case 'industry':
+        td.textContent = String(val);
+        td.title = String(val);
+        td.classList.add('cell-industry');
+        break;
       default:
         td.textContent = String(val);
     }

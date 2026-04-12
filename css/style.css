@@ -364,6 +364,15 @@ body {
   background: var(--bg-hover);
 }
 
+.cell-industry {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* === 文字顏色 === */
 .text-up { color: var(--up) !important; }
 .text-down { color: var(--down) !important; }
