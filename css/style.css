@@ -378,7 +378,7 @@ body {
 .text-down { color: var(--down) !important; }
 .text-neutral { color: var(--neutral) !important; }
 .text-muted { color: var(--text-muted) !important; }
-.text-right { text-align: right; }
+.text-right { text-align: right !important; }
 
 /* === 分頁 === */
 .pager {

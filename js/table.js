@@ -77,6 +77,7 @@ const Table = (() => {
       for (const col of columns) {
         const td = document.createElement('td');
         if (col.sticky) td.className = 'sticky-col';
+        if (col.align === 'right') td.classList.add('text-right');
         const val = getVal(stock, col.key);
         formatCell(td, val, col.format, stock);
         tr.appendChild(td);
