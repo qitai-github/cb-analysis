@@ -684,6 +684,112 @@ body {
   color: var(--text-muted);
 }
 
+/* === CB 事件標籤 === */
+.cb-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.cb-badge-warn {
+  background: rgba(234,179,8,0.2);
+  color: #eab308;
+  border: 1px solid rgba(234,179,8,0.3);
+}
+.cb-badge-danger {
+  background: rgba(239,68,68,0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.3);
+}
+
+/* === CB 事件區塊 === */
+.cb-events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.cb-event {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.cb-event-danger {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+}
+.cb-event-info {
+  background: rgba(59,130,246,0.08);
+  border: 1px solid rgba(59,130,246,0.25);
+}
+.cb-event-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.cb-event-danger .cb-event-icon {
+  background: rgba(239,68,68,0.3);
+  color: #ef4444;
+}
+.cb-event-info .cb-event-icon {
+  background: rgba(59,130,246,0.3);
+  color: #3b82f6;
+}
+.cb-event-content {
+  flex: 1;
+}
+.cb-event-content strong {
+  color: var(--text);
+  margin-right: 6px;
+}
+.cb-event-date {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.cb-event-detail {
+  color: var(--text-muted);
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+/* === CB 詳細資訊展開 === */
+.cb-detail-toggle {
+  margin-top: 6px;
+}
+.btn-detail-toggle {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+  width: 100%;
+}
+.btn-detail-toggle:hover {
+  background: var(--bg-hover);
+}
+.cb-detail-content {
+  display: none;
+  margin-top: 6px;
+}
+.cb-detail-toggle.open .cb-detail-content {
+  display: block;
+}
+.info-item-wide {
+  grid-column: 1 / -1;
+}
+
 .primary-market-section {
   margin-top: 12px;
 }

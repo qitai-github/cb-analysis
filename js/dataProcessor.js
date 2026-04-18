@@ -490,6 +490,11 @@ const DataProcessor = (() => {
       cbBondInstByCode = { dates, stocks };
     }
 
+    // 8. 元大證選擇權報表 enrichment
+    if (rawResults.yuantaReport) {
+      mergeYuantaReport(stockMap, rawResults.yuantaReport);
+    }
+
     // 計算衍生欄位
     for (const [, stock] of stockMap) {
       computeDerivedFields(stock, issuanceMap, cbTradingByCode, auctionMap, cbBondInstByCode);
@@ -556,6 +561,121 @@ const DataProcessor = (() => {
       map.set(String(cbCode), item);
     }
     return map;
+  }
+
+  /**
+   * 合併元大證選擇權報表資料到 stockMap
+   */
+  function mergeYuantaReport(stockMap, yr) {
+    if (!yr) return;
+
+    // 建立 conversionStop 以 cbCode 為 key 的查詢表
+    const convStopMap = new Map();
+    if (yr.conversionStop) {
+      for (const item of yr.conversionStop) {
+        if (!item.cbCode) continue;
+        if (!convStopMap.has(item.cbCode)) convStopMap.set(item.cbCode, []);
+        convStopMap.get(item.cbCode).push(item);
+      }
+    }
+
+    // 建立 callRights 以 stockCode 為 key
+    const callRightsMap = new Map();
+    if (yr.callRights) {
+      for (const item of yr.callRights) {
+        if (!item.stockCode) continue;
+        if (!callRightsMap.has(item.stockCode)) callRightsMap.set(item.stockCode, []);
+        callRightsMap.get(item.stockCode).push(item);
+      }
+    }
+
+    // 建立 priceAdjust 以 stockCode 為 key
+    const priceAdjustMap = new Map();
+    if (yr.priceAdjust) {
+      for (const item of yr.priceAdjust) {
+        if (!item.stockCode) continue;
+        if (!priceAdjustMap.has(item.stockCode)) priceAdjustMap.set(item.stockCode, []);
+        priceAdjustMap.get(item.stockCode).push(item);
+      }
+    }
+
+    for (const [code, stock] of stockMap) {
+      // 掛載事件
+      const calls = callRightsMap.get(code);
+      if (calls) stock.callRights = calls;
+      const adjusts = priceAdjustMap.get(code);
+      if (adjusts) stock.priceAdjust = adjusts;
+
+      // 逐檔 CB enrichment
+      if (!stock.cbs) continue;
+      for (const cb of stock.cbs) {
+        const cbCode = cb.cbCode;
+        if (!cbCode) continue;
+
+        // 報價單
+        const q = yr.quotes?.[cbCode];
+        if (q) {
+          cb.tcri = q.tcri;
+          cb.asoPremium = q.premium;
+          cb.optionExpiry = q.optionExpiry;
+          cb.vol120 = q.vol120;
+          cb.vol240 = q.vol240;
+          cb.outstandingPct = q.outstandingPct;
+          cb.issueAmount = q.issueAmount;
+          cb.remainYears = q.remainYears;
+          cb.discountRate = q.discountRate;
+          if (q.industry) cb.industry = q.industry;
+        }
+
+        // 基本資料
+        const b = yr.basicInfo?.[cbCode];
+        if (b) {
+          cb.couponRate = b.couponRate;
+          cb.issueDate = b.issueDate;
+          cb.listDate = b.listDate;
+          cb.issueTotal = b.issueTotal;
+          cb.actualTotal = b.actualTotal;
+          cb.latestBalance = b.latestBalance;
+          cb.repayYears = b.repayYears;
+          cb.issueConvPrice = b.issueConvPrice;
+          cb.underwriter = b.underwriter;
+          cb.guarantee = b.guarantee;
+          cb.nearestPutDate = b.nearestPutDate;
+          cb.nearestPutPrice = b.nearestPutPrice;
+          cb.nearestPutYield = b.nearestPutYield;
+          cb.resetFormula = b.resetFormula;
+          cb.callDate = b.callDate;
+          if (!cb.conversionPeriod && b.convStart && b.convEnd)
+            cb.conversionPeriod = b.convStart + '~' + b.convEnd;
+          if (!cb.maturityDate && b.maturityDate) cb.maturityDate = b.maturityDate;
+        }
+
+        // 每日行情
+        const d = yr.dailyMarket?.[cbCode];
+        if (d) {
+          cb.ytp = d.ytp;
+          cb.ytm = d.ytm;
+          cb.eps = d.eps;
+          if (!cb.tcri && d.tcri) cb.tcri = d.tcri;
+          if (!cb.guarantee && d.guarantee) cb.guarantee = d.guarantee;
+          if (!cb.industry && d.industry) cb.industry = d.industry;
+          cb.business = d.business;
+        }
+
+        // 流通在外餘額
+        const o = yr.outstanding?.[cbCode];
+        if (o) {
+          cb.balThisWeek = o.thisWeek;
+          cb.balLastWeek = o.lastWeek;
+          cb.balChange = o.change;
+          cb.balRemainPct = o.remainPct;
+        }
+
+        // 停止轉換
+        const stops = convStopMap.get(cbCode);
+        if (stops) cb.conversionStop = stops;
+      }
+    }
   }
 
   function getOrCreate(map, code, name) {
