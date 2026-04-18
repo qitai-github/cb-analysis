@@ -986,11 +986,11 @@ const App = (() => {
       etfLoaded = true;
     }
 
-    const data = ETFView.getFilteredData();
-    if (statusEl) statusEl.textContent = `ETF 持股分析 | 共 ${data.length} 檔`;
+    const stats = ETFView.getStats();
+    if (statusEl) statusEl.textContent = `ETF 持股分析 | ${stats.etfCount} 檔 ETF | ${stats.totalStocks} 檔持股`;
 
     ETFView.buildFilterPanel('filter-panel');
-    ETFView.renderTable('main-table');
+    ETFView.renderColumns('main-table');
   }
 
   return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal, switchTab };

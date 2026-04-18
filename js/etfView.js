@@ -1,19 +1,18 @@
-// ETF 持股分析模組
+// ETF 持股分析模組 — 7 欄佈局，每日變動比對
 const ETFView = (() => {
-  let etfData = null;       // 原始 ETF JSON 資料
-  let mergedList = [];       // 合併後的持股清單 (用於排序/篩選)
-  let cbStockCodes = null;   // CB 對應的股票代碼集合
-  let currentSort = { key: 'count', asc: false };
-  let currentFilters = { etfs: {}, onlyCB: false, keyword: '' };
-
+  let etfData = null;
+  let cbStockMap = null;       // stockCode → [cb, ...]
+  let currentFilters = { onlyCB: false, keyword: '', showUnchanged: {} };
   const ETF_STATIC_URL = 'data/etf-holdings.json';
+
+  // ETF 顯示順序
+  const ETF_ORDER = ['00891', '00881', '00991A', '00981A', '00988A', '00982A', '00992A'];
 
   async function loadData() {
     if (etfData) return etfData;
     try {
       const resp = await fetch(ETF_STATIC_URL);
       etfData = await resp.json();
-      buildMergedList();
       return etfData;
     } catch (err) {
       console.error('[ETFView] 載入 ETF 資料失敗:', err);
@@ -21,106 +20,59 @@ const ETFView = (() => {
     }
   }
 
-  /** 從 CB 資料建立 stockCode 集合，用於交叉比對 */
   function setCBData(cbIssuance) {
-    cbStockCodes = new Map();
+    cbStockMap = new Map();
     if (!cbIssuance) return;
     for (const cb of cbIssuance) {
       if (!cb.stockCode) continue;
-      if (!cbStockCodes.has(cb.stockCode)) {
-        cbStockCodes.set(cb.stockCode, []);
-      }
-      cbStockCodes.get(cb.stockCode).push(cb);
+      if (!cbStockMap.has(cb.stockCode)) cbStockMap.set(cb.stockCode, []);
+      cbStockMap.get(cb.stockCode).push(cb);
     }
   }
 
-  function buildMergedList() {
-    if (!etfData || !etfData.merged) return;
-    mergedList = Object.entries(etfData.merged).map(([code, info]) => ({
-      code,
-      name: info.name,
-      etfs: info.etfs,
-      count: info.count,
-    }));
-  }
-
-  /** 取得 ETF 代碼列表 */
-  function getETFList() {
+  function getETFCodes() {
     if (!etfData || !etfData.etfs) return [];
-    return Object.entries(etfData.etfs).map(([code, info]) => ({
-      code,
-      name: info.name,
-      date: info.date,
-      holdingCount: info.holdingCount,
-      navPerUnit: info.navPerUnit,
-    }));
+    return ETF_ORDER.filter(c => etfData.etfs[c]);
   }
 
-  /** 篩選 + 排序 */
-  function getFilteredData() {
-    if (!mergedList.length) return [];
+  /** 篩選單一 ETF 的持股 */
+  function filterHoldings(holdings) {
+    if (!holdings) return [];
+    let list = holdings;
 
-    // 選取的 ETF (未勾選任何等於全選)
-    const selectedETFs = Object.entries(currentFilters.etfs)
-      .filter(([, checked]) => checked)
-      .map(([code]) => code);
-    const hasETFFilter = selectedETFs.length > 0;
+    if (currentFilters.onlyCB && cbStockMap) {
+      list = list.filter(h => cbStockMap.has(h.code));
+    }
 
-    let list = mergedList.filter(item => {
-      // ETF 勾選篩選
-      if (hasETFFilter) {
-        const hasAny = selectedETFs.some(etf => item.etfs[etf] != null);
-        if (!hasAny) return false;
-      }
-
-      // 只顯示有 CB 的
-      if (currentFilters.onlyCB && cbStockCodes) {
-        if (!cbStockCodes.has(item.code)) return false;
-      }
-
-      // 關鍵字
-      if (currentFilters.keyword) {
-        const q = currentFilters.keyword.toLowerCase();
-        if (!item.code.includes(q) && !(item.name || '').toLowerCase().includes(q)) return false;
-      }
-
-      return true;
-    });
-
-    // 排序
-    const { key, asc } = currentSort;
-    list.sort((a, b) => {
-      let va, vb;
-      if (key === 'code') { va = a.code; vb = b.code; }
-      else if (key === 'name') { va = a.name; vb = b.name; }
-      else if (key === 'count') { va = a.count; vb = b.count; }
-      else if (key === 'hasCB') {
-        va = cbStockCodes?.has(a.code) ? 1 : 0;
-        vb = cbStockCodes?.has(b.code) ? 1 : 0;
-      } else if (key.startsWith('etf_')) {
-        const etfCode = key.substring(4);
-        va = a.etfs[etfCode] ?? -1;
-        vb = b.etfs[etfCode] ?? -1;
-      } else { va = 0; vb = 0; }
-
-      if (typeof va === 'string') {
-        const cmp = va.localeCompare(vb);
-        return asc ? cmp : -cmp;
-      }
-      return asc ? va - vb : vb - va;
-    });
+    if (currentFilters.keyword) {
+      const q = currentFilters.keyword.toLowerCase();
+      list = list.filter(h =>
+        h.code.toLowerCase().includes(q) ||
+        (h.name || '').toLowerCase().includes(q)
+      );
+    }
 
     return list;
   }
 
-  /** 建立 ETF 篩選面板 */
+  /** 排序持股：added/removed → increased/decreased → unchanged */
+  function sortHoldings(holdings) {
+    const priority = { added: 0, removed: 1, increased: 2, decreased: 3, unchanged: 4 };
+    return [...holdings].sort((a, b) => {
+      const pa = priority[a.change] ?? 4;
+      const pb = priority[b.change] ?? 4;
+      if (pa !== pb) return pa - pb;
+      // 同類別按權重降序
+      return (b.weight || 0) - (a.weight || 0);
+    });
+  }
+
+  /** 建立篩選面板 */
   function buildFilterPanel(containerId) {
     const panel = document.getElementById(containerId);
     panel.innerHTML = '';
 
-    const etfs = getETFList();
-
-    // 關鍵字搜尋
+    // 搜尋
     const searchRow = document.createElement('div');
     searchRow.className = 'filter-search';
     const searchInput = document.createElement('input');
@@ -128,42 +80,12 @@ const ETFView = (() => {
     searchInput.className = 'filter-input';
     searchInput.placeholder = '搜尋代碼或名稱...';
     searchInput.id = 'etf-filter-keyword';
-    searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyAndRender(); });
+    searchInput.value = currentFilters.keyword;
+    searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyAndRender(); });
     searchRow.appendChild(searchInput);
     panel.appendChild(searchRow);
 
-    // ETF 選擇
-    const etfGroup = document.createElement('div');
-    etfGroup.className = 'filter-group';
-    const etfTitle = document.createElement('div');
-    etfTitle.className = 'filter-group-title';
-    etfTitle.textContent = 'ETF 選擇';
-    etfTitle.addEventListener('click', () => etfGroup.classList.toggle('collapsed'));
-    etfGroup.appendChild(etfTitle);
-
-    const etfContent = document.createElement('div');
-    etfContent.className = 'filter-group-content';
-
-    for (const etf of etfs) {
-      const label = document.createElement('label');
-      label.className = 'filter-checkbox';
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.id = `etf-check-${etf.code}`;
-      cb.checked = currentFilters.etfs[etf.code] || false;
-      cb.addEventListener('change', applyAndRender);
-      label.appendChild(cb);
-      const span = document.createElement('span');
-      span.textContent = `${etf.code} ${etf.name}`;
-      span.style.fontSize = '12px';
-      label.appendChild(span);
-      etfContent.appendChild(label);
-    }
-
-    etfGroup.appendChild(etfContent);
-    panel.appendChild(etfGroup);
-
-    // CB 交叉比對
+    // CB 篩選
     const cbGroup = document.createElement('div');
     cbGroup.className = 'filter-group';
     const cbTitle = document.createElement('div');
@@ -187,14 +109,19 @@ const ETFView = (() => {
     cbLabel.appendChild(cbSpan);
     cbContent.appendChild(cbLabel);
 
-    if (cbStockCodes) {
-      const cbInfo = document.createElement('div');
-      cbInfo.className = 'text-muted';
-      cbInfo.style.fontSize = '11px';
-      cbInfo.style.marginTop = '4px';
-      const cbCount = mergedList.filter(m => cbStockCodes.has(m.code)).length;
-      cbInfo.textContent = `共 ${cbCount} 檔持股有對應 CB`;
-      cbContent.appendChild(cbInfo);
+    if (cbStockMap) {
+      const allCodes = new Set();
+      for (const code of getETFCodes()) {
+        const etf = etfData.etfs[code];
+        if (etf?.holdings) etf.holdings.forEach(h => allCodes.add(h.code));
+      }
+      const cbCount = [...allCodes].filter(c => cbStockMap.has(c)).length;
+      const info = document.createElement('div');
+      info.className = 'text-muted';
+      info.style.fontSize = '11px';
+      info.style.marginTop = '4px';
+      info.textContent = `共 ${cbCount} 檔持股有對應 CB`;
+      cbContent.appendChild(info);
     }
 
     cbGroup.appendChild(cbContent);
@@ -211,15 +138,54 @@ const ETFView = (() => {
 
     const overviewContent = document.createElement('div');
     overviewContent.className = 'filter-group-content';
-    for (const etf of etfs) {
+    for (const code of getETFCodes()) {
+      const etf = etfData.etfs[code];
+      const changes = etf.changes || {};
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;padding:2px 0;';
-      row.innerHTML = `<span style="color:var(--accent)">${etf.code}</span>
-        <span style="color:var(--text-muted)">${etf.holdingCount}檔 | $${etf.navPerUnit?.toFixed(2) || '-'}</span>`;
+      row.style.cssText = 'font-size:11px;padding:3px 0;border-bottom:1px solid var(--border-dim);';
+
+      let changeText = '';
+      if (changes.added || changes.removed || changes.increased || changes.decreased) {
+        const parts = [];
+        if (changes.added) parts.push(`<span style="color:#22c55e">+${changes.added}</span>`);
+        if (changes.removed) parts.push(`<span style="color:#ef4444">-${changes.removed}</span>`);
+        if (changes.increased) parts.push(`<span style="color:#22c55e">↑${changes.increased}</span>`);
+        if (changes.decreased) parts.push(`<span style="color:#ef4444">↓${changes.decreased}</span>`);
+        changeText = parts.join(' ');
+      }
+
+      row.innerHTML = `<div style="display:flex;justify-content:space-between">
+        <span style="color:var(--accent)">${code}</span>
+        <span style="color:var(--text-muted)">${etf.holdingCount}檔 | $${etf.navPerUnit?.toFixed(2) || '-'}</span>
+      </div>
+      ${changeText ? `<div style="margin-top:1px">${changeText}</div>` : ''}
+      <div style="color:var(--text-dim);font-size:10px">${etf.date || '-'}${etf.prevDate ? ' ← ' + etf.prevDate : ''}</div>`;
       overviewContent.appendChild(row);
     }
     overviewGroup.appendChild(overviewContent);
     panel.appendChild(overviewGroup);
+
+    // 變動圖例
+    const legendGroup = document.createElement('div');
+    legendGroup.className = 'filter-group';
+    const legendTitle = document.createElement('div');
+    legendTitle.className = 'filter-group-title';
+    legendTitle.textContent = '變動圖例';
+    legendTitle.addEventListener('click', () => legendGroup.classList.toggle('collapsed'));
+    legendGroup.appendChild(legendTitle);
+
+    const legendContent = document.createElement('div');
+    legendContent.className = 'filter-group-content';
+    legendContent.innerHTML = `
+      <div style="font-size:11px;line-height:1.8">
+        <span class="etf-change-badge etf-change-added">新增</span> 新增持股<br>
+        <span class="etf-change-badge etf-change-removed">刪除</span> 移除持股<br>
+        <span class="etf-change-badge etf-change-increased">↑</span> 權重增加<br>
+        <span class="etf-change-badge etf-change-decreased">↓</span> 權重減少<br>
+        <span style="color:var(--text-dim)">其餘為未變動</span>
+      </div>`;
+    legendGroup.appendChild(legendContent);
+    panel.appendChild(legendGroup);
 
     // 按鈕
     const btnRow = document.createElement('div');
@@ -237,7 +203,7 @@ const ETFView = (() => {
     btnReset.textContent = '清除條件';
     btnReset.className = 'btn btn-secondary';
     btnReset.addEventListener('click', () => {
-      currentFilters = { etfs: {}, onlyCB: false, keyword: '' };
+      currentFilters = { onlyCB: false, keyword: '', showUnchanged: {} };
       buildFilterPanel(containerId);
       applyAndRender();
     });
@@ -246,11 +212,6 @@ const ETFView = (() => {
   }
 
   function readFilterValues() {
-    const etfs = getETFList();
-    for (const etf of etfs) {
-      const el = document.getElementById(`etf-check-${etf.code}`);
-      if (el) currentFilters.etfs[etf.code] = el.checked;
-    }
     const kwEl = document.getElementById('etf-filter-keyword');
     if (kwEl) currentFilters.keyword = kwEl.value.trim();
     const cbEl = document.getElementById('etf-filter-onlyCB');
@@ -259,189 +220,245 @@ const ETFView = (() => {
 
   function applyAndRender() {
     readFilterValues();
-    renderTable('main-table');
+    renderColumns('main-table');
   }
 
-  /** 渲染 ETF 持股表格 */
-  function renderTable(containerId) {
+  /** 渲染 7 欄 ETF 持股 */
+  function renderColumns(containerId) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
 
-    const data = getFilteredData();
-    const etfList = getETFList();
-
-    // 選取的 ETF (未勾選任何等於全顯示)
-    const selectedETFs = Object.entries(currentFilters.etfs)
-      .filter(([, checked]) => checked)
-      .map(([code]) => code);
-    const displayETFs = selectedETFs.length > 0
-      ? etfList.filter(e => selectedETFs.includes(e.code))
-      : etfList;
-
-    // 統計
-    const stats = document.createElement('div');
-    stats.className = 'table-stats';
-    stats.textContent = `共 ${data.length} 檔持股`;
-    container.appendChild(stats);
+    const codes = getETFCodes();
+    if (!codes.length) {
+      container.innerHTML = '<div class="text-muted" style="padding:40px;text-align:center">無 ETF 資料</div>';
+      return;
+    }
 
     const wrapper = document.createElement('div');
-    wrapper.className = 'table-wrapper';
+    wrapper.className = 'etf-columns-wrapper';
 
-    const table = document.createElement('table');
-    table.className = 'data-table etf-table';
-
-    // 表頭
-    const thead = document.createElement('thead');
-    const headerRow = document.createElement('tr');
-
-    const fixedCols = [
-      { key: 'code', label: '代碼', width: '70px', sticky: true },
-      { key: 'name', label: '名稱', width: '100px', sticky: true },
-      { key: 'count', label: '持有ETF數', width: '80px' },
-      { key: 'hasCB', label: 'CB', width: '50px' },
-    ];
-
-    for (const col of fixedCols) {
-      const th = document.createElement('th');
-      th.textContent = col.label;
-      th.style.width = col.width;
-      th.style.minWidth = col.width;
-      if (col.sticky) th.className = 'sticky-col';
-      th.style.cursor = 'pointer';
-      th.dataset.sortKey = col.key;
-      if (currentSort.key === col.key) {
-        th.classList.add(currentSort.asc ? 'sort-asc' : 'sort-desc');
-      }
-      th.addEventListener('click', () => handleSort(col.key));
-      headerRow.appendChild(th);
+    for (const code of codes) {
+      const etf = etfData.etfs[code];
+      const col = buildETFColumn(code, etf);
+      wrapper.appendChild(col);
     }
 
-    // ETF 欄位
-    for (const etf of displayETFs) {
-      const th = document.createElement('th');
-      th.innerHTML = `<div style="font-size:10px;line-height:1.2">${etf.code}<br>${etf.name.substring(0, 4)}</div>`;
-      th.style.width = '80px';
-      th.style.minWidth = '80px';
-      th.style.textAlign = 'right';
-      th.style.cursor = 'pointer';
-      th.dataset.sortKey = 'etf_' + etf.code;
-      if (currentSort.key === 'etf_' + etf.code) {
-        th.classList.add(currentSort.asc ? 'sort-asc' : 'sort-desc');
-      }
-      th.addEventListener('click', () => handleSort('etf_' + etf.code));
-      headerRow.appendChild(th);
-    }
-
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-
-    // 表身
-    const tbody = document.createElement('tbody');
-    for (const item of data) {
-      const tr = document.createElement('tr');
-      const hasCB = cbStockCodes?.has(item.code);
-      const cbList = hasCB ? cbStockCodes.get(item.code) : [];
-
-      // 代碼
-      const tdCode = document.createElement('td');
-      tdCode.className = 'sticky-col';
-      tdCode.textContent = item.code;
-      tdCode.style.fontWeight = '600';
-      if (hasCB) tdCode.style.color = 'var(--accent)';
-      tr.appendChild(tdCode);
-
-      // 名稱
-      const tdName = document.createElement('td');
-      tdName.className = 'sticky-col';
-      tdName.textContent = item.name;
-      tdName.style.maxWidth = '100px';
-      tdName.style.overflow = 'hidden';
-      tdName.style.textOverflow = 'ellipsis';
-      tr.appendChild(tdName);
-
-      // 持有 ETF 數
-      const tdCount = document.createElement('td');
-      tdCount.textContent = item.count;
-      tdCount.style.textAlign = 'center';
-      if (item.count >= 4) tdCount.style.color = 'var(--accent)';
-      tr.appendChild(tdCount);
-
-      // CB 標記
-      const tdCB = document.createElement('td');
-      if (hasCB) {
-        tdCB.innerHTML = `<span class="etf-cb-badge" title="${cbList.map(c => c.cbCode + ' 轉換價:' + c.conversionPrice).join('\n')}">${cbList.length}</span>`;
-      } else {
-        tdCB.textContent = '-';
-        tdCB.style.color = 'var(--text-dim)';
-      }
-      tdCB.style.textAlign = 'center';
-      tr.appendChild(tdCB);
-
-      // 各 ETF 權重
-      for (const etf of displayETFs) {
-        const td = document.createElement('td');
-        td.style.textAlign = 'right';
-        const weight = item.etfs[etf.code];
-        if (weight != null) {
-          td.textContent = weight.toFixed(2) + '%';
-          // 權重越高顏色越深
-          if (weight >= 10) td.style.color = '#f59e0b';
-          else if (weight >= 5) td.style.color = 'var(--accent)';
-          else td.style.color = 'var(--text)';
-        } else {
-          td.textContent = '-';
-          td.style.color = 'var(--text-dim)';
-        }
-        tr.appendChild(td);
-      }
-
-      // 點擊展開 CB 詳情
-      if (hasCB) {
-        tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => showETFStockDetail(item, cbList));
-      }
-
-      tbody.appendChild(tr);
-    }
-
-    table.appendChild(tbody);
-    wrapper.appendChild(table);
     container.appendChild(wrapper);
   }
 
-  function handleSort(key) {
-    if (currentSort.key === key) {
-      currentSort.asc = !currentSort.asc;
-    } else {
-      currentSort = { key, asc: key === 'code' || key === 'name' };
+  /** 建立單一 ETF 欄 */
+  function buildETFColumn(etfCode, etf) {
+    const col = document.createElement('div');
+    col.className = 'etf-column';
+
+    // 表頭
+    const header = document.createElement('div');
+    header.className = 'etf-column-header';
+    const changes = etf.changes || {};
+    let changeSummary = '';
+    if (changes.added || changes.removed) {
+      const parts = [];
+      if (changes.added) parts.push(`<span style="color:#22c55e">+${changes.added}</span>`);
+      if (changes.removed) parts.push(`<span style="color:#ef4444">-${changes.removed}</span>`);
+      changeSummary = ` ${parts.join(' ')}`;
     }
-    renderTable('main-table');
+
+    header.innerHTML = `
+      <div class="etf-column-title">${etfCode}</div>
+      <div class="etf-column-subtitle">${etf.name}</div>
+      <div class="etf-column-meta">${etf.holdingCount}檔${changeSummary} | ${etf.date || '-'}</div>`;
+    col.appendChild(header);
+
+    // 篩選 & 排序持股
+    let holdings = filterHoldings(etf.holdings || []);
+    holdings = sortHoldings(holdings);
+
+    // 分類：changed (added/removed/increased/decreased) vs unchanged
+    const changedItems = holdings.filter(h => h.change && h.change !== 'unchanged');
+    const unchangedItems = holdings.filter(h => !h.change || h.change === 'unchanged');
+
+    // 表格
+    const table = document.createElement('table');
+    table.className = 'etf-col-table';
+
+    // 表頭
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr>
+      <th>代碼</th>
+      <th>名稱</th>
+      <th class="num">股數</th>
+      <th class="num">權重%</th>
+    </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+
+    // 渲染有變動的
+    for (const h of changedItems) {
+      tbody.appendChild(buildHoldingRow(h, etfCode));
+    }
+
+    // 分隔線 + 展開按鈕
+    if (unchangedItems.length > 0) {
+      const showKey = etfCode;
+      const isShown = currentFilters.showUnchanged[showKey];
+
+      const sepRow = document.createElement('tr');
+      sepRow.className = 'etf-unchanged-sep';
+      const sepTd = document.createElement('td');
+      sepTd.colSpan = 4;
+      const sepBtn = document.createElement('button');
+      sepBtn.className = 'etf-unchanged-btn';
+      sepBtn.textContent = isShown
+        ? `收合未變動 (${unchangedItems.length}檔)`
+        : `展開未變動 (${unchangedItems.length}檔)`;
+      sepBtn.addEventListener('click', () => {
+        currentFilters.showUnchanged[showKey] = !currentFilters.showUnchanged[showKey];
+        renderColumns('main-table');
+      });
+      sepTd.appendChild(sepBtn);
+      sepRow.appendChild(sepTd);
+      tbody.appendChild(sepRow);
+
+      if (isShown) {
+        for (const h of unchangedItems) {
+          tbody.appendChild(buildHoldingRow(h, etfCode));
+        }
+      }
+    }
+
+    // 如果完全沒有資料
+    if (changedItems.length === 0 && unchangedItems.length === 0) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = '<td colspan="4" style="text-align:center;color:var(--text-dim);padding:20px">無符合條件的持股</td>';
+      tbody.appendChild(emptyRow);
+    }
+
+    table.appendChild(tbody);
+    col.appendChild(table);
+
+    return col;
   }
 
-  /** 顯示 ETF 持股的詳細資訊（包含 CB 資訊） */
-  function showETFStockDetail(item, cbList) {
+  /** 建立單筆持股列 */
+  function buildHoldingRow(h, etfCode) {
+    const tr = document.createElement('tr');
+    const hasCB = cbStockMap?.has(h.code);
+    const change = h.change || 'unchanged';
+
+    tr.className = `etf-row-${change}`;
+
+    // 代碼
+    const tdCode = document.createElement('td');
+    tdCode.className = 'etf-cell-code';
+    let codeHTML = h.code;
+
+    // 變動標記
+    if (change === 'added') {
+      codeHTML = `<span class="etf-change-badge etf-change-added">新</span>${h.code}`;
+    } else if (change === 'removed') {
+      codeHTML = `<span class="etf-change-badge etf-change-removed">刪</span><s>${h.code}</s>`;
+    } else if (change === 'increased') {
+      codeHTML = `<span class="etf-change-badge etf-change-increased">↑</span>${h.code}`;
+    } else if (change === 'decreased') {
+      codeHTML = `<span class="etf-change-badge etf-change-decreased">↓</span>${h.code}`;
+    }
+
+    // CB 標記
+    if (hasCB) {
+      const cbList = cbStockMap.get(h.code);
+      codeHTML += `<span class="etf-cb-badge" title="${cbList.map(c => c.cbCode).join(', ')}">${cbList.length}</span>`;
+    }
+
+    tdCode.innerHTML = codeHTML;
+    tr.appendChild(tdCode);
+
+    // 名稱
+    const tdName = document.createElement('td');
+    tdName.className = 'etf-cell-name';
+    tdName.textContent = h.name || '';
+    tdName.title = h.name || '';
+    tr.appendChild(tdName);
+
+    // 股數
+    const tdShares = document.createElement('td');
+    tdShares.className = 'num';
+    if (h.shares != null) {
+      tdShares.textContent = Math.round(h.shares).toLocaleString();
+    } else {
+      tdShares.textContent = '-';
+      tdShares.style.color = 'var(--text-dim)';
+    }
+    tr.appendChild(tdShares);
+
+    // 權重
+    const tdWeight = document.createElement('td');
+    tdWeight.className = 'num';
+    if (h.weight != null) {
+      let weightText = h.weight.toFixed(2) + '%';
+      if (h.prevWeight != null && change !== 'added') {
+        const diff = h.weight - h.prevWeight;
+        if (Math.abs(diff) >= 0.005) {
+          const sign = diff > 0 ? '+' : '';
+          weightText += ` <span class="${diff > 0 ? 'text-up' : 'text-down'}" style="font-size:10px">(${sign}${diff.toFixed(2)})</span>`;
+        }
+      }
+      tdWeight.innerHTML = weightText;
+      if (h.weight >= 10) tdWeight.style.color = '#f59e0b';
+      else if (h.weight >= 5) tdWeight.style.color = 'var(--accent)';
+    } else if (change === 'removed' && h.prevWeight != null) {
+      tdWeight.innerHTML = `<s style="color:var(--text-dim)">${h.prevWeight.toFixed(2)}%</s>`;
+    } else {
+      tdWeight.textContent = '-';
+      tdWeight.style.color = 'var(--text-dim)';
+    }
+    tr.appendChild(tdWeight);
+
+    // 點擊顯示詳情
+    if (hasCB) {
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', () => {
+        const cbList = cbStockMap.get(h.code);
+        showETFStockDetail(h, cbList, etfCode);
+      });
+    }
+
+    return tr;
+  }
+
+  /** 顯示持股詳情 (CB 資訊) */
+  function showETFStockDetail(item, cbList, etfCode) {
     const panel = document.getElementById('detail-panel');
     panel.classList.add('show');
 
     document.getElementById('detail-title').textContent = `${item.code} ${item.name}`;
 
-    // 股價資訊 — 此處簡化顯示 ETF 持股資訊
+    // ETF 持股資訊
     const priceInfo = document.getElementById('detail-price-info');
     let html = '<div class="info-grid">';
-    const etfList = getETFList();
-    for (const etf of etfList) {
-      const w = item.etfs[etf.code];
-      if (w != null) {
+
+    // 所有 ETF 中此股票的權重
+    for (const code of getETFCodes()) {
+      const etf = etfData.etfs[code];
+      if (!etf?.holdings) continue;
+      const h = etf.holdings.find(x => x.code === item.code);
+      if (h && h.weight != null) {
+        let weightDisplay = h.weight.toFixed(2) + '%';
+        if (h.prevWeight != null && h.change !== 'added') {
+          const diff = h.weight - h.prevWeight;
+          if (Math.abs(diff) >= 0.005) {
+            const sign = diff > 0 ? '+' : '';
+            const cls = diff > 0 ? 'text-up' : 'text-down';
+            weightDisplay += ` <span class="${cls}">(${sign}${diff.toFixed(2)})</span>`;
+          }
+        }
         html += `<div class="info-item">
-          <span class="info-label">${etf.code} ${etf.name.substring(0, 4)}</span>
-          <span class="info-value" style="color:var(--accent)">${w.toFixed(2)}%</span>
+          <span class="info-label">${code} ${etf.name.substring(0, 4)}</span>
+          <span class="info-value">${weightDisplay}</span>
         </div>`;
       }
     }
-    html += `<div class="info-item">
-      <span class="info-label">持有 ETF 數</span>
-      <span class="info-value">${item.count}</span>
-    </div>`;
+
     html += '</div>';
     priceInfo.innerHTML = html;
 
@@ -476,7 +493,6 @@ const ETFView = (() => {
     document.getElementById('detail-cb-inst-info').innerHTML = '';
     document.getElementById('detail-news-info').innerHTML = '';
 
-    // 清空 chart
     const chartIds = ['detail-price-chart', 'detail-cb-price-chart'];
     for (const id of chartIds) {
       const canvas = document.getElementById(id);
@@ -487,12 +503,21 @@ const ETFView = (() => {
     }
   }
 
+  /** 取得統計資訊 */
+  function getStats() {
+    if (!etfData) return { etfCount: 0, totalStocks: 0 };
+    return {
+      etfCount: etfData._meta?.etfCount || 0,
+      totalStocks: etfData._meta?.totalStocks || 0
+    };
+  }
+
   return {
     loadData,
     setCBData,
     buildFilterPanel,
-    renderTable,
-    getETFList,
-    getFilteredData,
+    renderColumns,
+    getETFCodes,
+    getStats,
   };
 })();

@@ -94,15 +94,46 @@ const ETF_CONFIG = {
 const ETF_GITHUB_PATH = "data/etf-holdings.json";
 
 /**
+ * 假日/週末檢查 (內建版，不依賴外部函式)
+ * 1. 週末 (六/日) → true
+ * 2. Google 台灣節慶假日日曆有事件 → true
+ */
+function isHolidayETF_() {
+  var today = new Date();
+  var day = today.getDay();
+
+  // 週末
+  if (day === 0 || day === 6) {
+    Logger.log("📅 今天是週末，跳過 ETF 更新");
+    return true;
+  }
+
+  // Google 台灣節慶假日日曆
+  try {
+    var calendarId = "zh-tw.taiwan#holiday@group.v.calendar.google.com";
+    var calendar = CalendarApp.getCalendarById(calendarId);
+    if (calendar) {
+      var events = calendar.getEventsForDay(today);
+      if (events.length > 0) {
+        Logger.log("📅 今天是節慶假日 (" + events[0].getTitle() + ")，跳過 ETF 更新");
+        return true;
+      }
+    }
+  } catch (e) {
+    Logger.log("📅 假日日曆檢查失敗 (不影響執行): " + e.message);
+  }
+
+  return false;
+}
+
+/**
  * 主入口：更新所有 ETF 持股資料並發佈到 GitHub
- * 假日會跳過自動下載，但仍會嘗試從 Drive 讀取手動上傳的檔案
+ * 假日/週末自動跳過
  */
 function updateETFHoldings() {
   Logger.log("=== updateETFHoldings 開始 ===");
 
-  // 假日檢查 (若有 isHoliday 函式)
-  if (typeof isHoliday === "function" && isHoliday()) {
-    Logger.log("今天是假日，跳過 ETF 更新");
+  if (isHolidayETF_()) {
     return;
   }
 
@@ -124,7 +155,7 @@ function updateETFHoldings() {
           try {
             var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
             var folder = DriveApp.getFolderById(ETF_DRIVE_FOLDERS[code]);
-            folder.createFile(blob.setName("@" + code + "_" + today + ".xlsx"));
+            folder.createFile(blob.setName(code + "_" + today + ".xlsx"));
             Logger.log("  已備份到 Drive");
           } catch (e) {
             Logger.log("  Drive 備份失敗 (不影響解析): " + e.message);
@@ -159,6 +190,23 @@ function updateETFHoldings() {
     }
   }
 
+  // 取得前一版資料，用於比對變動
+  Logger.log("→ 取得前一版 ETF 資料進行比對...");
+  var prevData = fetchJsonFromGithub_(ETF_GITHUB_PATH);
+  var sha = prevData ? prevData.sha : "";
+  var prevEtfs = null;
+  if (prevData && prevData.content) {
+    try {
+      var prevJson = JSON.parse(Utilities.newBlob(Utilities.base64Decode(prevData.content)).getDataAsString());
+      prevEtfs = prevJson.etfs || null;
+    } catch (e) {
+      Logger.log("  前一版解析失敗: " + e.message);
+    }
+  }
+
+  // 計算每檔 ETF 的持股變動
+  computeHoldingChanges_(etfs, prevEtfs);
+
   // 合併持股
   var merged = buildMergedHoldings_(etfs);
 
@@ -176,8 +224,6 @@ function updateETFHoldings() {
 
   // 發佈到 GitHub
   Logger.log("→ PUT " + ETF_GITHUB_PATH);
-  var current = fetchJsonFromGithub_(ETF_GITHUB_PATH);
-  var sha = current ? current.sha : "";
   var result = pushJsonToGithub_(ETF_GITHUB_PATH, payload, sha);
 
   var elapsed = ((new Date() - startTs) / 1000).toFixed(1);
@@ -602,6 +648,90 @@ function buildMergedHoldings_(etfs) {
     }
   }
   return merged;
+}
+
+/**
+ * 計算每檔 ETF 的持股變動 (新增/刪除/增減)
+ * 直接修改 etfs 物件，為每筆 holding 加上 change/prevWeight/prevShares
+ * 並在 ETF 層級加上 changes 摘要 和 prevDate
+ */
+function computeHoldingChanges_(etfs, prevEtfs) {
+  for (var etfCode in etfs) {
+    var etf = etfs[etfCode];
+    var prev = prevEtfs ? prevEtfs[etfCode] : null;
+
+    // 建立前一版的 code → holding map
+    var prevMap = {};
+    if (prev && prev.holdings) {
+      for (var i = 0; i < prev.holdings.length; i++) {
+        prevMap[prev.holdings[i].code] = prev.holdings[i];
+      }
+    }
+
+    var summary = { added: 0, removed: 0, increased: 0, decreased: 0, unchanged: 0 };
+    etf.prevDate = prev ? prev.date : null;
+
+    // 標記現有持股的變動
+    for (var j = 0; j < etf.holdings.length; j++) {
+      var h = etf.holdings[j];
+      var ph = prevMap[h.code];
+
+      if (!ph) {
+        // 新增
+        h.change = "added";
+        h.prevWeight = null;
+        h.prevShares = null;
+        summary.added++;
+      } else {
+        h.prevWeight = ph.weight;
+        h.prevShares = ph.shares;
+
+        if (h.weight != null && ph.weight != null) {
+          var diff = Math.abs(h.weight - ph.weight);
+          if (diff < 0.005) {
+            h.change = "unchanged";
+            summary.unchanged++;
+          } else if (h.weight > ph.weight) {
+            h.change = "increased";
+            summary.increased++;
+          } else {
+            h.change = "decreased";
+            summary.decreased++;
+          }
+        } else {
+          h.change = "unchanged";
+          summary.unchanged++;
+        }
+
+        // 從 prevMap 移除已處理的
+        delete prevMap[h.code];
+      }
+    }
+
+    // prevMap 剩餘的就是被刪除的持股
+    var removedHoldings = [];
+    for (var rCode in prevMap) {
+      var rh = prevMap[rCode];
+      removedHoldings.push({
+        code: rh.code,
+        name: rh.name,
+        shares: null,
+        weight: null,
+        change: "removed",
+        prevWeight: rh.weight,
+        prevShares: rh.shares
+      });
+      summary.removed++;
+    }
+
+    // 把被刪除的也加入 holdings（前端需要顯示）
+    etf.holdings = etf.holdings.concat(removedHoldings);
+    etf.holdingCount = etf.holdings.length - removedHoldings.length; // 實際持股數不含已刪除
+    etf.changes = summary;
+
+    Logger.log("  " + etfCode + " 變動: +" + summary.added + " -" + summary.removed +
+      " ↑" + summary.increased + " ↓" + summary.decreased + " =" + summary.unchanged);
+  }
 }
 
 /**

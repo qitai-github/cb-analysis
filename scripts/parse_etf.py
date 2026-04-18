@@ -287,9 +287,66 @@ PARSERS = {
 }
 
 
+def compute_holding_changes(etfs, prev_etfs):
+    """比對每檔 ETF 的持股變動"""
+    for etf_code, etf in etfs.items():
+        prev = prev_etfs.get(etf_code) if prev_etfs else None
+        prev_map = {}
+        if prev and prev.get("holdings"):
+            for h in prev["holdings"]:
+                prev_map[h["code"]] = h
+
+        summary = {"added": 0, "removed": 0, "increased": 0, "decreased": 0, "unchanged": 0}
+        etf["prevDate"] = prev["date"] if prev else None
+
+        for h in etf["holdings"]:
+            ph = prev_map.pop(h["code"], None)
+            if not ph:
+                h["change"] = "added"
+                h["prevWeight"] = None
+                h["prevShares"] = None
+                summary["added"] += 1
+            else:
+                h["prevWeight"] = ph.get("weight")
+                h["prevShares"] = ph.get("shares")
+                if h.get("weight") is not None and ph.get("weight") is not None:
+                    diff = abs(h["weight"] - ph["weight"])
+                    if diff < 0.005:
+                        h["change"] = "unchanged"
+                        summary["unchanged"] += 1
+                    elif h["weight"] > ph["weight"]:
+                        h["change"] = "increased"
+                        summary["increased"] += 1
+                    else:
+                        h["change"] = "decreased"
+                        summary["decreased"] += 1
+                else:
+                    h["change"] = "unchanged"
+                    summary["unchanged"] += 1
+
+        # 被刪除的持股
+        removed = []
+        for rcode, rh in prev_map.items():
+            removed.append({
+                "code": rh["code"],
+                "name": rh.get("name", ""),
+                "shares": None,
+                "weight": None,
+                "change": "removed",
+                "prevWeight": rh.get("weight"),
+                "prevShares": rh.get("shares"),
+            })
+            summary["removed"] += 1
+
+        etf["holdings"].extend(removed)
+        etf["holdingCount"] = len(etf["holdings"]) - len(removed)
+        etf["changes"] = summary
+
+        print(f"  {etf_code} 變動: +{summary['added']} -{summary['removed']} ↑{summary['increased']} ↓{summary['decreased']} ={summary['unchanged']}")
+
+
 def main():
     etfs = {}
-    merged = {}
 
     for etf_code, config in ETF_CONFIG.items():
         filepath = find_etf_file(config["pattern"])
@@ -317,12 +374,29 @@ def main():
         etfs[etf_code] = etf_info
         print(f"  日期: {result['date']}, 持股: {len(result['holdings'])} 檔")
 
-        # 合併到 merged
-        for h in result["holdings"]:
+    # 讀取前一版 JSON 進行比對
+    prev_etfs = None
+    if OUTPUT_PATH.exists():
+        try:
+            with open(OUTPUT_PATH, "r", encoding="utf-8") as f:
+                prev_data = json.load(f)
+                prev_etfs = prev_data.get("etfs")
+            print(f"\n讀取前一版資料進行比對...")
+        except Exception as e:
+            print(f"  前一版讀取失敗: {e}")
+
+    compute_holding_changes(etfs, prev_etfs)
+
+    # 合併持股
+    merged = {}
+    for etf_code, etf_info in etfs.items():
+        for h in etf_info["holdings"]:
+            if h.get("change") == "removed":
+                continue  # 已刪除的不計入 merged
             code = h["code"]
             if code not in merged:
                 merged[code] = {"name": h["name"], "etfs": {}, "count": 0}
-            merged[code]["etfs"][etf_code] = h["weight"]
+            merged[code]["etfs"][etf_code] = h.get("weight")
             merged[code]["count"] = len(merged[code]["etfs"])
 
     # 輸出 JSON
