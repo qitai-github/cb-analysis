@@ -67,6 +67,7 @@ const ETF_CONFIG = {
     name: "復華未來50",
     type: "auto_download",
     getUrl: function() {
+      // 嘗試今天，假日可能沒資料（會在 downloadETFExcel_ 中 fallback 到 Drive）
       var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
       return "https://www.fhtrust.com.tw/api/assetsExcel/ETF23/" + today;
     },
@@ -94,9 +95,17 @@ const ETF_GITHUB_PATH = "data/etf-holdings.json";
 
 /**
  * 主入口：更新所有 ETF 持股資料並發佈到 GitHub
+ * 假日會跳過自動下載，但仍會嘗試從 Drive 讀取手動上傳的檔案
  */
 function updateETFHoldings() {
   Logger.log("=== updateETFHoldings 開始 ===");
+
+  // 假日檢查 (若有 isHoliday 函式)
+  if (typeof isHoliday === "function" && isHoliday()) {
+    Logger.log("今天是假日，跳過 ETF 更新");
+    return;
+  }
+
   var startTs = new Date();
   var etfs = {};
   var errors = [];
@@ -184,22 +193,70 @@ function updateETFHoldings() {
 
 /**
  * 下載 ETF Excel 檔案
- * 部分 API (如國泰) 需要帶 User-Agent / Referer 才不會被 403 擋掉
+ * 處理 302 redirect + Set-Cookie (統一投信 ezmoney 需要)
+ * 處理需要 User-Agent 的 API (復華 fhtrust)
  */
 function downloadETFExcel_(url, code) {
   try {
+    var headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
+    };
+    var cookies = [];
+
+    // 第一次請求 (不自動 follow redirect，手動處理)
     var resp = UrlFetchApp.fetch(url, {
       muteHttpExceptions: true,
-      followRedirects: true,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-        "Referer": url.match(/https?:\/\/[^\/]+/)[0] + "/"
-      }
+      followRedirects: false,
+      headers: headers
     });
+
+    // 手動處理 redirect + cookie (統一投信 ezmoney 的模式)
+    var redirectCount = 0;
+    while ((resp.getResponseCode() === 301 || resp.getResponseCode() === 302 || resp.getResponseCode() === 307) && redirectCount < 5) {
+      redirectCount++;
+      var allHeaders = resp.getAllHeaders();
+
+      // 收集 Set-Cookie
+      var newCookies = allHeaders["Set-Cookie"];
+      if (newCookies) {
+        if (Array.isArray(newCookies)) cookies = cookies.concat(newCookies);
+        else cookies.push(newCookies);
+      }
+
+      // 取得 redirect 目標
+      var location = allHeaders["Location"] || allHeaders["location"];
+      if (!location) break;
+      if (location.startsWith("/")) {
+        var baseMatch = url.match(/^(https?:\/\/[^\/]+)/);
+        location = (baseMatch ? baseMatch[1] : "") + location;
+      }
+
+      Logger.log("  redirect #" + redirectCount + " → " + location.substring(0, 80));
+
+      // 帶著 cookie 重新請求
+      var nextHeaders = { "User-Agent": headers["User-Agent"] };
+      if (cookies.length > 0) nextHeaders["Cookie"] = cookies.join("; ");
+
+      Utilities.sleep(500);
+      resp = UrlFetchApp.fetch(location, {
+        muteHttpExceptions: true,
+        followRedirects: false,
+        headers: nextHeaders
+      });
+    }
+
     if (resp.getResponseCode() !== 200) {
       Logger.log("  下載失敗 HTTP " + resp.getResponseCode());
       return null;
     }
+
+    // 檢查是否拿到 HTML 錯誤頁而非 xlsx
+    var contentSniff = resp.getBlob().getDataAsString().slice(0, 100);
+    if (contentSniff.includes("<html") || contentSniff.includes("<!DOCTYPE")) {
+      Logger.log("  下載內容為網頁 (可能假日無資料)，跳過");
+      return null;
+    }
+
     return resp.getBlob().setName(code + ".xlsx");
   } catch (e) {
     Logger.log("  下載錯誤: " + e.message);
