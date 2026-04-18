@@ -154,8 +154,204 @@ const Filters = (() => {
       placeholder: '天數...',
       group: 'CB篩選',
       apply: (stock, val) => !val || (stock.cbHighDays != null && stock.cbHighDays >= val)
+    },
+
+    // 可轉債條件篩選
+    cbConvValueMin: {
+      label: '轉換價值',
+      type: 'range',
+      unitLabel: '元',
+      group: 'CB條件',
+      field: 'min',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const cv = _convValue_(stock);
+        return cv != null && cv >= val;
+      }
+    },
+    cbConvValueMax: {
+      label: '轉換價值',
+      type: 'range',
+      unitLabel: '元',
+      group: 'CB條件',
+      field: 'max',
+      pairWith: 'cbConvValueMin',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const cv = _convValue_(stock);
+        return cv != null && cv <= val;
+      }
+    },
+    cbOutstandingPct: {
+      label: '已轉換比例',
+      type: 'cb_select',
+      options: [
+        { label: '-- 不限 --', value: '' },
+        { label: '10%以下', value: '10' },
+        { label: '20%以下', value: '20' },
+        { label: '30%以下', value: '30' },
+        { label: '50%以下', value: '50' }
+      ],
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const pct = stock.mainCB?.outstandingPct;
+        if (pct == null) return false;
+        return (100 - pct) <= Number(val);
+      }
+    },
+    cbRecentIssue: {
+      label: '近期發行',
+      type: 'cb_select',
+      options: [
+        { label: '-- 不限 --', value: '' },
+        { label: '30天以內', value: '30' },
+        { label: '60天以內', value: '60' },
+        { label: '90天以內', value: '90' },
+        { label: '180天以內', value: '180' }
+      ],
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const d = stock.mainCB?.listDate || stock.mainCB?.issueDate;
+        if (!d) return false;
+        return _daysFromNow_(d) <= Number(val);
+      }
+    },
+    cbMaturityDays: {
+      label: '距到期日',
+      type: 'cb_select',
+      options: [
+        { label: '-- 不限 --', value: '' },
+        { label: '30天以內', value: '30' },
+        { label: '90天以內', value: '90' },
+        { label: '180天以內', value: '180' },
+        { label: '1年以內', value: '365' },
+        { label: '2年以內', value: '730' },
+        { label: '3年以上', value: '-1095' }
+      ],
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const d = stock.mainCB?.maturityDate;
+        if (!d) return false;
+        const days = _daysUntil_(d);
+        const n = Number(val);
+        if (n < 0) return days >= Math.abs(n);
+        return days <= n;
+      }
+    },
+    cbYtpMin: {
+      label: '提前賣回收益率',
+      type: 'cb_select',
+      options: [
+        { label: '-- 不限 --', value: '' },
+        { label: '大於 0%', value: '0' },
+        { label: '大於 1%', value: '1' },
+        { label: '大於 3%', value: '3' },
+        { label: '大於 5%', value: '5' }
+      ],
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val && val !== '0') return true;
+        const ytp = stock.mainCB?.ytp;
+        if (ytp == null) return false;
+        return (ytp * 100) >= Number(val);
+      }
+    },
+    cbYtmMin: {
+      label: '到期收益率',
+      type: 'cb_select',
+      options: [
+        { label: '-- 不限 --', value: '' },
+        { label: '大於 0%', value: '0' },
+        { label: '大於 1%', value: '1' },
+        { label: '大於 3%', value: '3' },
+        { label: '大於 5%', value: '5' }
+      ],
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val && val !== '0') return true;
+        const ytm = stock.mainCB?.ytm;
+        if (ytm == null) return false;
+        return (ytm * 100) >= Number(val);
+      }
+    },
+    cbConvStarted: {
+      label: '轉換開始日',
+      type: 'cb_select',
+      options: [
+        { label: '-- 不限 --', value: '' },
+        { label: '已可轉換', value: 'started' },
+        { label: '尚未可轉換', value: 'not_started' }
+      ],
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const period = stock.mainCB?.conversionPeriod;
+        if (!period) return false;
+        const start = period.split(/[~～]/)[0]?.trim();
+        if (!start) return false;
+        const startDate = _parseDate_(start);
+        if (!startDate) return false;
+        if (val === 'started') return startDate <= new Date();
+        return startDate > new Date();
+      }
+    },
+    cbGuarantee: {
+      label: '擔保情形',
+      type: 'cb_select',
+      options: [
+        { label: '-- 不限 --', value: '' },
+        { label: '有擔保', value: 'yes' },
+        { label: '無擔保', value: 'no' }
+      ],
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const g = stock.mainCB?.guarantee;
+        if (val === 'yes') return !!g && g !== '無' && g !== '無擔保' && g !== '-';
+        return !g || g === '無' || g === '無擔保' || g === '-';
+      }
+    },
+    cbExcludeConvStop: {
+      label: '排除暫停轉換',
+      type: 'checkbox',
+      group: 'CB條件',
+      apply: (stock, val) => {
+        if (!val) return true;
+        return !stock.mainCB?.conversionStop || stock.mainCB.conversionStop.length === 0;
+      }
     }
   };
+
+  function _convValue_(stock) {
+    if (!stock.conversionPrice || !stock.latestClose) return null;
+    return (100 / stock.conversionPrice) * stock.latestClose;
+  }
+
+  function _daysFromNow_(dateStr) {
+    const d = _parseDate_(dateStr);
+    if (!d) return Infinity;
+    return Math.abs(Math.floor((new Date() - d) / 86400000));
+  }
+
+  function _daysUntil_(dateStr) {
+    const d = _parseDate_(dateStr);
+    if (!d) return Infinity;
+    return Math.floor((d - new Date()) / 86400000);
+  }
+
+  function _parseDate_(s) {
+    if (!s) return null;
+    s = String(s).trim();
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s);
+    // YYY/MM/DD (民國)
+    const m = s.match(/^(\d{2,3})\/(\d{2})\/(\d{2})$/);
+    if (m) return new Date(Number(m[1]) + 1911, Number(m[2]) - 1, Number(m[3]));
+    return new Date(s) || null;
+  }
 
   function applyFilters(stockMap, filters) {
     const results = [];

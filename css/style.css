@@ -101,6 +101,7 @@ body {
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
+  scrollbar-gutter: stable;
 }
 
 .filter-search {
@@ -130,7 +131,8 @@ body {
 .filter-group {
   border: 1px solid var(--border-light);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: visible;
+  flex-shrink: 0;
 }
 
 .filter-group-title {
@@ -160,6 +162,10 @@ body {
 
 .filter-group.collapsed .filter-group-content {
   display: none;
+}
+
+.filter-group-title + .filter-group-content {
+  border-top: 1px solid var(--border-light);
 }
 
 .filter-group-content {
@@ -208,6 +214,23 @@ body {
   accent-color: var(--accent);
   width: 16px;
   height: 16px;
+}
+
+.filter-range-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-range-row .filter-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-range-row .range-sep {
+  color: var(--text-dim);
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
 .filter-buttons {

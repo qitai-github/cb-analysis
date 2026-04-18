@@ -121,6 +121,7 @@ const App = (() => {
       const content = document.createElement('div');
       content.className = 'filter-group-content';
       for (const field of fields) {
+        if (field.pairWith) continue;
         const wrapper = document.createElement('div');
         wrapper.className = 'filter-item';
         wrapper.appendChild(createFilterInput(field.key, field));
@@ -247,6 +248,48 @@ const App = (() => {
         applyCurrentFilters();
       });
       container.appendChild(select);
+    } else if (def.type === 'cb_select') {
+      const label = document.createElement('label');
+      label.textContent = def.label;
+      label.className = 'filter-label';
+      container.appendChild(label);
+      const select = document.createElement('select');
+      select.id = `filter-${key}`;
+      select.className = 'filter-select';
+      for (const opt of def.options) {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.label;
+        select.appendChild(option);
+      }
+      select.addEventListener('change', applyCurrentFilters);
+      container.appendChild(select);
+    } else if (def.type === 'range') {
+      if (def.pairWith) return container;
+      const label = document.createElement('label');
+      label.textContent = def.label;
+      label.className = 'filter-label';
+      container.appendChild(label);
+      const row = document.createElement('div');
+      row.className = 'filter-range-row';
+      const inputMin = document.createElement('input');
+      inputMin.type = 'number';
+      inputMin.id = `filter-${key}`;
+      inputMin.className = 'filter-input';
+      inputMin.placeholder = '下限';
+      inputMin.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCurrentFilters(); });
+      const sep = document.createElement('span');
+      sep.className = 'range-sep';
+      sep.textContent = '~';
+      const pairKey = Object.keys(Filters.filterDefs).find(k => Filters.filterDefs[k].pairWith === key);
+      const inputMax = document.createElement('input');
+      inputMax.type = 'number';
+      inputMax.id = pairKey ? `filter-${pairKey}` : `filter-${key}-max`;
+      inputMax.className = 'filter-input';
+      inputMax.placeholder = '上限';
+      inputMax.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCurrentFilters(); });
+      row.append(inputMin, sep, inputMax);
+      container.appendChild(row);
     } else {
       const label = document.createElement('label');
       label.textContent = def.label;
@@ -364,7 +407,7 @@ const App = (() => {
       if (!el) continue;
       if (el.type === 'checkbox') values[key] = el.checked;
       else if (el.type === 'number') values[key] = el.value ? Number(el.value) : null;
-      else values[key] = el.value || null;
+      else values[key] = el.value !== '' ? el.value : null;
     }
     return values;
   }
