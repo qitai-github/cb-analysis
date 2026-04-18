@@ -103,7 +103,10 @@ def extract_nav_info(ws):
 
 
 def parse_ctbc(filepath):
-    """中信 00891 格式：序號/代碼/中文名稱/英文名稱/股數/權重(%)"""
+    """中信 00891 格式：支援兩種版本
+    舊版：序號/代碼/中文名稱/英文名稱/股數/權重(%)
+    新版：股票代號/股票名稱/股數/持股權重
+    """
     wb = openpyxl.load_workbook(filepath)
     ws = wb.active
     date = extract_date_from_sheet(ws, "ctbc")
@@ -111,18 +114,36 @@ def parse_ctbc(filepath):
     holdings = []
 
     found_header = False
+    code_col = 1  # default: 舊版格式 code 在 col 1
     for row in ws.iter_rows(min_row=1, values_only=True):
-        if row[0] and str(row[0]).strip() == "序號":
-            found_header = True
-            continue
         if not found_header:
+            r0 = str(row[0]).strip() if row[0] else ""
+            if r0 == "序號":
+                found_header = True
+                code_col = 1
+            elif r0 == "股票代號":
+                found_header = True
+                code_col = 0
             continue
-        if row[0] is None:
+        if row[0] is None or str(row[0]).strip() == "":
             continue
-        code = str(row[1]).strip() if row[1] else ""
-        name = str(row[2]).strip() if row[2] else ""
-        shares = clean_number(row[4]) if len(row) > 4 else None
-        weight = clean_number(row[5]) if len(row) > 5 else None
+
+        if code_col == 0:
+            # 新版：股票代號(0), 股票名稱(1), 股數(2), 持股權重(3)
+            code = str(row[0]).strip()
+            if not code or not code[0].isdigit():
+                continue
+            name = str(row[1]).strip() if row[1] else ""
+            shares = clean_number(row[2])
+            weight_str = str(row[3]).replace("%", "").strip() if row[3] else ""
+            weight = clean_number(weight_str)
+        else:
+            # 舊版：序號(0), 代碼(1), 名稱(2), ?(3), 股數(4), 權重(5)
+            code = str(row[1]).strip() if row[1] else ""
+            name = str(row[2]).strip() if row[2] else ""
+            shares = clean_number(row[4]) if len(row) > 4 else None
+            weight = clean_number(row[5]) if len(row) > 5 else None
+
         if code:
             holdings.append({"code": code, "name": name, "shares": shares, "weight": weight})
 

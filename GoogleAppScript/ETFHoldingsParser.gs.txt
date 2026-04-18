@@ -500,18 +500,38 @@ function parseCtbc_(ss) {
   for (var i = 0; i < data.length; i++) {
     var row = data[i];
     if (!foundHeader) {
-      if (row[0] && String(row[0]).trim() === "序號") foundHeader = true;
+      var r0 = String(row[0]).trim();
+      // 支援兩種格式：舊版 "序號" 或新版 "股票代號"
+      if (r0 === "序號" || r0 === "股票代號") {
+        foundHeader = true;
+        // 判斷欄位偏移：「股票代號」格式 code 在 col 0；「序號」格式 code 在 col 1
+        var codeCol = (r0 === "股票代號") ? 0 : 1;
+      }
       continue;
     }
     if (row[0] == null || row[0] === "") continue;
-    var code = String(row[1]).trim();
-    if (!code) continue;
-    holdings.push({
-      code: code,
-      name: String(row[2]).trim(),
-      shares: parseNum_(row[4]),
-      weight: parseNum_(row[5])
-    });
+
+    if (codeCol === 0) {
+      // 新版格式：股票代號(0), 股票名稱(1), 股數(2), 持股權重(3)
+      var code = String(row[0]).trim();
+      if (!code || !/^\d/.test(code)) continue;  // 跳過非股票代號的行
+      holdings.push({
+        code: code,
+        name: String(row[1]).trim(),
+        shares: parseNum_(row[2]),
+        weight: parseWeight_(row[3])
+      });
+    } else {
+      // 舊版格式：序號(0), 代碼(1), 名稱(2), ?(3), 股數(4), 權重(5)
+      var code = String(row[1]).trim();
+      if (!code) continue;
+      holdings.push({
+        code: code,
+        name: String(row[2]).trim(),
+        shares: parseNum_(row[4]),
+        weight: parseNum_(row[5])
+      });
+    }
   }
 
   return makeResult_(date, navInfo, holdings);
@@ -760,8 +780,79 @@ function testSingleETF() {
 }
 
 /**
- * 手動觸發：將所有 ETF xlsx 上傳到對應的 Google Drive 資料夾後執行
+ * 手動上傳：讀取 Drive 現有的 ETF xlsx，解析後推上 GitHub
+ * 跳過假日檢查、跳過自動下載，純粹用 Drive 上的檔案
  */
-function manualUploadAndParse() {
-  updateETFHoldings();
+function manualUploadToGithub() {
+  Logger.log("=== manualUploadToGithub 開始 ===");
+  var startTs = new Date();
+  var etfs = {};
+  var errors = [];
+
+  for (var code in ETF_CONFIG) {
+    var config = ETF_CONFIG[code];
+    Logger.log("[ETF] " + code + " " + config.name);
+
+    try {
+      var blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+      if (!blob) {
+        Logger.log("  ✗ Drive 無檔案");
+        errors.push(code);
+        continue;
+      }
+
+      var result = parseETFExcel_(blob, config.parser, code);
+      if (result) {
+        result.name = config.name;
+        etfs[code] = result;
+        Logger.log("  ✓ " + result.holdingCount + " 檔持股, date=" + result.date);
+      } else {
+        errors.push(code);
+      }
+    } catch (e) {
+      Logger.log("  ✗ 錯誤: " + e.message);
+      errors.push(code);
+    }
+  }
+
+  // 取得前一版進行變動比對
+  var prevData = fetchJsonFromGithub_(ETF_GITHUB_PATH);
+  var sha = prevData ? prevData.sha : "";
+  var prevEtfs = null;
+  if (prevData && prevData.content) {
+    try {
+      var prevJson = JSON.parse(Utilities.newBlob(Utilities.base64Decode(prevData.content)).getDataAsString());
+      prevEtfs = prevJson.etfs || null;
+    } catch (e) {
+      Logger.log("  前一版解析失敗: " + e.message);
+    }
+  }
+
+  computeHoldingChanges_(etfs, prevEtfs);
+
+  var merged = buildMergedHoldings_(etfs);
+
+  var payload = {
+    _meta: {
+      generatedAt: new Date().toISOString(),
+      etfCount: Object.keys(etfs).length,
+      totalStocks: Object.keys(merged).length,
+      errors: errors
+    },
+    etfs: etfs,
+    merged: merged
+  };
+
+  Logger.log("→ PUT " + ETF_GITHUB_PATH);
+  var result = pushJsonToGithub_(ETF_GITHUB_PATH, payload, sha);
+
+  var elapsed = ((new Date() - startTs) / 1000).toFixed(1);
+  Logger.log("=== manualUploadToGithub " + (result.ok ? "✓" : "✗") +
+    " | " + Object.keys(etfs).length + "/" + Object.keys(ETF_CONFIG).length + " 檔 ETF" +
+    " | " + Object.keys(merged).length + " 檔不重複持股" +
+    " | 耗時 " + elapsed + "s ===");
+
+  if (errors.length > 0) {
+    Logger.log("  失敗: " + errors.join(", "));
+  }
 }

@@ -506,8 +506,8 @@ const DataProcessor = (() => {
       if (!stockName || !title) continue;
       items.push({ stockName, date, title, link });
     }
-    // 按日期倒序（最新在前）
-    items.sort((a, b) => b.date.localeCompare(a.date));
+    // 按日期倒序（最新在前），用 Date 解析避免字串排序錯誤（如 4/8 > 4/18）
+    items.sort((a, b) => new Date(b.date) - new Date(a.date));
     return items;
   }
 
