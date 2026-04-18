@@ -1,0 +1,556 @@
+/**
+ * ============================================================
+ * ETF 持股資料自動下載與解析 (ETFHoldingsParser.gs)
+ * ============================================================
+ * 功能：
+ *   1) 自動下載可直接取得的 ETF xlsx (統一、國泰、復華)
+ *   2) 從 Google Drive 讀取手動上傳的 ETF xlsx (群益、中信)
+ *   3) 解析所有 xlsx 為統一格式 JSON
+ *   4) 發佈 etf-holdings.json 到 GitHub
+ *
+ * 支援 ETF：
+ *   - 00981A 統一台股增長    (自動下載)
+ *   - 00988A 統一全球創新    (自動下載)
+ *   - 00881  國泰科技龍頭    (自動下載)
+ *   - 00991A 復華未來50      (自動下載)
+ *   - 00891  中信關鍵半導體  (Google Drive 手動上傳)
+ *   - 00982A 群益台灣強棒    (Google Drive 手動上傳)
+ *   - 00992A 群益科技創新    (Google Drive 手動上傳)
+ *
+ * 設定定時觸發：
+ *   觸發條件 → + 新增觸發條件
+ *   選擇函式：updateETFHoldings
+ *   事件來源：時間驅動
+ *   類型：每日計時器 → 下午 8 點到 9 點
+ * ============================================================
+ */
+
+// ETF Google Drive 資料夾 ID (手動上傳的 xlsx 放在這些資料夾)
+const ETF_DRIVE_FOLDERS = {
+  "00891": "1rpR7O3t9lfvmuRyVOFqG6ewhnsxOY7RB",
+  "00982A": "16b_yRsFQ0Kl_yimp0RMKFakfZH7lFkHY",
+  "00992A": "1EZPIL8NOJLe_iYWyQxSZbUqovvUBshxq",
+  "00988A": "1mYvA2JcKLErjhprLf4AFfBBcVMUOPrJu",
+  "00981A": "1-l1W_bIPbnEVqgKVUhmoA1SO6R9BWSCF",
+  "00991A": "1XWsvB5t-SHeb9xhNdIJOXBrXubRS3b1Q",
+  "00881": "1Ml-P6qShyEPLE6rgtVnwF23g1HBSwsRF"
+};
+
+// ETF 設定
+const ETF_CONFIG = {
+  "00981A": {
+    name: "統一台股增長",
+    type: "auto_download",
+    getUrl: function() {
+      return "https://www.ezmoney.com.tw/ETF/Fund/AssetExcelNPOI?fundCode=49YTW";
+    },
+    parser: "ezmoney"
+  },
+  "00988A": {
+    name: "統一全球創新",
+    type: "auto_download",
+    getUrl: function() {
+      return "https://www.ezmoney.com.tw/ETF/Fund/AssetExcelNPOI?fundCode=61YTW";
+    },
+    parser: "ezmoney"
+  },
+  "00881": {
+    name: "國泰科技龍頭",
+    type: "auto_download",
+    getUrl: function() {
+      var today = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd");
+      return "https://cwapi.cathaysite.com.tw/api/ETF/DownloadETFWeightExcel?FundCode=CR&SearchDate=" + today;
+    },
+    parser: "cathay"
+  },
+  "00991A": {
+    name: "復華未來50",
+    type: "auto_download",
+    getUrl: function() {
+      var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
+      return "https://www.fhtrust.com.tw/api/assetsExcel/ETF23/" + today;
+    },
+    parser: "fhtrust"
+  },
+  "00891": {
+    name: "中信關鍵半導體",
+    type: "drive",
+    parser: "ctbc"
+  },
+  "00982A": {
+    name: "群益台灣強棒",
+    type: "drive",
+    parser: "capital"
+  },
+  "00992A": {
+    name: "群益科技創新",
+    type: "drive",
+    parser: "capital"
+  }
+};
+
+// GitHub 路徑
+const ETF_GITHUB_PATH = "data/etf-holdings.json";
+
+/**
+ * 主入口：更新所有 ETF 持股資料並發佈到 GitHub
+ */
+function updateETFHoldings() {
+  Logger.log("=== updateETFHoldings 開始 ===");
+  var startTs = new Date();
+  var etfs = {};
+  var errors = [];
+
+  for (var code in ETF_CONFIG) {
+    var config = ETF_CONFIG[code];
+    Logger.log("[ETF] 處理 " + code + " " + config.name + " (" + config.type + ")");
+
+    try {
+      var blob = null;
+
+      if (config.type === "auto_download") {
+        blob = downloadETFExcel_(config.getUrl(), code);
+      } else if (config.type === "drive") {
+        blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+      }
+
+      if (!blob) {
+        Logger.log("  ✗ 無法取得檔案");
+        errors.push(code);
+        continue;
+      }
+
+      // 轉成 Google Sheets 暫存，解析後刪除
+      var result = parseETFExcel_(blob, config.parser, code);
+      if (result) {
+        result.name = config.name;
+        etfs[code] = result;
+        Logger.log("  ✓ " + result.holdingCount + " 檔持股, date=" + result.date);
+      } else {
+        errors.push(code);
+      }
+    } catch (e) {
+      Logger.log("  ✗ 錯誤: " + e.message);
+      errors.push(code);
+    }
+  }
+
+  // 合併持股
+  var merged = buildMergedHoldings_(etfs);
+
+  // 組合最終 JSON
+  var payload = {
+    _meta: {
+      generatedAt: new Date().toISOString(),
+      etfCount: Object.keys(etfs).length,
+      totalStocks: Object.keys(merged).length,
+      errors: errors
+    },
+    etfs: etfs,
+    merged: merged
+  };
+
+  // 發佈到 GitHub
+  Logger.log("→ PUT " + ETF_GITHUB_PATH);
+  var current = fetchJsonFromGithub_(ETF_GITHUB_PATH);
+  var sha = current ? current.sha : "";
+  var result = pushJsonToGithub_(ETF_GITHUB_PATH, payload, sha);
+
+  var elapsed = ((new Date() - startTs) / 1000).toFixed(1);
+  Logger.log("=== ETF 持股更新 " + (result.ok ? "✓" : "✗") +
+    " | " + Object.keys(etfs).length + "/" + Object.keys(ETF_CONFIG).length + " 檔 ETF" +
+    " | " + Object.keys(merged).length + " 檔不重複持股" +
+    " | 耗時 " + elapsed + "s ===");
+
+  if (errors.length > 0) {
+    Logger.log("  失敗 ETF: " + errors.join(", "));
+  }
+}
+
+/**
+ * 下載 ETF Excel 檔案
+ */
+function downloadETFExcel_(url, code) {
+  try {
+    var resp = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      followRedirects: true
+    });
+    if (resp.getResponseCode() !== 200) {
+      Logger.log("  下載失敗 HTTP " + resp.getResponseCode());
+      return null;
+    }
+    return resp.getBlob().setName(code + ".xlsx");
+  } catch (e) {
+    Logger.log("  下載錯誤: " + e.message);
+    return null;
+  }
+}
+
+/**
+ * 從 Google Drive 資料夾取得最新的 xlsx 檔案
+ */
+function getLatestFromDrive_(folderId, code) {
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    var files = folder.getFilesByType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    var latest = null;
+    var latestDate = new Date(0);
+
+    while (files.hasNext()) {
+      var file = files.next();
+      var created = file.getDateCreated();
+      if (created > latestDate) {
+        latestDate = created;
+        latest = file;
+      }
+    }
+
+    if (!latest) {
+      Logger.log("  Drive 資料夾無 xlsx 檔案");
+      return null;
+    }
+
+    Logger.log("  Drive 最新檔案: " + latest.getName() + " (" + Utilities.formatDate(latestDate, "GMT+8", "yyyy-MM-dd") + ")");
+    return latest.getBlob();
+  } catch (e) {
+    Logger.log("  Drive 讀取錯誤: " + e.message);
+    return null;
+  }
+}
+
+/**
+ * 解析 ETF Excel：將 blob 轉為暫時 Google Sheet 後讀取資料，完成後刪除
+ */
+function parseETFExcel_(blob, parserType, code) {
+  // 用 Drive API 把 xlsx 轉成 Google Sheets
+  var tempFile = Drive.Files.insert(
+    { title: "ETF_TEMP_" + code, mimeType: MimeType.GOOGLE_SHEETS },
+    blob,
+    { convert: true }
+  );
+
+  try {
+    var ss = SpreadsheetApp.openById(tempFile.id);
+    var result = null;
+
+    switch (parserType) {
+      case "ezmoney":
+        result = parseEzmoney_(ss);
+        break;
+      case "cathay":
+        result = parseCathay_(ss);
+        break;
+      case "fhtrust":
+        result = parseFhtrust_(ss);
+        break;
+      case "ctbc":
+        result = parseCtbc_(ss);
+        break;
+      case "capital":
+        result = parseCapital_(ss);
+        break;
+    }
+
+    return result;
+  } finally {
+    // 刪除暫存 Sheet
+    DriveApp.getFileById(tempFile.id).setTrashed(true);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//   各 ETF 格式解析器
+// ─────────────────────────────────────────────────────────────
+
+/** 統一投信 (00981A, 00988A): 單 sheet, 股票代號/名稱/股數/持股權重 */
+function parseEzmoney_(ss) {
+  var ws = ss.getSheets()[0];
+  var data = ws.getDataRange().getValues();
+  var date = extractDate_(data);
+  var navInfo = extractNavInfo_(data);
+  var holdings = [];
+
+  var foundHeader = false;
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (!foundHeader) {
+      if (row[0] && String(row[0]).indexOf("股票代號") === 0) foundHeader = true;
+      continue;
+    }
+    var code = String(row[0]).trim();
+    if (!code) break;
+    holdings.push({
+      code: code,
+      name: String(row[1]).trim(),
+      shares: parseNum_(row[2]),
+      weight: parseWeight_(row[3])
+    });
+  }
+
+  return makeResult_(date, navInfo, holdings);
+}
+
+/** 國泰 (00881): 單 sheet, 「股票代號」行之後 */
+function parseCathay_(ss) {
+  var ws = ss.getSheets()[0];
+  var data = ws.getDataRange().getValues();
+  var date = extractDate_(data);
+  var navInfo = extractNavInfo_(data);
+  var holdings = [];
+
+  var foundHeader = false;
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (!foundHeader) {
+      if (row[0] && String(row[0]).trim() === "股票代號") foundHeader = true;
+      continue;
+    }
+    var code = String(row[0]).trim();
+    if (!code || code.indexOf("期貨") >= 0) break;
+    holdings.push({
+      code: code,
+      name: String(row[1]).trim(),
+      shares: parseNum_(row[2]),
+      weight: parseWeight_(row[3])
+    });
+  }
+
+  return makeResult_(date, navInfo, holdings);
+}
+
+/** 復華 (00991A): 單 sheet, 證券代號/名稱/股數/金額/權重(%) */
+function parseFhtrust_(ss) {
+  var ws = ss.getSheets()[0];
+  var data = ws.getDataRange().getValues();
+  var date = extractDate_(data);
+
+  // 復華的 NAV 資訊格式不同 (值在標題下一行)
+  var nav = null, units = null, navPerUnit = null;
+  for (var i = 0; i < Math.min(15, data.length); i++) {
+    var label = String(data[i][0]);
+    if (label.indexOf("資產淨值") >= 0 && i + 1 < data.length) nav = parseNum_(data[i + 1][0]);
+    if (label.indexOf("流通單位") >= 0 && i + 1 < data.length) units = parseNum_(data[i + 1][0]);
+    if (label.indexOf("每單位淨值") >= 0 && i + 1 < data.length) navPerUnit = parseNum_(data[i + 1][0]);
+  }
+
+  var holdings = [];
+  var foundHeader = false;
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (!foundHeader) {
+      if (row[0] && String(row[0]).indexOf("證券代號") >= 0) foundHeader = true;
+      continue;
+    }
+    var code = String(row[0]).trim();
+    if (!code) break;
+    holdings.push({
+      code: code,
+      name: String(row[1]).trim(),
+      shares: parseNum_(row[2]),
+      weight: parseWeight_(row[4])
+    });
+  }
+
+  return {
+    date: date,
+    nav: nav,
+    units: units,
+    navPerUnit: navPerUnit,
+    holdingCount: holdings.length,
+    holdings: holdings
+  };
+}
+
+/** 中信 (00891): 序號/代碼/中文名/英文名/股數/權重(%) */
+function parseCtbc_(ss) {
+  var ws = ss.getSheets()[0];
+  var data = ws.getDataRange().getValues();
+  var date = extractDate_(data);
+  var navInfo = extractNavInfo_(data);
+  var holdings = [];
+
+  var foundHeader = false;
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (!foundHeader) {
+      if (row[0] && String(row[0]).trim() === "序號") foundHeader = true;
+      continue;
+    }
+    if (row[0] == null || row[0] === "") continue;
+    var code = String(row[1]).trim();
+    if (!code) continue;
+    holdings.push({
+      code: code,
+      name: String(row[2]).trim(),
+      shares: parseNum_(row[4]),
+      weight: parseNum_(row[5])
+    });
+  }
+
+  return makeResult_(date, navInfo, holdings);
+}
+
+/** 群益 (00982A, 00992A): 多 sheet, 「股票」工作表 */
+function parseCapital_(ss) {
+  // 投資組合 sheet
+  var wsMain = ss.getSheetByName("投資組合");
+  var navData = wsMain ? wsMain.getDataRange().getValues() : [];
+  var nav = null, units = null, navPerUnit = null;
+  for (var i = 0; i < navData.length; i++) {
+    var label = String(navData[i][0]);
+    var val = navData[i][1];
+    if (label.indexOf("基金淨資產") >= 0 && label.indexOf("每") < 0) nav = parseNum_(val);
+    if (label.indexOf("每受益權") >= 0) navPerUnit = parseNum_(val);
+    if (label.indexOf("總數") >= 0) units = parseNum_(val);
+  }
+
+  // 股票 sheet
+  var wsStock = ss.getSheetByName("股票");
+  if (!wsStock) return null;
+  var data = wsStock.getDataRange().getValues();
+  var holdings = [];
+  var foundHeader = false;
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (!foundHeader) {
+      if (row[0] && String(row[0]).indexOf("股票代號") >= 0) foundHeader = true;
+      continue;
+    }
+    var code = String(row[0]).trim();
+    if (!code) break;
+    holdings.push({
+      code: code,
+      name: String(row[1]).trim(),
+      weight: parseWeight_(row[2]),
+      shares: parseNum_(row[3])
+    });
+  }
+
+  // 群益沒有日期欄位，用今天
+  var date = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd");
+
+  return {
+    date: date,
+    nav: nav,
+    units: units,
+    navPerUnit: navPerUnit,
+    holdingCount: holdings.length,
+    holdings: holdings
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+//   共用工具
+// ─────────────────────────────────────────────────────────────
+
+function extractDate_(data) {
+  for (var i = 0; i < Math.min(10, data.length); i++) {
+    for (var j = 0; j < data[i].length; j++) {
+      var s = String(data[i][j]);
+      // 西元年 2026/04/17 or 2026-04-17
+      var m = s.match(/(20\d{2})[\/\-](\d{2})[\/\-](\d{2})/);
+      if (m) return m[1] + "-" + m[2] + "-" + m[3];
+      // 民國年 115/04/17 (確保是 2~3 位數且 >= 100)
+      m = s.match(/(?<!\d)(\d{2,3})\/(\d{2})\/(\d{2})/);
+      if (m && parseInt(m[1]) >= 100 && parseInt(m[1]) <= 200) {
+        var y = parseInt(m[1]) + 1911;
+        return y + "-" + m[2] + "-" + m[3];
+      }
+    }
+  }
+  return Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd");
+}
+
+function extractNavInfo_(data) {
+  var nav = null, units = null, navPerUnit = null;
+  for (var i = 0; i < Math.min(15, data.length); i++) {
+    for (var j = 0; j < data[i].length; j++) {
+      var s = String(data[i][j]);
+      if ((s.indexOf("淨資產") >= 0 || s.indexOf("資產淨值") >= 0) && j + 1 < data[i].length) {
+        nav = parseNum_(data[i][j + 1]);
+      }
+      if (s.indexOf("流通") >= 0 && (s.indexOf("單位") >= 0 || s.indexOf("總數") >= 0) && j + 1 < data[i].length) {
+        units = parseNum_(data[i][j + 1]);
+      }
+      if (s.indexOf("每") >= 0 && s.indexOf("淨值") >= 0 && j + 1 < data[i].length) {
+        navPerUnit = parseNum_(data[i][j + 1]);
+      }
+    }
+  }
+  return { nav: nav, units: units, navPerUnit: navPerUnit };
+}
+
+function parseNum_(val) {
+  if (val == null) return null;
+  var s = String(val).replace(/,/g, "").replace(/NTD/g, "").replace(/NT\$/g, "")
+    .replace(/TWD/g, "").replace(/USD/g, "").replace(/\$/g, "").trim();
+  var n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+function parseWeight_(val) {
+  if (val == null) return null;
+  var s = String(val).replace(/%/g, "").trim();
+  var n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+function makeResult_(date, navInfo, holdings) {
+  return {
+    date: date,
+    nav: navInfo.nav,
+    units: navInfo.units,
+    navPerUnit: navInfo.navPerUnit,
+    holdingCount: holdings.length,
+    holdings: holdings
+  };
+}
+
+function buildMergedHoldings_(etfs) {
+  var merged = {};
+  for (var etfCode in etfs) {
+    var holdings = etfs[etfCode].holdings;
+    if (!holdings) continue;
+    for (var i = 0; i < holdings.length; i++) {
+      var h = holdings[i];
+      if (!merged[h.code]) {
+        merged[h.code] = { name: h.name, etfs: {}, count: 0 };
+      }
+      merged[h.code].etfs[etfCode] = h.weight;
+      merged[h.code].count = Object.keys(merged[h.code].etfs).length;
+    }
+  }
+  return merged;
+}
+
+/**
+ * 測試：只跑單一 ETF (用於除錯)
+ */
+function testSingleETF() {
+  var code = "00881";
+  var config = ETF_CONFIG[code];
+  Logger.log("測試 " + code + " " + config.name);
+
+  var blob;
+  if (config.type === "auto_download") {
+    blob = downloadETFExcel_(config.getUrl(), code);
+  } else {
+    blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+  }
+
+  if (!blob) {
+    Logger.log("無法取得檔案");
+    return;
+  }
+
+  var result = parseETFExcel_(blob, config.parser, code);
+  Logger.log(JSON.stringify(result, null, 2));
+}
+
+/**
+ * 手動觸發：將所有 ETF xlsx 上傳到對應的 Google Drive 資料夾後執行
+ */
+function manualUploadAndParse() {
+  updateETFHoldings();
+}

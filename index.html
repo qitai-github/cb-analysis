@@ -16,6 +16,10 @@
       <div class="logo">CB</div>
       <span>可轉債分析平台</span>
     </div>
+    <div class="header-tabs">
+      <button class="header-tab active" id="tab-cb" onclick="App.switchTab('cb')">CB 分析</button>
+      <button class="header-tab" id="tab-etf" onclick="App.switchTab('etf')">ETF 持股</button>
+    </div>
     <div class="header-actions">
       <span class="header-date" id="header-date"></span>
       <span class="header-status" id="header-status"></span>
@@ -112,6 +116,7 @@
   <script src="js/table.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/exportCsv.js"></script>
+  <script src="js/etfView.js"></script>
   <script src="js/app.js"></script>
 
 </body>

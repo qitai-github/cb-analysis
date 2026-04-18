@@ -4,6 +4,9 @@ const App = (() => {
   let filteredData = [];
   let selectedStock = null;
   let latestDataDate = '';
+  let currentTab = 'cb';   // 'cb' | 'etf'
+  let etfLoaded = false;
+  let rawCBIssuance = null; // 保留 CB 發行資訊供 ETF 交叉比對
 
   async function init() {
     showLoading(true);
@@ -15,6 +18,7 @@ const App = (() => {
       const result = DataProcessor.mergeAllData(cached.data);
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
+      rawCBIssuance = cached.data.cbIssuance || null;
       updateDateDisplay();
       showLoading(false);
       buildFilterPanel();
@@ -35,6 +39,7 @@ const App = (() => {
       const result = DataProcessor.mergeAllData(rawResults);
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
+      rawCBIssuance = rawResults.cbIssuance || null;
 
       // 顯示更新日期
       updateDateDisplay();
@@ -920,6 +925,8 @@ const App = (() => {
       const result = DataProcessor.mergeAllData(rawResults);
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
+      rawCBIssuance = rawResults.cbIssuance || null;
+      etfLoaded = false; // 重新載入 ETF CB 交叉比對
       SheetsAPI.saveToStorage(rawResults);
       updateDateDisplay();
       applyCurrentFilters();
@@ -946,7 +953,47 @@ const App = (() => {
     if (backdrop) backdrop.classList.toggle('show', isOpen);
   }
 
-  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal };
+  /** 分頁切換 */
+  async function switchTab(tab) {
+    if (tab === currentTab) return;
+    currentTab = tab;
+
+    // 更新 tab 按鈕樣式
+    document.getElementById('tab-cb').classList.toggle('active', tab === 'cb');
+    document.getElementById('tab-etf').classList.toggle('active', tab === 'etf');
+
+    // 關閉 detail panel
+    closeDetail();
+
+    if (tab === 'cb') {
+      buildFilterPanel();
+      applyCurrentFilters();
+    } else if (tab === 'etf') {
+      await initETFView();
+    }
+  }
+
+  async function initETFView() {
+    const statusEl = document.getElementById('header-status');
+    if (!etfLoaded) {
+      if (statusEl) statusEl.textContent = '載入 ETF 資料...';
+      await ETFView.loadData();
+
+      // 傳入 CB 發行資訊供交叉比對
+      if (rawCBIssuance) {
+        ETFView.setCBData(rawCBIssuance);
+      }
+      etfLoaded = true;
+    }
+
+    const data = ETFView.getFilteredData();
+    if (statusEl) statusEl.textContent = `ETF 持股分析 | 共 ${data.length} 檔`;
+
+    ETFView.buildFilterPanel('filter-panel');
+    ETFView.renderTable('main-table');
+  }
+
+  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal, switchTab };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

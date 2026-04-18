@@ -65,6 +65,36 @@ body {
   font-weight: bold;
 }
 
+/* === 分頁切換 === */
+.header-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 16px;
+}
+
+.header-tab {
+  padding: 6px 16px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.header-tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.header-tab.active {
+  color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent);
+}
+
 .header-actions {
   display: flex;
   gap: 8px;
@@ -985,6 +1015,23 @@ body {
   border-radius: 4px;
 }
 
+/* === ETF 持股表格 === */
+.etf-cb-badge {
+  display: inline-block;
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--accent);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: help;
+}
+
+.etf-table td {
+  padding: 6px 10px;
+}
+
 /* === 響應式 === */
 @media (max-width: 1024px) {
   .sidebar { width: 240px; min-width: 240px; }
@@ -1018,6 +1065,8 @@ body {
   }
 
   .header-title span { display: none; }
+  .header-tabs { margin-left: 8px; }
+  .header-tab { padding: 4px 10px; font-size: 12px; }
   .header-date { display: none; }
 }
 
