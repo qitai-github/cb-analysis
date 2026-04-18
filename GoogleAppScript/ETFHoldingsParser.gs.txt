@@ -300,6 +300,9 @@ function getLatestFromDrive_(folderId, code) {
  * 解析 ETF Excel：將 blob 轉為暫時 Google Sheet 後讀取資料，完成後刪除
  */
 function parseETFExcel_(blob, parserType, code) {
+  // 強制設定 blob 的 MIME type 為 xlsx (有些 API 回傳的 content-type 不正確)
+  blob.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
   // 用 Drive API 把 xlsx 轉成 Google Sheets
   var tempFile = Drive.Files.insert(
     { title: "ETF_TEMP_" + code, mimeType: MimeType.GOOGLE_SHEETS },
