@@ -344,39 +344,11 @@ const DataProcessor = (() => {
   }
 
   /**
-   * 解析 CB 發行資訊 (來自 Apps Script API)
-   * 回傳以 cbCode 為 key 的 Map
-   */
-  function parseCBIssuance(issuanceData) {
-    const map = new Map();
-    if (!issuanceData || !Array.isArray(issuanceData)) return map;
-
-    for (const item of issuanceData) {
-      if (!item.cbCode) continue;
-      map.set(item.cbCode, {
-        cbCode: item.cbCode,
-        stockCode: item.stockCode,
-        conversionPrice: item.conversionPrice,
-        conversionPeriod: item.conversionPeriod,
-        maturityDate: item.maturityDate,
-        nextPutDate: item.nextPutDate,
-        issueConversionPrice: item.issueConversionPrice,
-        title: item.title
-      });
-    }
-
-    return map;
-  }
-
-  /**
    * 合併所有資料
    */
   function mergeAllData(rawResults) {
     const stockMap = new Map();
     let latestDataDate = '';
-
-    // 解析 CB 發行資訊
-    const issuanceMap = parseCBIssuance(rawResults.cbIssuance);
 
     // 1. 法人資料
     if (rawResults.cbInstitutional) {
@@ -417,16 +389,6 @@ const DataProcessor = (() => {
       const cbDaily = parseCBDailyReport(rawResults.cbDailyReport);
       for (const cb of cbDaily) {
         if (!cb.stockCode) continue;
-
-        // 從發行資訊補充轉換價和轉換期間
-        const issuance = issuanceMap.get(cb.cbCode);
-        if (issuance) {
-          cb.conversionPrice = issuance.conversionPrice;
-          cb.conversionPeriod = issuance.conversionPeriod;
-          cb.maturityDate = issuance.maturityDate;
-          cb.nextPutDate = issuance.nextPutDate;
-        }
-
         const entry = getOrCreate(stockMap, cb.stockCode, '');
         if (!entry.cbs) entry.cbs = [];
         entry.cbs.push(cb);
@@ -497,7 +459,7 @@ const DataProcessor = (() => {
 
     // 計算衍生欄位
     for (const [, stock] of stockMap) {
-      computeDerivedFields(stock, issuanceMap, cbTradingByCode, auctionMap, cbBondInstByCode);
+      computeDerivedFields(stock, cbTradingByCode, auctionMap, cbBondInstByCode);
     }
 
     return { stockMap, latestDataDate };
@@ -645,9 +607,11 @@ const DataProcessor = (() => {
           cb.nearestPutYield = b.nearestPutYield;
           cb.resetFormula = b.resetFormula;
           cb.callDate = b.callDate;
+          if (b.convPrice && !cb.conversionPrice) cb.conversionPrice = b.convPrice;
           if (!cb.conversionPeriod && b.convStart && b.convEnd)
             cb.conversionPeriod = b.convStart + '~' + b.convEnd;
           if (!cb.maturityDate && b.maturityDate) cb.maturityDate = b.maturityDate;
+          if (!cb.nextPutDate && b.nearestPutDate) cb.nextPutDate = b.nearestPutDate;
         }
 
         // 每日行情
@@ -699,7 +663,7 @@ const DataProcessor = (() => {
   /**
    * 計算衍生欄位
    */
-  function computeDerivedFields(stock, issuanceMap, cbTradingByCode, auctionMap, cbBondInstByCode) {
+  function computeDerivedFields(stock, cbTradingByCode, auctionMap, cbBondInstByCode) {
     const tradingDates = stock.tradingDates || [];
     const instDates = stock.institutionalDates || [];
 
@@ -760,17 +724,6 @@ const DataProcessor = (() => {
       stock.cbCount = stock.cbs.length;
       // 主要 CB: 優先選有收盤價的等價交易
       stock.mainCB = stock.cbs.find(cb => cb.close) || stock.cbs[0];
-
-      // 從發行資訊取得轉換價 (如果 CB 交易日報沒有)
-      for (const cb of stock.cbs) {
-        if (!cb.conversionPrice) {
-          const issuance = issuanceMap.get(cb.cbCode);
-          if (issuance?.conversionPrice) {
-            cb.conversionPrice = issuance.conversionPrice;
-            cb.conversionPeriod = issuance.conversionPeriod;
-          }
-        }
-      }
 
       // 轉換價和轉換起始日 (從主CB取)
       if (stock.mainCB) {
@@ -1115,7 +1068,6 @@ const DataProcessor = (() => {
     parseCBDailyReport,
     parseFubonPrimary,
     parseYuantaPrimary,
-    parseCBIssuance,
     mergeAllData,
     parseNumber,
     extractStockCode
