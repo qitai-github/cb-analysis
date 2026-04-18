@@ -110,6 +110,17 @@ function updateETFHoldings() {
 
       if (config.type === "auto_download") {
         blob = downloadETFExcel_(config.getUrl(), code);
+        // 自動下載成功後，備份到 Google Drive 資料夾
+        if (blob && ETF_DRIVE_FOLDERS[code]) {
+          try {
+            var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
+            var folder = DriveApp.getFolderById(ETF_DRIVE_FOLDERS[code]);
+            folder.createFile(blob.setName("@" + code + "_" + today + ".xlsx"));
+            Logger.log("  已備份到 Drive");
+          } catch (e) {
+            Logger.log("  Drive 備份失敗 (不影響解析): " + e.message);
+          }
+        }
       } else if (config.type === "drive") {
         blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
       }
@@ -169,12 +180,17 @@ function updateETFHoldings() {
 
 /**
  * 下載 ETF Excel 檔案
+ * 部分 API (如國泰) 需要帶 User-Agent / Referer 才不會被 403 擋掉
  */
 function downloadETFExcel_(url, code) {
   try {
     var resp = UrlFetchApp.fetch(url, {
       muteHttpExceptions: true,
-      followRedirects: true
+      followRedirects: true,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        "Referer": url.match(/https?:\/\/[^\/]+/)[0] + "/"
+      }
     });
     if (resp.getResponseCode() !== 200) {
       Logger.log("  下載失敗 HTTP " + resp.getResponseCode());
