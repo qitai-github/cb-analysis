@@ -524,7 +524,7 @@ function parseCtbc_(ss) {
     } else {
       // 舊版格式：序號(0), 代碼(1), 名稱(2), ?(3), 股數(4), 權重(5)
       var code = String(row[1]).trim();
-      if (!code) continue;
+      if (!code || !/^\d/.test(code)) continue;  // 跳過期貨(TX/TE)、現金(TWD)等非股票項目
       holdings.push({
         code: code,
         name: String(row[2]).trim(),
@@ -728,9 +728,10 @@ function computeHoldingChanges_(etfs, prevEtfs) {
       }
     }
 
-    // prevMap 剩餘的就是被刪除的持股
+    // prevMap 剩餘的就是被刪除的持股（過濾非股票代碼如期貨TX/TE、現金TWD等）
     var removedHoldings = [];
     for (var rCode in prevMap) {
+      if (!rCode || !/^\d/.test(rCode)) continue;
       var rh = prevMap[rCode];
       removedHoldings.push({
         code: rh.code,

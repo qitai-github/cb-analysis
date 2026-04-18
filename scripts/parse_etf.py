@@ -140,6 +140,8 @@ def parse_ctbc(filepath):
         else:
             # 舊版：序號(0), 代碼(1), 名稱(2), ?(3), 股數(4), 權重(5)
             code = str(row[1]).strip() if row[1] else ""
+            if not code or not code[0].isdigit():
+                continue  # 跳過期貨(TX/TE)、現金(TWD)、表頭等非股票項目
             name = str(row[2]).strip() if row[2] else ""
             shares = clean_number(row[4]) if len(row) > 4 else None
             weight = clean_number(row[5]) if len(row) > 5 else None
@@ -345,9 +347,11 @@ def compute_holding_changes(etfs, prev_etfs):
                     h["change"] = "unchanged"
                     summary["unchanged"] += 1
 
-        # 被刪除的持股
+        # 被刪除的持股（過濾非股票代碼如期貨TX/TE、現金TWD等）
         removed = []
         for rcode, rh in prev_map.items():
+            if not rcode or not rcode[0].isdigit():
+                continue
             removed.append({
                 "code": rh["code"],
                 "name": rh.get("name", ""),
