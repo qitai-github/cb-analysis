@@ -56,7 +56,7 @@ const ETF_CONFIG = {
   },
   "00881": {
     name: "國泰科技龍頭",
-    type: "auto_download",
+    type: "drive",  // 國泰 API 會擋 GAS User-Agent (403)，改為 Drive 手動上傳
     getUrl: function() {
       var today = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd");
       return "https://cwapi.cathaysite.com.tw/api/ETF/DownloadETFWeightExcel?FundCode=CR&SearchDate=" + today;
@@ -110,8 +110,8 @@ function updateETFHoldings() {
 
       if (config.type === "auto_download") {
         blob = downloadETFExcel_(config.getUrl(), code);
-        // 自動下載成功後，備份到 Google Drive 資料夾
         if (blob && ETF_DRIVE_FOLDERS[code]) {
+          // 自動下載成功，備份到 Google Drive 資料夾
           try {
             var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
             var folder = DriveApp.getFolderById(ETF_DRIVE_FOLDERS[code]);
@@ -120,6 +120,10 @@ function updateETFHoldings() {
           } catch (e) {
             Logger.log("  Drive 備份失敗 (不影響解析): " + e.message);
           }
+        } else if (!blob && ETF_DRIVE_FOLDERS[code]) {
+          // 自動下載失敗，fallback 到 Drive 最新檔案
+          Logger.log("  自動下載失敗，嘗試從 Drive 讀取...");
+          blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
         }
       } else if (config.type === "drive") {
         blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
@@ -542,9 +546,10 @@ function buildMergedHoldings_(etfs) {
 
 /**
  * 測試：只跑單一 ETF (用於除錯)
+ * 可改 code 測試不同 ETF
  */
 function testSingleETF() {
-  var code = "00881";
+  var code = "00981A";  // 統一台股增長 (自動下載)
   var config = ETF_CONFIG[code];
   Logger.log("測試 " + code + " " + config.name);
 
