@@ -892,15 +892,21 @@ function manualUploadToGithub() {
     if (!etfs[pCode]) continue;  // 今天沒解析成功的就跳過
     var pConfig = ETF_CONFIG[pCode];
     try {
+      Utilities.sleep(2000);  // 避免 Drive API rate limit
       var prevFile = getSecondLatestFromDrive_(ETF_DRIVE_FOLDERS[pCode], pCode);
       if (prevFile) {
-        var prevResult = parseETFExcel_(prevFile.blob, pConfig.parser, pCode);
-        if (prevResult && prevResult.holdings && prevResult.holdings.length > 0) {
-          if (prevFile.fileDate) prevResult.date = prevFile.fileDate;  // 用檔名日期
-          prevResult.name = pConfig.name;
-          prevEtfs[pCode] = prevResult;
-          hasPrev = true;
-          Logger.log("  ✓ " + pCode + " 前一天: " + prevResult.holdingCount + " 檔, date=" + prevResult.date);
+        // 跳過檔名日期與最新檔相同的情況（代表沒有前一天的資料）
+        if (prevFile.fileDate && prevFile.fileDate === etfs[pCode].date) {
+          Logger.log("  ⚠ " + pCode + " 前一天檔案日期與最新相同 (" + prevFile.fileDate + ")，跳過");
+        } else {
+          var prevResult = parseETFExcel_(prevFile.blob, pConfig.parser, pCode);
+          if (prevResult && prevResult.holdings && prevResult.holdings.length > 0) {
+            if (prevFile.fileDate) prevResult.date = prevFile.fileDate;  // 用檔名日期
+            prevResult.name = pConfig.name;
+            prevEtfs[pCode] = prevResult;
+            hasPrev = true;
+            Logger.log("  ✓ " + pCode + " 前一天: " + prevResult.holdingCount + " 檔, date=" + prevResult.date);
+          }
         }
       }
     } catch (e) {
