@@ -147,6 +147,7 @@ function updateETFHoldings() {
 
     try {
       var blob = null;
+      var fileDate = null;  // 檔名日期，用於覆蓋 xlsx 內容日期
 
       if (config.type === "auto_download") {
         blob = downloadETFExcel_(config.getUrl(), code);
@@ -154,6 +155,7 @@ function updateETFHoldings() {
           // 自動下載成功，備份到 Google Drive 資料夾
           try {
             var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
+            fileDate = formatDateStr_(today);  // 自動下載用當天日期
             var folder = DriveApp.getFolderById(ETF_DRIVE_FOLDERS[code]);
             folder.createFile(blob.setName(code + "_" + today + ".xlsx"));
             Logger.log("  已備份到 Drive");
@@ -163,10 +165,12 @@ function updateETFHoldings() {
         } else if (!blob && ETF_DRIVE_FOLDERS[code]) {
           // 自動下載失敗，fallback 到 Drive 最新檔案
           Logger.log("  自動下載失敗，嘗試從 Drive 讀取...");
-          blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+          var driveResult = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+          if (driveResult) { blob = driveResult.blob; fileDate = driveResult.fileDate; }
         }
       } else if (config.type === "drive") {
-        blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+        var driveResult = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+        if (driveResult) { blob = driveResult.blob; fileDate = driveResult.fileDate; }
       }
 
       if (!blob) {
@@ -178,6 +182,7 @@ function updateETFHoldings() {
       // 轉成 Google Sheets 暫存，解析後刪除
       var result = parseETFExcel_(blob, config.parser, code);
       if (result) {
+        if (fileDate) result.date = fileDate;  // 用檔名日期覆蓋 xlsx 內容日期
         result.name = config.name;
         etfs[code] = result;
         Logger.log("  ✓ " + result.holdingCount + " 檔持股, date=" + result.date);
@@ -350,6 +355,10 @@ function getDriveFilesSorted_(folderId) {
   return list;
 }
 
+/**
+ * 回傳 {blob, fileDate} 或 null
+ * fileDate 格式: "2026-04-17" (從檔名 YYYYMMDD 轉換)
+ */
 function getLatestFromDrive_(folderId, code) {
   try {
     var sorted = getDriveFilesSorted_(folderId);
@@ -358,8 +367,9 @@ function getLatestFromDrive_(folderId, code) {
       return null;
     }
     var latest = sorted[0];
-    Logger.log("  Drive 最新檔案: " + latest.file.getName() + " (日期: " + latest.dateStr + ")");
-    return latest.file.getBlob();
+    var fileDate = formatDateStr_(latest.dateStr);
+    Logger.log("  Drive 最新檔案: " + latest.file.getName() + " (日期: " + fileDate + ")");
+    return { blob: latest.file.getBlob(), fileDate: fileDate };
   } catch (e) {
     Logger.log("  Drive 讀取錯誤: " + e.message);
     return null;
@@ -368,6 +378,7 @@ function getLatestFromDrive_(folderId, code) {
 
 /**
  * 取得 Drive 資料夾中次新的 xlsx (用於比對前一天)
+ * 回傳 {blob, fileDate} 或 null
  */
 function getSecondLatestFromDrive_(folderId, code) {
   try {
@@ -377,12 +388,19 @@ function getSecondLatestFromDrive_(folderId, code) {
       return null;
     }
     var second = sorted[1];
-    Logger.log("  Drive 前一天檔案: " + second.file.getName() + " (日期: " + second.dateStr + ")");
-    return second.file.getBlob();
+    var fileDate = formatDateStr_(second.dateStr);
+    Logger.log("  Drive 前一天檔案: " + second.file.getName() + " (日期: " + fileDate + ")");
+    return { blob: second.file.getBlob(), fileDate: fileDate };
   } catch (e) {
     Logger.log("  Drive 讀取前一天錯誤: " + e.message);
     return null;
   }
+}
+
+/** "20260417" → "2026-04-17" */
+function formatDateStr_(ds) {
+  if (!ds || ds.length !== 8) return ds;
+  return ds.substring(0, 4) + "-" + ds.substring(4, 6) + "-" + ds.substring(6, 8);
 }
 
 /**
@@ -807,11 +825,12 @@ function testSingleETF() {
   var config = ETF_CONFIG[code];
   Logger.log("測試 " + code + " " + config.name);
 
-  var blob;
+  var blob, fileDate;
   if (config.type === "auto_download") {
     blob = downloadETFExcel_(config.getUrl(), code);
   } else {
-    blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+    var driveFile = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+    if (driveFile) { blob = driveFile.blob; fileDate = driveFile.fileDate; }
   }
 
   if (!blob) {
@@ -820,6 +839,7 @@ function testSingleETF() {
   }
 
   var result = parseETFExcel_(blob, config.parser, code);
+  if (result && fileDate) result.date = fileDate;
   Logger.log(JSON.stringify(result, null, 2));
 }
 
@@ -838,15 +858,16 @@ function manualUploadToGithub() {
     Logger.log("[ETF] " + code + " " + config.name);
 
     try {
-      var blob = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
-      if (!blob) {
+      var driveFile = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+      if (!driveFile) {
         Logger.log("  ✗ Drive 無檔案");
         errors.push(code);
         continue;
       }
 
-      var result = parseETFExcel_(blob, config.parser, code);
+      var result = parseETFExcel_(driveFile.blob, config.parser, code);
       if (result) {
+        if (driveFile.fileDate) result.date = driveFile.fileDate;  // 用檔名日期
         result.name = config.name;
         etfs[code] = result;
         Logger.log("  ✓ " + result.holdingCount + " 檔持股, date=" + result.date);
@@ -871,10 +892,11 @@ function manualUploadToGithub() {
     if (!etfs[pCode]) continue;  // 今天沒解析成功的就跳過
     var pConfig = ETF_CONFIG[pCode];
     try {
-      var prevBlob = getSecondLatestFromDrive_(ETF_DRIVE_FOLDERS[pCode], pCode);
-      if (prevBlob) {
-        var prevResult = parseETFExcel_(prevBlob, pConfig.parser, pCode);
+      var prevFile = getSecondLatestFromDrive_(ETF_DRIVE_FOLDERS[pCode], pCode);
+      if (prevFile) {
+        var prevResult = parseETFExcel_(prevFile.blob, pConfig.parser, pCode);
         if (prevResult && prevResult.holdings && prevResult.holdings.length > 0) {
+          if (prevFile.fileDate) prevResult.date = prevFile.fileDate;  // 用檔名日期
           prevResult.name = pConfig.name;
           prevEtfs[pCode] = prevResult;
           hasPrev = true;
