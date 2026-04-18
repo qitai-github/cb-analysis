@@ -313,31 +313,74 @@ function downloadETFExcel_(url, code) {
 /**
  * 從 Google Drive 資料夾取得最新的 xlsx 檔案
  */
+/**
+ * 從檔名提取日期字串 (YYYYMMDD)，支援多種命名格式
+ * 例: "00891_20260417.xlsx" → "20260417"
+ *     "00981A_20260417.xlsx" → "20260417"
+ *     "復華台灣未來50...-2026_04_17.xlsx" → "20260417"
+ *     "2026-04-17CR.xlsx" → "20260417"
+ */
+function extractFilenameDate_(filename) {
+  // YYYYMMDD
+  var m = filename.match(/(20\d{2})(\d{2})(\d{2})/);
+  if (m) return m[1] + m[2] + m[3];
+  // YYYY_MM_DD or YYYY-MM-DD
+  m = filename.match(/(20\d{2})[_\-](\d{2})[_\-](\d{2})/);
+  if (m) return m[1] + m[2] + m[3];
+  return null;
+}
+
+/**
+ * 取得 Drive 資料夾中所有 xlsx，依檔名日期降序排列
+ * 回傳 [{file, dateStr}] 陣列
+ */
+function getDriveFilesSorted_(folderId) {
+  var folder = DriveApp.getFolderById(folderId);
+  var files = folder.getFilesByType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  var list = [];
+
+  while (files.hasNext()) {
+    var file = files.next();
+    var dateStr = extractFilenameDate_(file.getName());
+    list.push({ file: file, dateStr: dateStr || "00000000" });
+  }
+
+  // 依檔名日期降序排列（最新在前）
+  list.sort(function(a, b) { return b.dateStr.localeCompare(a.dateStr); });
+  return list;
+}
+
 function getLatestFromDrive_(folderId, code) {
   try {
-    var folder = DriveApp.getFolderById(folderId);
-    var files = folder.getFilesByType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    var latest = null;
-    var latestDate = new Date(0);
-
-    while (files.hasNext()) {
-      var file = files.next();
-      var created = file.getDateCreated();
-      if (created > latestDate) {
-        latestDate = created;
-        latest = file;
-      }
-    }
-
-    if (!latest) {
+    var sorted = getDriveFilesSorted_(folderId);
+    if (sorted.length === 0) {
       Logger.log("  Drive 資料夾無 xlsx 檔案");
       return null;
     }
-
-    Logger.log("  Drive 最新檔案: " + latest.getName() + " (" + Utilities.formatDate(latestDate, "GMT+8", "yyyy-MM-dd") + ")");
-    return latest.getBlob();
+    var latest = sorted[0];
+    Logger.log("  Drive 最新檔案: " + latest.file.getName() + " (日期: " + latest.dateStr + ")");
+    return latest.file.getBlob();
   } catch (e) {
     Logger.log("  Drive 讀取錯誤: " + e.message);
+    return null;
+  }
+}
+
+/**
+ * 取得 Drive 資料夾中次新的 xlsx (用於比對前一天)
+ */
+function getSecondLatestFromDrive_(folderId, code) {
+  try {
+    var sorted = getDriveFilesSorted_(folderId);
+    if (sorted.length < 2) {
+      Logger.log("  Drive 只有 " + sorted.length + " 個檔案，無法取得前一天");
+      return null;
+    }
+    var second = sorted[1];
+    Logger.log("  Drive 前一天檔案: " + second.file.getName() + " (日期: " + second.dateStr + ")");
+    return second.file.getBlob();
+  } catch (e) {
+    Logger.log("  Drive 讀取前一天錯誤: " + e.message);
     return null;
   }
 }
@@ -816,14 +859,39 @@ function manualUploadToGithub() {
     }
   }
 
-  // 取得前一版進行變動比對
+  // 取得前一版：優先用 Drive 上的次新檔案做比對，GitHub 僅用於取 sha
   var prevData = fetchJsonFromGithub_(ETF_GITHUB_PATH);
   var sha = prevData ? prevData.sha : "";
-  var prevEtfs = null;
-  if (prevData && prevData.content) {
+
+  // 從 Drive 次新檔案建立前一天的持股資料
+  var prevEtfs = {};
+  var hasPrev = false;
+  Logger.log("[比對] 讀取 Drive 前一天檔案...");
+  for (var pCode in ETF_CONFIG) {
+    if (!etfs[pCode]) continue;  // 今天沒解析成功的就跳過
+    var pConfig = ETF_CONFIG[pCode];
+    try {
+      var prevBlob = getSecondLatestFromDrive_(ETF_DRIVE_FOLDERS[pCode], pCode);
+      if (prevBlob) {
+        var prevResult = parseETFExcel_(prevBlob, pConfig.parser, pCode);
+        if (prevResult && prevResult.holdings && prevResult.holdings.length > 0) {
+          prevResult.name = pConfig.name;
+          prevEtfs[pCode] = prevResult;
+          hasPrev = true;
+          Logger.log("  ✓ " + pCode + " 前一天: " + prevResult.holdingCount + " 檔, date=" + prevResult.date);
+        }
+      }
+    } catch (e) {
+      Logger.log("  ✗ " + pCode + " 前一天解析失敗: " + e.message);
+    }
+  }
+
+  // 若 Drive 無前一天資料，fallback 到 GitHub 前一版
+  if (!hasPrev && prevData && prevData.content) {
+    Logger.log("[比對] Drive 無前一天資料，改用 GitHub 前一版");
     try {
       var prevJson = JSON.parse(Utilities.newBlob(Utilities.base64Decode(prevData.content)).getDataAsString());
-      prevEtfs = prevJson.etfs || null;
+      prevEtfs = prevJson.etfs || {};
     } catch (e) {
       Logger.log("  前一版解析失敗: " + e.message);
     }
