@@ -1017,18 +1017,15 @@ body {
 
 /* === ETF 7-欄佈局 === */
 .etf-columns-wrapper {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  overflow-x: auto;
   padding: 8px 4px;
   min-height: calc(100vh - 60px);
   align-items: flex-start;
 }
 
 .etf-column {
-  flex: 1 0 200px;
-  min-width: 200px;
-  max-width: 280px;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1115,6 +1112,8 @@ body {
 .etf-row-decreased { background: rgba(239, 68, 68, 0.04); }
 
 .etf-row-removed td { color: var(--text-dim); }
+
+.etf-col-table tbody tr:hover { background: rgba(59, 130, 246, 0.1); }
 
 /* 變動標記 */
 .etf-change-badge {

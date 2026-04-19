@@ -983,6 +983,10 @@ const App = (() => {
       if (rawCBIssuance) {
         ETFView.setCBData(rawCBIssuance);
       }
+      // 傳入 stockMap 供 ETF 詳情面板使用完整 CB 分析資料
+      if (stockMap) {
+        ETFView.setStockMap(stockMap);
+      }
       etfLoaded = true;
     }
 
@@ -993,7 +997,7 @@ const App = (() => {
     ETFView.renderColumns('main-table');
   }
 
-  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal, switchTab };
+  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal, switchTab, showDetail };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);
