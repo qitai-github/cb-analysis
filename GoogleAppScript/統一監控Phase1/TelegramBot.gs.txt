@@ -1,0 +1,501 @@
+/**
+ * ============================================================
+ * Telegram Bot 指令處理器 (TelegramBot.gs) — 輪詢模式
+ * ============================================================
+ * 架構：
+ *   不使用 Webhook，改用 getUpdates 輪詢。
+ *   設定時間觸發器每 1 分鐘執行 pollTelegramUpdates，
+ *   主動拉取新訊息並處理。
+ *
+ * 設定步驟：
+ *   1. 先執行 removeWebhook() 移除舊 webhook
+ *   2. 執行 startPolling() 建立每分鐘觸發器
+ *   3. 在 Telegram 傳 /help 測試
+ *   停止：執行 stopPolling()
+ *
+ * 支援指令：
+ *   /status       - 快速回報系統狀態
+ *   /healthcheck  - 健康檢查 + 自動修復
+ *   /publish      - 發佈 all-data.json
+ *   /publishtwsa  - 發佈 twsa.json
+ *   /reprocess 20260416,20260417  - 強制重新處理指定日期
+ *   /bootstrap <key>  - 跑 bootstrapOneDataset
+ *   /help         - 顯示可用指令
+ * ============================================================
+ */
+
+// ─────────────────────────────────────────────────────────────
+//   輪詢入口
+// ─────────────────────────────────────────────────────────────
+
+function pollTelegramUpdates() {
+  var props = PropertiesService.getScriptProperties();
+  var offset = Number(props.getProperty("tg_poll_offset") || "0");
+
+  var apiUrl = "https://api.telegram.org/bot" + CFG.TELEGRAM.BOT_TOKEN
+             + "/getUpdates?timeout=0&limit=10";
+  if (offset > 0) apiUrl += "&offset=" + offset;
+
+  try {
+    var resp = UrlFetchApp.fetch(apiUrl, { muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) {
+      Logger.log("getUpdates 失敗: HTTP " + resp.getResponseCode());
+      return;
+    }
+    var data = JSON.parse(resp.getContentText());
+    if (!data.ok || !data.result || data.result.length === 0) return;
+
+    var updates = data.result;
+    for (var i = 0; i < updates.length; i++) {
+      var upd = updates[i];
+      // 更新 offset (下次從這之後開始)
+      if (upd.update_id >= offset) {
+        offset = upd.update_id + 1;
+      }
+
+      var msg = upd.message;
+      if (!msg || !msg.text) continue;
+
+      var chatId = String(msg.chat.id);
+      if (chatId !== String(CFG.TELEGRAM.ADMIN_CHAT_ID)) continue;
+
+      _processMessage_(chatId, msg.text.trim());
+    }
+
+    // 儲存 offset
+    props.setProperty("tg_poll_offset", String(offset));
+
+  } catch (e) {
+    Logger.log("pollTelegramUpdates 例外: " + e.message);
+  }
+}
+
+function _processMessage_(chatId, text) {
+  var parts = text.split(/\s+/);
+  var cmd = parts[0].toLowerCase().replace(/@\w+$/, "");
+  var args = parts.slice(1);
+
+  // 快速指令
+  if (cmd === "/help" || cmd === "/start") {
+    _botReply_(_helpText_()); return;
+  }
+  if (cmd === "/status") {
+    _botReply_(_quickStatus_()); return;
+  }
+
+  // 即時指令：ETF 查詢
+  if (cmd === "/etf") {
+    _botReply_(_etfSummary_()); return;
+  }
+  if (cmd === "/etfstock") {
+    if (args.length === 0) {
+      _botReply_("⚠️ 請指定股票代號\n用法: /etfstock 2330"); return;
+    }
+    _botReply_(_etfStockLookup_(args[0].toUpperCase())); return;
+  }
+
+  // 耗時指令：存入佇列，背景執行
+  var supported = ["/healthcheck", "/hc", "/publish", "/publishtwsa",
+                   "/reprocess", "/bootstrap", "/yuanta",
+                   "/etfupdate", "/etfmanual"];
+  if (supported.indexOf(cmd) >= 0) {
+    _botReply_("⏳ 收到 " + cmd + (args.length > 0 ? " " + args.join(" ") : "") + "，執行中…");
+
+    var jobKey = "mj_" + new Date().getTime();
+    PropertiesService.getScriptProperties().setProperty(
+      jobKey, JSON.stringify({ cmd: cmd, args: args })
+    );
+    ScriptApp.newTrigger("runMonitorJob_").timeBased().after(1000).create();
+  } else if (cmd.charAt(0) === "/") {
+    _botReply_("❓ 未知指令: " + cmd + "\n輸入 /help 查看可用指令");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//   背景執行：從佇列取出任務
+// ─────────────────────────────────────────────────────────────
+
+function runMonitorJob_() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === "runMonitorJob_") ScriptApp.deleteTrigger(t);
+  });
+
+  var props = PropertiesService.getScriptProperties();
+  var allProps = props.getProperties();
+  var jobKeys = Object.keys(allProps)
+    .filter(function(k) { return k.startsWith("mj_"); })
+    .sort();
+
+  if (jobKeys.length === 0) return;
+
+  var currentKey = jobKeys[0];
+  var job = JSON.parse(allProps[currentKey]);
+  props.deleteProperty(currentKey);
+
+  if (jobKeys.length > 1) {
+    ScriptApp.newTrigger("runMonitorJob_").timeBased().after(1000).create();
+  }
+
+  try {
+    var result = _executeCommand_(job.cmd, job.args);
+    _botReply_(result);
+  } catch (e) {
+    _botReply_("❌ " + job.cmd + " 例外:\n" + e.message);
+    Logger.log("runMonitorJob_ 例外: " + e.message + "\n" + (e.stack || ""));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//   指令實作
+// ─────────────────────────────────────────────────────────────
+
+function _executeCommand_(cmd, args) {
+  switch (cmd) {
+    case "/healthcheck":
+    case "/hc":
+      runHealthCheckAndRepair();
+      return "✅ 健康檢查 + 修復完成 (詳細結果已推播)";
+
+    case "/publish":
+      var r = publishAllData();
+      return r.ok ? ("✅ " + r.detail) : ("❌ " + r.detail);
+
+    case "/publishtwsa":
+      var r2 = publishTwsa();
+      return r2.ok ? ("✅ " + r2.detail) : ("❌ " + r2.detail);
+
+    case "/reprocess":
+      if (!args || args.length === 0) return "⚠️ 請指定日期\n用法: /reprocess 20260416";
+      var dates = args[0].split(",").map(function(d){ return d.trim(); });
+      return _doReprocessDates_(dates);
+
+    case "/bootstrap":
+      if (!args || args.length === 0) return "⚠️ 請指定資料集\n可選: cbDailyTrading, cbBondInstitutional, stockTrading, cbInstitutional, cbIssuance, manual, yuantaReport";
+      return _doBootstrap_(args[0]);
+
+    case "/yuanta":
+      var yr = bootstrap_yuantaReport();
+      return yr && yr.ok ? "✅ 元大報表已更新" : ("❌ " + (yr ? yr.message : "失敗"));
+
+    case "/etfupdate":
+      var etfResult = updateETFHoldings({ skipHolidayCheck: true });
+      if (!etfResult) return "❌ ETF 更新無回傳結果";
+      if (etfResult.skipped) return "⏭ ETF 更新已跳過: " + etfResult.reason;
+      if (etfResult.errors && etfResult.errors.length > 0) {
+        return (etfResult.ok ? "⚠️" : "❌") + " ETF 更新: " + etfResult.summary + "\n失敗: " + etfResult.errors.join(", ");
+      }
+      return "✅ ETF 持股更新完成\n" + etfResult.summary;
+
+    case "/etfmanual":
+      manualUploadToGithub();
+      return "✅ ETF 持股手動上傳完成 (使用 Drive 檔案)";
+
+    default:
+      return "❓ 未知指令: " + cmd;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//   快速指令
+// ─────────────────────────────────────────────────────────────
+
+function _helpText_() {
+  return "📋 可用指令\n\n"
+    + "/status - 快速狀態\n"
+    + "/healthcheck - 健康檢查+修復\n"
+    + "/publish - 發佈 all-data.json\n"
+    + "/publishtwsa - 發佈 twsa.json\n"
+    + "/reprocess 日期 - 重新處理指定日期\n"
+    + "  例: /reprocess 20260416\n"
+    + "  例: /reprocess 20260416,20260417\n"
+    + "/bootstrap 資料集 - 回補資料集\n"
+    + "  可選: cbDailyTrading / cbBondInstitutional\n"
+    + "  stockTrading / cbInstitutional / cbIssuance / manual\n"
+    + "/yuanta - 更新元大報表\n\n"
+    + "📦 ETF 持股\n"
+    + "/etf - ETF 持股摘要\n"
+    + "/etfstock 代號 - 查詢股票被哪些 ETF 持有\n"
+    + "  例: /etfstock 2330\n"
+    + "/etfupdate - 自動下載+更新 ETF 持股\n"
+    + "/etfmanual - 用 Drive 檔案更新 ETF 持股\n\n"
+    + "/help - 顯示此說明";
+}
+
+function _quickStatus_() {
+  var lines = ["📊 系統狀態"];
+  try {
+    var token = getGithubToken_();
+    var url = "https://api.github.com/repos/" + CFG.GITHUB.OWNER + "/" + CFG.GITHUB.REPO
+            + "/commits?path=" + CFG.GITHUB.JSON_PATH + "&per_page=1&sha=" + CFG.GITHUB.BRANCH;
+    var headers = { "Accept": "application/vnd.github.v3+json" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    var resp = UrlFetchApp.fetch(url, { headers: headers, muteHttpExceptions: true });
+    if (resp.getResponseCode() === 200) {
+      var commits = JSON.parse(resp.getContentText());
+      if (commits.length > 0) {
+        var c = commits[0];
+        lines.push("📄 all-data.json");
+        lines.push("  最後更新: " + c.commit.committer.date);
+        lines.push("  commit: " + c.commit.message);
+      }
+    }
+  } catch (e) {
+    lines.push("❌ " + e.message);
+  }
+  return lines.join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────
+//   耗時指令實作
+// ─────────────────────────────────────────────────────────────
+
+function _doReprocessDates_(dates) {
+  var removeSet = {};
+  dates.forEach(function(d){ removeSet[d] = true; });
+
+  var current = fetchJsonFromGithub_(CFG.GITHUB.JSON_PATH);
+  if (!current) return "❌ 無法讀取 all-data.json";
+  var payload = current.data || {};
+  var sha = current.sha;
+
+  var datasetKeys = ["cbDailyTrading", "cbBondInstitutional", "stockTrading", "cbInstitutional"];
+  var removedTotal = 0;
+
+  datasetKeys.forEach(function(key) {
+    var arr = payload[key];
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return;
+    var headerRow = arr[0];
+    var keepCols = [];
+    var removedCount = 0;
+    for (var c = 0; c < headerRow.length; c++) {
+      if (c < 3) {
+        keepCols.push(c);
+      } else if (!removeSet[String(headerRow[c]).trim()]) {
+        keepCols.push(c);
+      } else {
+        removedCount++;
+      }
+    }
+    if (removedCount === 0) return;
+    payload[key] = arr.map(function(row) {
+      return keepCols.map(function(c){ return row[c]; });
+    });
+    removedTotal += removedCount;
+  });
+
+  if (removedTotal === 0) {
+    return "⚠️ 指定日期不在現有資料中: " + dates.join(", ");
+  }
+
+  payload._meta = {
+    generatedAt: new Date().toISOString(),
+    generator: "TelegramBot / reprocess " + dates.join(",")
+  };
+
+  var result = pushJsonToGithub_(CFG.GITHUB.JSON_PATH, payload, sha);
+  if (!result.ok) return "❌ GitHub PUT 失敗: " + result.message;
+
+  var pubResult = publishAllData();
+  return "✅ 已移除 " + dates.join(",") + " 並重新處理\n" +
+         (pubResult.ok ? ("✅ " + pubResult.detail) : ("❌ " + pubResult.detail));
+}
+
+function _doBootstrap_(key) {
+  if (key === "manual") {
+    bootstrap_manual();
+    return "✅ bootstrap manual 完成";
+  }
+  if (key === "yuantaReport") {
+    var yr = bootstrap_yuantaReport();
+    return yr && yr.ok ? "✅ bootstrap yuantaReport 完成" : ("❌ " + (yr ? yr.message : "失敗"));
+  }
+  if (key === "cbIssuance") {
+    var r = bootstrap_cbIssuance();
+    return r && r.ok ? "✅ bootstrap cbIssuance 完成" : ("❌ " + (r ? r.message : "失敗"));
+  }
+  var spec = CB_DATASET_SPECS[key];
+  if (!spec) return "❌ 未知資料集: " + key + "\n可選: cbDailyTrading, cbBondInstitutional, stockTrading, cbInstitutional, cbIssuance, manual";
+  var r = bootstrapOneDataset(key);
+  return r && r.ok ? ("✅ bootstrap " + key + " 完成") : ("❌ " + (r ? r.message : "失敗"));
+}
+
+// ─────────────────────────────────────────────────────────────
+//   回覆工具
+// ─────────────────────────────────────────────────────────────
+
+function _botReply_(text) {
+  var url = "https://api.telegram.org/bot" + CFG.TELEGRAM.BOT_TOKEN + "/sendMessage";
+  try {
+    UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify({
+        chat_id: String(CFG.TELEGRAM.ADMIN_CHAT_ID),
+        text: text,
+        disable_web_page_preview: true
+      }),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    Logger.log("_botReply_ 失敗: " + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//   輪詢控制
+// ─────────────────────────────────────────────────────────────
+
+/** 啟動輪詢 — 執行一次即可 */
+function startPolling() {
+  stopPolling();
+  removeWebhook();
+  // 清除舊的 offset，忽略歷史訊息
+  PropertiesService.getScriptProperties().setProperty("tg_poll_offset", "0");
+  // 先跑一次 getUpdates 設定 offset 到最新
+  var apiUrl = "https://api.telegram.org/bot" + CFG.TELEGRAM.BOT_TOKEN
+             + "/getUpdates?timeout=0&limit=1&offset=-1";
+  try {
+    var resp = UrlFetchApp.fetch(apiUrl, { muteHttpExceptions: true });
+    var data = JSON.parse(resp.getContentText());
+    if (data.ok && data.result && data.result.length > 0) {
+      var latestId = data.result[data.result.length - 1].update_id;
+      PropertiesService.getScriptProperties().setProperty("tg_poll_offset", String(latestId + 1));
+    }
+  } catch(e) {}
+
+  ScriptApp.newTrigger("pollTelegramUpdates")
+    .timeBased().everyMinutes(1).create();
+  Logger.log("✅ 輪詢已啟動 (每 1 分鐘)");
+  _botReply_("🤖 監控 Bot 已啟動 (輪詢模式)");
+}
+
+/** 停止輪詢 */
+function stopPolling() {
+  var count = 0;
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === "pollTelegramUpdates") {
+      ScriptApp.deleteTrigger(t);
+      count++;
+    }
+  });
+  Logger.log("已移除 " + count + " 個輪詢觸發器");
+}
+
+/** 移除 Webhook */
+function removeWebhook() {
+  var url = "https://api.telegram.org/bot" + CFG.TELEGRAM.BOT_TOKEN
+          + "/deleteWebhook?drop_pending_updates=true";
+  var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  Logger.log("removeWebhook: " + res.getContentText());
+}
+
+// ─────────────────────────────────────────────────────────────
+//   ETF 指令實作
+// ─────────────────────────────────────────────────────────────
+
+/** /etf — 顯示 ETF 持股摘要 (從 GitHub JSON 讀取) */
+function _etfSummary_() {
+  try {
+    var result = fetchJsonFromGithub_(ETF_GITHUB_PATH);
+    if (!result || !result.content) return "❌ 無法讀取 etf-holdings.json";
+
+    var json = JSON.parse(Utilities.newBlob(Utilities.base64Decode(result.content)).getDataAsString());
+    var etfs = json.etfs || {};
+    var meta = json._meta || {};
+
+    var lines = ["📦 ETF 持股摘要"];
+    lines.push("更新: " + (meta.generatedAt || "?").substring(0, 16));
+    lines.push("ETF: " + (meta.etfCount || 0) + " 檔 | 不重複持股: " + (meta.totalStocks || 0) + " 檔");
+    if (meta.errors && meta.errors.length > 0) {
+      lines.push("⚠️ 失敗: " + meta.errors.join(", "));
+    }
+    lines.push("");
+
+    for (var code in etfs) {
+      var etf = etfs[code];
+      var line = code + " " + (etf.name || "") + " | " + (etf.holdingCount || 0) + "檔 | " + (etf.date || "?");
+      if (etf.navPerUnit) line += " | NAV " + etf.navPerUnit.toFixed(2);
+
+      if (etf.changes) {
+        var c = etf.changes;
+        var parts = [];
+        if (c.added > 0)     parts.push("+" + c.added);
+        if (c.removed > 0)   parts.push("-" + c.removed);
+        if (c.increased > 0) parts.push("↑" + c.increased);
+        if (c.decreased > 0) parts.push("↓" + c.decreased);
+        if (parts.length > 0) line += "\n  變動: " + parts.join(" ");
+      }
+      lines.push(line);
+    }
+
+    return lines.join("\n");
+  } catch (e) {
+    return "❌ ETF 摘要錯誤: " + e.message;
+  }
+}
+
+/** /etfstock <code> — 查詢某股票被哪些 ETF 持有 */
+function _etfStockLookup_(stockCode) {
+  try {
+    var result = fetchJsonFromGithub_(ETF_GITHUB_PATH);
+    if (!result || !result.content) return "❌ 無法讀取 etf-holdings.json";
+
+    var json = JSON.parse(Utilities.newBlob(Utilities.base64Decode(result.content)).getDataAsString());
+    var merged = json.merged || {};
+    var etfs = json.etfs || {};
+
+    // 精確匹配
+    var stock = merged[stockCode];
+    if (!stock) {
+      // 模糊搜尋 (名稱包含)
+      var matches = [];
+      for (var code in merged) {
+        if (code.indexOf(stockCode) >= 0 || (merged[code].name && merged[code].name.indexOf(stockCode) >= 0)) {
+          matches.push({ code: code, data: merged[code] });
+        }
+      }
+      if (matches.length === 0) return "❌ 找不到 " + stockCode + " 的 ETF 持股資料";
+      if (matches.length > 10) return "🔍 找到 " + matches.length + " 筆，請輸入更精確的代號";
+
+      var lines = ["🔍 搜尋 \"" + stockCode + "\" 結果:"];
+      matches.forEach(function(m) {
+        lines.push(m.code + " " + m.data.name + " (" + m.data.count + " 檔 ETF 持有)");
+      });
+      return lines.join("\n");
+    }
+
+    var lines = ["📊 " + stockCode + " " + (stock.name || "")];
+    lines.push("被 " + stock.count + " 檔 ETF 持有:\n");
+
+    for (var etfCode in stock.etfs) {
+      var weight = stock.etfs[etfCode];
+      var etfName = (etfs[etfCode] && etfs[etfCode].name) || "";
+
+      // 找出該股票在此 ETF 中的詳細資訊
+      var detail = "";
+      if (etfs[etfCode] && etfs[etfCode].holdings) {
+        var holdings = etfs[etfCode].holdings;
+        for (var i = 0; i < holdings.length; i++) {
+          if (holdings[i].code === stockCode) {
+            var h = holdings[i];
+            if (h.shares != null) detail += " | " + Math.round(h.shares).toLocaleString() + "股";
+            if (h.change === "added") detail += " 🆕";
+            else if (h.change === "increased") detail += " ↑";
+            else if (h.change === "decreased") detail += " ↓";
+            if (h.prevShares != null && h.shares != null && h.change !== "added") {
+              var diff = h.shares - h.prevShares;
+              if (diff !== 0) detail += " (" + (diff > 0 ? "+" : "") + Math.round(diff).toLocaleString() + ")";
+            }
+            break;
+          }
+        }
+      }
+
+      lines.push(etfCode + " " + etfName + " | " + (weight != null ? weight.toFixed(2) : "?") + "%" + detail);
+    }
+
+    return lines.join("\n");
+  } catch (e) {
+    return "❌ 查詢錯誤: " + e.message;
+  }
+}

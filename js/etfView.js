@@ -229,8 +229,8 @@ const ETFView = (() => {
       <div style="font-size:11px;line-height:1.8">
         <span class="etf-change-badge etf-change-added">新增</span> 新增持股<br>
         <span class="etf-change-badge etf-change-removed">刪除</span> 移除持股<br>
-        <span class="etf-change-badge etf-change-increased">↑</span> 權重增加<br>
-        <span class="etf-change-badge etf-change-decreased">↓</span> 權重減少<br>
+        <span class="etf-change-badge etf-change-increased">↑</span> 股數增加<br>
+        <span class="etf-change-badge etf-change-decreased">↓</span> 股數減少<br>
         <span style="color:var(--text-dim)">其餘為未變動</span>
       </div>`;
     legendGroup.appendChild(legendContent);

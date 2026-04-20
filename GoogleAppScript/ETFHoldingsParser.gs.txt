@@ -130,11 +130,12 @@ function isHolidayETF_() {
  * 主入口：更新所有 ETF 持股資料並發佈到 GitHub
  * 假日/週末自動跳過
  */
-function updateETFHoldings() {
+function updateETFHoldings(options) {
+  options = options || {};
   Logger.log("=== updateETFHoldings 開始 ===");
 
-  if (isHolidayETF_()) {
-    return;
+  if (!options.skipHolidayCheck && isHolidayETF_()) {
+    return { skipped: true, reason: "假日/週末" };
   }
 
   var startTs = new Date();
@@ -148,6 +149,8 @@ function updateETFHoldings() {
     try {
       var blob = null;
       var fileDate = null;  // 檔名日期，用於覆蓋 xlsx 內容日期
+      var driveFileId = null;  // 若 Drive 上已是 Google Sheets
+      var isSheet = false;
 
       if (config.type === "auto_download") {
         blob = downloadETFExcel_(config.getUrl(), code);
@@ -166,21 +169,30 @@ function updateETFHoldings() {
           // 自動下載失敗，fallback 到 Drive 最新檔案
           Logger.log("  自動下載失敗，嘗試從 Drive 讀取...");
           var driveResult = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
-          if (driveResult) { blob = driveResult.blob; fileDate = driveResult.fileDate; }
+          if (driveResult) {
+            fileDate = driveResult.fileDate;
+            if (driveResult.isSheet) { driveFileId = driveResult.fileId; isSheet = true; }
+            else { blob = driveResult.blob; }
+          }
         }
       } else if (config.type === "drive") {
         var driveResult = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
-        if (driveResult) { blob = driveResult.blob; fileDate = driveResult.fileDate; }
+        if (driveResult) {
+          fileDate = driveResult.fileDate;
+          if (driveResult.isSheet) { driveFileId = driveResult.fileId; isSheet = true; }
+          else { blob = driveResult.blob; }
+        }
       }
 
-      if (!blob) {
+      if (!blob && !driveFileId) {
         Logger.log("  ✗ 無法取得檔案");
         errors.push(code);
         continue;
       }
 
-      // 轉成 Google Sheets 暫存，解析後刪除
-      var result = parseETFExcel_(blob, config.parser, code);
+      // 解析 ETF 資料 (支援 xlsx blob 或已轉換的 Google Sheets)
+      var parseInput = isSheet ? driveFileId : blob;
+      var result = parseETFExcel_(parseInput, config.parser, code, isSheet);
       if (result) {
         if (fileDate) result.date = fileDate;  // 用檔名日期覆蓋 xlsx 內容日期
         result.name = config.name;
@@ -196,17 +208,22 @@ function updateETFHoldings() {
   }
 
   // 取得前一版資料，用於比對變動
+  // fetchJsonFromGithub_ 回傳 { data: {已解析物件}, sha: "..." }
   Logger.log("→ 取得前一版 ETF 資料進行比對...");
   var prevData = fetchJsonFromGithub_(ETF_GITHUB_PATH);
   var sha = prevData ? prevData.sha : "";
   var prevEtfs = null;
-  if (prevData && prevData.content) {
-    try {
-      var prevJson = JSON.parse(Utilities.newBlob(Utilities.base64Decode(prevData.content)).getDataAsString());
-      prevEtfs = prevJson.etfs || null;
-    } catch (e) {
-      Logger.log("  前一版解析失敗: " + e.message);
+  if (prevData && prevData.data) {
+    prevEtfs = prevData.data.etfs || null;
+    if (prevEtfs) {
+      var prevCodes = Object.keys(prevEtfs);
+      var prevDate = prevCodes.length > 0 ? (prevEtfs[prevCodes[0]].date || "?") : "?";
+      Logger.log("  前一版日期: " + prevDate + " | " + prevCodes.length + " 檔 ETF");
+    } else {
+      Logger.log("  前一版無 etfs 資料");
     }
+  } else {
+    Logger.log("  無法取得前一版資料");
   }
 
   // 計算每檔 ETF 的持股變動
@@ -232,14 +249,16 @@ function updateETFHoldings() {
   var result = pushJsonToGithub_(ETF_GITHUB_PATH, payload, sha);
 
   var elapsed = ((new Date() - startTs) / 1000).toFixed(1);
-  Logger.log("=== ETF 持股更新 " + (result.ok ? "✓" : "✗") +
-    " | " + Object.keys(etfs).length + "/" + Object.keys(ETF_CONFIG).length + " 檔 ETF" +
-    " | " + Object.keys(merged).length + " 檔不重複持股" +
-    " | 耗時 " + elapsed + "s ===");
+  var summary = Object.keys(etfs).length + "/" + Object.keys(ETF_CONFIG).length + " 檔 ETF"
+    + " | " + Object.keys(merged).length + " 檔不重複持股"
+    + " | 耗時 " + elapsed + "s";
+  Logger.log("=== ETF 持股更新 " + (result.ok ? "✓" : "✗") + " | " + summary + " ===");
 
   if (errors.length > 0) {
     Logger.log("  失敗 ETF: " + errors.join(", "));
   }
+
+  return { skipped: false, ok: result.ok, summary: summary, errors: errors };
 }
 
 /**
@@ -341,13 +360,24 @@ function extractFilenameDate_(filename) {
  */
 function getDriveFilesSorted_(folderId) {
   var folder = DriveApp.getFolderById(folderId);
-  var files = folder.getFilesByType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   var list = [];
 
-  while (files.hasNext()) {
-    var file = files.next();
+  // 1. 原始 xlsx 檔案
+  var xlsxFiles = folder.getFilesByType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  while (xlsxFiles.hasNext()) {
+    var file = xlsxFiles.next();
     var dateStr = extractFilenameDate_(file.getName());
     list.push({ file: file, dateStr: dateStr || "00000000" });
+  }
+
+  // 2. 被 Google Drive 自動轉換成 Google Sheets 的檔案
+  var sheetsFiles = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+  while (sheetsFiles.hasNext()) {
+    var file = sheetsFiles.next();
+    var dateStr = extractFilenameDate_(file.getName());
+    if (dateStr) {  // 只收有日期的檔案，避免撈到不相關的 Sheet
+      list.push({ file: file, dateStr: dateStr });
+    }
   }
 
   // 依檔名日期降序排列（最新在前）
@@ -363,12 +393,16 @@ function getLatestFromDrive_(folderId, code) {
   try {
     var sorted = getDriveFilesSorted_(folderId);
     if (sorted.length === 0) {
-      Logger.log("  Drive 資料夾無 xlsx 檔案");
+      Logger.log("  Drive 資料夾無檔案");
       return null;
     }
     var latest = sorted[0];
     var fileDate = formatDateStr_(latest.dateStr);
-    Logger.log("  Drive 最新檔案: " + latest.file.getName() + " (日期: " + fileDate + ")");
+    var mime = latest.file.getMimeType();
+    Logger.log("  Drive 最新檔案: " + latest.file.getName() + " (日期: " + fileDate + ", " + mime + ")");
+    if (mime === MimeType.GOOGLE_SHEETS) {
+      return { fileId: latest.file.getId(), fileDate: fileDate, isSheet: true };
+    }
     return { blob: latest.file.getBlob(), fileDate: fileDate };
   } catch (e) {
     Logger.log("  Drive 讀取錯誤: " + e.message);
@@ -389,7 +423,11 @@ function getSecondLatestFromDrive_(folderId, code) {
     }
     var second = sorted[1];
     var fileDate = formatDateStr_(second.dateStr);
-    Logger.log("  Drive 前一天檔案: " + second.file.getName() + " (日期: " + fileDate + ")");
+    var mime = second.file.getMimeType();
+    Logger.log("  Drive 前一天檔案: " + second.file.getName() + " (日期: " + fileDate + ", " + mime + ")");
+    if (mime === MimeType.GOOGLE_SHEETS) {
+      return { fileId: second.file.getId(), fileDate: fileDate, isSheet: true };
+    }
     return { blob: second.file.getBlob(), fileDate: fileDate };
   } catch (e) {
     Logger.log("  Drive 讀取前一天錯誤: " + e.message);
@@ -404,45 +442,47 @@ function formatDateStr_(ds) {
 }
 
 /**
- * 解析 ETF Excel：將 blob 轉為暫時 Google Sheet 後讀取資料，完成後刪除
+ * 解析 ETF 資料
+ * @param {Blob|string} blobOrFileId - xlsx Blob 或 Google Sheets fileId
+ * @param {string} parserType - 解析器類型
+ * @param {string} code - ETF 代碼
+ * @param {boolean} isSheet - 是否已經是 Google Sheets (不需轉換)
  */
-function parseETFExcel_(blob, parserType, code) {
-  // 強制設定 blob 的 MIME type 為 xlsx (有些 API 回傳的 content-type 不正確)
-  blob.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+function parseETFExcel_(blobOrFileId, parserType, code, isSheet) {
+  var ss;
+  var tempFileId = null;  // 只有 xlsx 轉換才需要清理
 
-  // 用 Drive API 把 xlsx 轉成 Google Sheets
-  var tempFile = Drive.Files.insert(
-    { title: "ETF_TEMP_" + code, mimeType: MimeType.GOOGLE_SHEETS },
-    blob,
-    { convert: true }
-  );
+  if (isSheet) {
+    // 已經是 Google Sheets，直接開啟
+    ss = SpreadsheetApp.openById(blobOrFileId);
+  } else {
+    // xlsx blob，需要轉成暫時 Google Sheets
+    var blob = blobOrFileId;
+    blob.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    var tempFile = Drive.Files.insert(
+      { title: "ETF_TEMP_" + code, mimeType: MimeType.GOOGLE_SHEETS },
+      blob,
+      { convert: true }
+    );
+    tempFileId = tempFile.id;
+    ss = SpreadsheetApp.openById(tempFileId);
+  }
 
   try {
-    var ss = SpreadsheetApp.openById(tempFile.id);
     var result = null;
-
     switch (parserType) {
-      case "ezmoney":
-        result = parseEzmoney_(ss);
-        break;
-      case "cathay":
-        result = parseCathay_(ss);
-        break;
-      case "fhtrust":
-        result = parseFhtrust_(ss);
-        break;
-      case "ctbc":
-        result = parseCtbc_(ss);
-        break;
-      case "capital":
-        result = parseCapital_(ss);
-        break;
+      case "ezmoney":  result = parseEzmoney_(ss); break;
+      case "cathay":   result = parseCathay_(ss);  break;
+      case "fhtrust":  result = parseFhtrust_(ss); break;
+      case "ctbc":     result = parseCtbc_(ss);    break;
+      case "capital":  result = parseCapital_(ss);  break;
     }
-
     return result;
   } finally {
-    // 刪除暫存 Sheet
-    DriveApp.getFileById(tempFile.id).setTrashed(true);
+    // 只刪除暫存的轉換檔，不刪除原本就是 Google Sheets 的檔案
+    if (tempFileId) {
+      DriveApp.getFileById(tempFileId).setTrashed(true);
+    }
   }
 }
 
@@ -767,12 +807,13 @@ function computeHoldingChanges_(etfs, prevEtfs) {
         h.prevWeight = ph.weight;
         h.prevShares = ph.shares;
 
-        if (h.weight != null && ph.weight != null) {
-          var diff = Math.abs(h.weight - ph.weight);
-          if (diff < 0.005) {
+        // 以股數變動為主要判斷依據
+        if (h.shares != null && ph.shares != null) {
+          var shareDiff = h.shares - ph.shares;
+          if (shareDiff === 0) {
             h.change = "unchanged";
             summary.unchanged++;
-          } else if (h.weight > ph.weight) {
+          } else if (shareDiff > 0) {
             h.change = "increased";
             summary.increased++;
           } else {
@@ -825,20 +866,25 @@ function testSingleETF() {
   var config = ETF_CONFIG[code];
   Logger.log("測試 " + code + " " + config.name);
 
-  var blob, fileDate;
+  var blob, fileDate, driveFileId, isSheet = false;
   if (config.type === "auto_download") {
     blob = downloadETFExcel_(config.getUrl(), code);
   } else {
     var driveFile = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
-    if (driveFile) { blob = driveFile.blob; fileDate = driveFile.fileDate; }
+    if (driveFile) {
+      fileDate = driveFile.fileDate;
+      if (driveFile.isSheet) { driveFileId = driveFile.fileId; isSheet = true; }
+      else { blob = driveFile.blob; }
+    }
   }
 
-  if (!blob) {
+  if (!blob && !driveFileId) {
     Logger.log("無法取得檔案");
     return;
   }
 
-  var result = parseETFExcel_(blob, config.parser, code);
+  var parseInput = isSheet ? driveFileId : blob;
+  var result = parseETFExcel_(parseInput, config.parser, code, isSheet);
   if (result && fileDate) result.date = fileDate;
   Logger.log(JSON.stringify(result, null, 2));
 }
@@ -865,7 +911,8 @@ function manualUploadToGithub() {
         continue;
       }
 
-      var result = parseETFExcel_(driveFile.blob, config.parser, code);
+      var parseInput = driveFile.isSheet ? driveFile.fileId : driveFile.blob;
+      var result = parseETFExcel_(parseInput, config.parser, code, !!driveFile.isSheet);
       if (result) {
         if (driveFile.fileDate) result.date = driveFile.fileDate;  // 用檔名日期
         result.name = config.name;
@@ -880,49 +927,23 @@ function manualUploadToGithub() {
     }
   }
 
-  // 取得前一版：優先用 Drive 上的次新檔案做比對，GitHub 僅用於取 sha
+  // 取得前一版資料 (GitHub 上的最新版 = 上次成功發佈的結果)
+  // 不再依賴 Drive 次新檔案，直接用 GitHub 版本比對
+  // 這樣即使跨週末 (週五→週一)，也能正確比對到上次交易日的資料
   var prevData = fetchJsonFromGithub_(ETF_GITHUB_PATH);
   var sha = prevData ? prevData.sha : "";
+  var prevEtfs = null;
 
-  // 從 Drive 次新檔案建立前一天的持股資料
-  var prevEtfs = {};
-  var hasPrev = false;
-  Logger.log("[比對] 讀取 Drive 前一天檔案...");
-  for (var pCode in ETF_CONFIG) {
-    if (!etfs[pCode]) continue;  // 今天沒解析成功的就跳過
-    var pConfig = ETF_CONFIG[pCode];
-    try {
-      Utilities.sleep(2000);  // 避免 Drive API rate limit
-      var prevFile = getSecondLatestFromDrive_(ETF_DRIVE_FOLDERS[pCode], pCode);
-      if (prevFile) {
-        // 跳過檔名日期與最新檔相同的情況（代表沒有前一天的資料）
-        if (prevFile.fileDate && prevFile.fileDate === etfs[pCode].date) {
-          Logger.log("  ⚠ " + pCode + " 前一天檔案日期與最新相同 (" + prevFile.fileDate + ")，跳過");
-        } else {
-          var prevResult = parseETFExcel_(prevFile.blob, pConfig.parser, pCode);
-          if (prevResult && prevResult.holdings && prevResult.holdings.length > 0) {
-            if (prevFile.fileDate) prevResult.date = prevFile.fileDate;  // 用檔名日期
-            prevResult.name = pConfig.name;
-            prevEtfs[pCode] = prevResult;
-            hasPrev = true;
-            Logger.log("  ✓ " + pCode + " 前一天: " + prevResult.holdingCount + " 檔, date=" + prevResult.date);
-          }
-        }
-      }
-    } catch (e) {
-      Logger.log("  ✗ " + pCode + " 前一天解析失敗: " + e.message);
+  if (prevData && prevData.data) {
+    Logger.log("[比對] 使用 GitHub 前一版資料");
+    prevEtfs = prevData.data.etfs || null;
+    if (prevEtfs) {
+      var prevCodes = Object.keys(prevEtfs);
+      var prevDate = prevCodes.length > 0 ? (prevEtfs[prevCodes[0]].date || "?") : "?";
+      Logger.log("  前一版日期: " + prevDate + " | " + prevCodes.length + " 檔 ETF");
     }
-  }
-
-  // 若 Drive 無前一天資料，fallback 到 GitHub 前一版
-  if (!hasPrev && prevData && prevData.content) {
-    Logger.log("[比對] Drive 無前一天資料，改用 GitHub 前一版");
-    try {
-      var prevJson = JSON.parse(Utilities.newBlob(Utilities.base64Decode(prevData.content)).getDataAsString());
-      prevEtfs = prevJson.etfs || {};
-    } catch (e) {
-      Logger.log("  前一版解析失敗: " + e.message);
-    }
+  } else {
+    Logger.log("[比對] GitHub 無前一版資料，首次發佈");
   }
 
   computeHoldingChanges_(etfs, prevEtfs);
