@@ -33,7 +33,8 @@ const Filters = (() => {
       apply: (stock, val) => {
         if (!val) return true;
         const q = val.toLowerCase();
-        return (stock.industryCategory || '').toLowerCase().includes(q);
+        if ((stock.industryCategory || '').toLowerCase().includes(q)) return true;
+        return (stock.cbs || []).some(cb => (cb.business || '').toLowerCase().includes(q));
       }
     },
     tPatternDays: {
