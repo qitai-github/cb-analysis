@@ -1,0 +1,9 @@
+# 把 Drive 上的 6 個 raw CSV 樣本放這裡 (檔名保留原樣)
+# 此資料夾的 *.csv 已被 .gitignore 排除,不會被 commit
+#
+# TWSE_T86_YYYYMMDD.csv         個股法人(上市)    Big5
+# TPEx_T86_YYYYMMDD.csv         個股法人(上櫃)    Big5
+# TWSE-Daily-YYYYMMDD.csv       個股交易(上市)    UTF-8
+# TPEx-EW-YYYYMMDD.csv          個股交易(上櫃)    UTF-8
+# RSta0113.YYYYMMDD-C.csv       CB每日交易        Big5
+# ThreePrimaryCB_YYYYMMDD.csv   CB每日法人        UTF-8

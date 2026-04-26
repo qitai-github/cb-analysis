@@ -2,3 +2,12 @@
 *.jpg
 *.png
 *.csv
+
+# 環境變數 (含 secrets)
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.pyc

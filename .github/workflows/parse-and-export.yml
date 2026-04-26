@@ -1,0 +1,70 @@
+name: Parse + Export (CSV → DB + JSON)
+
+# 接在 Fetch Stocks Backup workflow 完成之後;手動也可。
+# fetch-stocks 排在週一~五 18:00 TPE (10:00 UTC),所以 parse-and-export 也大約那個時間跑。
+on:
+  workflow_run:
+    workflows: ["Fetch Stocks Backup"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '特定日期 YYYYMMDD (空白則抓今天 Asia/Taipei)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # 需要 commit data/all-data.json
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    # 上一個 workflow 失敗就不跑;手動觸發 (workflow_dispatch) 永遠跑
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: scripts/requirements-stocks.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements-stocks.txt
+
+      - name: Run parse_and_export
+        env:
+          GOOGLE_CREDENTIALS:        ${{ secrets.GOOGLE_CREDENTIALS }}
+          DRIVE_FOLDERS:             ${{ secrets.DRIVE_FOLDERS }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TG_BOT_TOKEN:              ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID:                ${{ secrets.TG_CHAT_ID }}
+        run: python scripts/parse_and_export.py ${{ inputs.date }}
+
+      - name: Commit & push data/all-data.json
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/all-data.json
+          if git diff --cached --quiet; then
+            echo "no JSON changes"
+            exit 0
+          fi
+          git commit -m "Update data/all-data.json @ $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+          # 重試 3 次,中間 rebase 解小衝突
+          for i in 1 2 3; do
+            if git push; then
+              echo "pushed on attempt $i"
+              exit 0
+            fi
+            echo "push attempt $i failed,rebase 後重試..."
+            git pull --rebase --autostash
+          done
+          echo "push failed after 3 retries"
+          exit 1

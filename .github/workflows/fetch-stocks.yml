@@ -1,0 +1,45 @@
+name: Fetch Stocks Backup
+
+# GAS 主路徑 (runDailyHealthCheck 內含 AutoRepair) 之外的備援。
+# 排在 GAS 跑完之後再補一次,覆蓋 6 個 Drive 資料夾的當日 CSV。
+# GAS 通常排 15:30 / 17:00 Taipei,此 workflow 排 18:00 Taipei = 10:00 UTC。
+# 只跑週一到週五。
+
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '特定日期 YYYYMMDD (空白則抓今天 Asia/Taipei)'
+        required: false
+        default: ''
+      sources:
+        description: '只跑指定來源 (逗號分隔,例 STOCK_INST_TWSE,CB_INST);空白 = 全跑 6 個'
+        required: false
+        default: ''
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements-stocks.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements-stocks.txt
+
+      - name: Run fetcher
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          DRIVE_FOLDERS: ${{ secrets.DRIVE_FOLDERS }}
+          FETCH_DATE: ${{ inputs.date }}
+          SOURCES: ${{ inputs.sources }}
+        run: python scripts/fetch_stocks.py
