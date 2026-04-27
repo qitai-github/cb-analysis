@@ -2,10 +2,10 @@ name: Parse + Export (CSV → DB + JSON)
 
 # 自己 cron 觸發,不依賴 fetch-stocks workflow。
 # 排在 GAS publishAllData (14:40 TPE) 之後 + 給 TWSE T86 充分發布時間 (~16:00),
-# 18:30 TPE = 10:30 UTC,週一~五。
+# 19:00 TPE = 11:00 UTC,週一~五。
 on:
   schedule:
-    - cron: '30 10 * * 1-5'
+    - cron: '0 11 * * 1-5'
   workflow_dispatch:
     inputs:
       date:
