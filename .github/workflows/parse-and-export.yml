@@ -1,11 +1,11 @@
 name: Parse + Export (CSV → DB + JSON)
 
-# 接在 Fetch Stocks Backup workflow 完成之後;手動也可。
-# fetch-stocks 排在週一~五 18:00 TPE (10:00 UTC),所以 parse-and-export 也大約那個時間跑。
+# 自己 cron 觸發,不依賴 fetch-stocks workflow。
+# 排在 GAS publishAllData (14:40 TPE) 之後 + 給 TWSE T86 充分發布時間 (~16:00),
+# 18:30 TPE = 10:30 UTC,週一~五。
 on:
-  workflow_run:
-    workflows: ["Fetch Stocks Backup"]
-    types: [completed]
+  schedule:
+    - cron: '30 10 * * 1-5'
   workflow_dispatch:
     inputs:
       date:
@@ -19,10 +19,6 @@ permissions:
 jobs:
   parse:
     runs-on: ubuntu-latest
-    # 上一個 workflow 失敗就不跑;手動觸發 (workflow_dispatch) 永遠跑
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -1,13 +1,13 @@
 name: Fetch Stocks Backup
 
-# GAS 主路徑 (runDailyHealthCheck 內含 AutoRepair) 之外的備援。
-# 排在 GAS 跑完之後再補一次,覆蓋 6 個 Drive 資料夾的當日 CSV。
-# GAS 通常排 15:30 / 17:00 Taipei,此 workflow 排 18:00 Taipei = 10:00 UTC。
-# 只跑週一到週五。
+# GAS 主路徑之外的備援,只允許手動觸發。
+# ⚠️ 已停用自動排程:Service Account 沒有自己的 Drive storage quota,
+#   只能「覆蓋 GAS 已建立的舊檔」,無法「建立新檔」。
+#   故當 TWSE T86 (16:00 後才公布) 還沒被 GAS 抓到時,此 workflow 會 storageQuotaExceeded。
+#   permanent fix 需 Workspace + Shared Drive,目前不採用。
+#   參考: https://developers.google.com/workspace/drive/api/guides/about-shareddrives
 
 on:
-  schedule:
-    - cron: '0 10 * * 1-5'
   workflow_dispatch:
     inputs:
       date:
