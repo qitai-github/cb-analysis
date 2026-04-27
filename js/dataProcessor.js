@@ -778,6 +778,43 @@ const DataProcessor = (() => {
       }
     }
 
+    // === 用 cbDailyTrading 當日值覆蓋 cb.close/change/volume/amount ===
+    //   原因: cbDailyReport Sheet 由 GAS 14:40 寫入,當日 CB raw CSV 可能還沒抓到
+    //   → Sheet 殘留前一交易日 snapshot (見 80212 案例,Sheet 顯示 4/24 的 220,
+    //   實際 4/27 收盤是 198)。
+    //   cbDailyTrading 是時間序列,日期維度明確,挑最新有交易日的值最可靠。
+    //   成交金額: Sheet 用 均價×volume×1000,我們沒 均價 timeseries,以 close 近似。
+    if (cbTradingByCode && stock.cbs) {
+      const dates = cbTradingByCode.dates;
+      for (const cb of stock.cbs) {
+        const cbEntry = cbTradingByCode.stocks[cb.cbCode];
+        if (!cbEntry) continue;
+        const closeMap = cbEntry.data['收盤價'] || {};
+        const volMap = cbEntry.data['成交量(張)'] || {};
+        // 找最新有實際成交的日期 (close > 0)
+        let latestIdx = -1;
+        for (let i = dates.length - 1; i >= 0; i--) {
+          const c = closeMap[dates[i]];
+          if (c != null && c !== 0) { latestIdx = i; break; }
+        }
+        if (latestIdx < 0) continue;
+        const todayClose = closeMap[dates[latestIdx]];
+        const todayVolume = volMap[dates[latestIdx]] ?? 0;
+        // 前一交易日 close (有真實成交那天)
+        let prevClose = null;
+        for (let i = latestIdx - 1; i >= 0; i--) {
+          const c = closeMap[dates[i]];
+          if (c != null && c !== 0) { prevClose = c; break; }
+        }
+        cb.close = todayClose;
+        cb.change = prevClose !== null ? +(todayClose - prevClose).toFixed(2) : 0;
+        cb.volume = todayVolume;
+        cb.amount = todayClose && todayVolume
+          ? Math.round(todayClose * todayVolume * 1000)
+          : null;
+      }
+    }
+
     // === CB 溢價率 ===
     // 公式: (CB市價 - 轉換價值) / 轉換價值 × 100%
     // 轉換價值 = (面額100 / 轉換價) × 股價
