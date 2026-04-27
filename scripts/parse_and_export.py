@@ -55,6 +55,11 @@ except ImportError:
 from lib import drive, sheets, supabase_client, telegram, timeseries_merge  # noqa: E402
 from parsers import cb_inst, cb_price, stock_inst, stock_price  # noqa: E402
 
+# 直接爬網頁的 fallback (當 Drive 沒檔時用,例如當日 TWSE T86 16:00 才公布,
+# GAS HealthCheck 隔天 09:30 才抓)。fetch_stocks.py 有完整的 anti-bot 邏輯
+# (referer 暖身/cookie/重試),這裡 import 來重用。
+import fetch_stocks  # noqa: E402
+
 REPO_ROOT = SCRIPTS_DIR.parent
 DATA_JSON = REPO_ROOT / "data" / "all-data.json"
 TAIPEI = timezone(timedelta(hours=8))
@@ -199,21 +204,40 @@ def fetch_and_parse(trade_date: str, *, record_db: bool):
             continue
 
         log(f"  ↓ {spec['label']}: {filename}")
+        blob: bytes | None = None
+        source_kind = "drive"  # 'drive' or 'scrape'
         try:
             blob = drive.download(folder_id, filename)
         except Exception as e:
             log(f"     ✗ Drive 下載失敗: {e}")
-            st["fetch"] = "fail"
-            _record(trade_date, fk, "fetch", "fail", error=str(e), enabled=record_db)
-            continue
+
+        # Drive 沒檔 → fallback 直接爬網頁 (用 fetch_stocks 既有的 anti-bot 邏輯)
         if blob is None:
-            log(f"     ✗ Drive 找不到 {filename}")
-            st["fetch"] = "fail"
-            _record(trade_date, fk, "fetch", "fail",
-                    error="file not found", enabled=record_db)
-            continue
-        st["fetch"] = "ok"
-        log(f"     ↳ {len(blob):,} bytes")
+            log(f"     ↳ Drive 沒檔,改直接爬網頁...")
+            try:
+                rule = fetch_stocks.SOURCE_RULES[fk]
+                raw = fetch_stocks.fetch_source(rule, trade_date)
+                if raw is None:
+                    log(f"     ✗ 直接爬: 該日無資料 (假日 / 尚未公布)")
+                    st["fetch"] = "fail"
+                    _record(trade_date, fk, "fetch", "fail",
+                            error="not in Drive and source returned no data",
+                            enabled=record_db)
+                    continue
+                blob = fetch_stocks.prepare_upload_bytes(rule, raw)
+                source_kind = "scrape"
+                log(f"     ✓ 直接爬成功 ({len(blob):,} bytes)")
+            except Exception as e:
+                log(f"     ✗ 直接爬失敗: {e}")
+                st["fetch"] = "fail"
+                _record(trade_date, fk, "fetch", "fail",
+                        error=f"drive miss + scrape fail: {e}",
+                        enabled=record_db)
+                continue
+        else:
+            log(f"     ↳ {len(blob):,} bytes (drive)")
+
+        st["fetch"] = "ok" if source_kind == "drive" else "scrape"
 
         try:
             result = spec["parser"].parse(
