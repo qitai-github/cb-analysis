@@ -25,16 +25,15 @@ DB_TABLE = "stock_quotes"
 
 
 def parse(csv_bytes: bytes, *, market: str, trade_date: str) -> ParsedSource:
-    if market == "TWSE":
+    # 來源可能是 Big5 (GAS 寫進 Drive 的 raw) 或 UTF-8 (fetch_stocks scrape 後
+    # prepare_upload_bytes 轉換的)。先試 UTF-8,失敗 fallback Big5。
+    try:
+        text = csv_bytes.decode("utf-8")
+    except UnicodeDecodeError:
         text = csv_bytes.decode("big5", errors="replace")
+    if market == "TWSE":
         return _parse_twse(text, trade_date)
     if market == "TPEX":
-        # TPEx-EW 來源編碼是 ms950 (= big5 superset),fetch_stocks.py 已轉成 UTF-8 上傳
-        # 兩種編碼都試:本機 fixture 是 UTF-8
-        try:
-            text = csv_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            text = csv_bytes.decode("big5", errors="replace")
         return _parse_tpex(text, trade_date)
     raise ValueError(f"unknown market: {market!r}")
 
