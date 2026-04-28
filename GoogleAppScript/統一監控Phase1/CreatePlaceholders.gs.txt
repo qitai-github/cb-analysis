@@ -1,0 +1,77 @@
+/**
+ * ============================================================
+ * 每日預建 6 個 CSV 空檔到 Drive (給 SA fetch-stocks 覆蓋用)
+ * ============================================================
+ * 為什麼:
+ *   Service Account 沒自己的 Drive storage quota,只能「覆蓋既存檔」
+ *   不能「建立新檔」。GAS 用你個人帳號跑,有配額,先建好空檔
+ *   之後 SA fetch_stocks.py 就可以順利覆蓋。
+ *
+ * 觸發器設法 (Apps Script → ⏰ Triggers → Add Trigger):
+ *   函式: runDailyCreatePlaceholders
+ *   事件來源: 時間驅動
+ *   時間: 每天 00:30 ~ 01:30 (台北時區)
+ *
+ * 檔名與 fetch_stocks.py SOURCE_RULES 一致 (Python pipeline 預期的格式)
+ * ============================================================
+ */
+
+function runDailyCreatePlaceholders() {
+  // 週末跳過 (沒交易資料,建空檔意義不大)
+  const dow = new Date().getDay();  // 0=Sun, 6=Sat
+  if (dow === 0 || dow === 6) {
+    Logger.log("週末跳過");
+    return;
+  }
+  try {
+    createTodayPlaceholders();
+  } catch (e) {
+    sendTelegramAlert("❌ runDailyCreatePlaceholders 例外: " + e.message);
+    throw e;
+  }
+}
+
+/** 主邏輯:6 個資料夾各建一個今日空 CSV (已存在則跳過) */
+function createTodayPlaceholders() {
+  const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMdd');
+  Logger.log("=== createTodayPlaceholders " + today + " ===");
+
+  // 檔名格式對應 fetch_stocks.py SOURCE_RULES (Python 預期的格式)
+  const items = [
+    { folderId: CFG.DRIVE.STOCK_INST_TWSE,  name: `TWSE_T86_${today}.csv` },
+    { folderId: CFG.DRIVE.STOCK_INST_TPEX,  name: `TPEx_T86_${today}.csv` },
+    { folderId: CFG.DRIVE.STOCK_PRICE_TWSE, name: `TWSE-Daily-${today}.csv` },
+    { folderId: CFG.DRIVE.STOCK_PRICE_TPEX, name: `TPEx-EW-${today}.csv` },
+    { folderId: CFG.DRIVE.CB_PRICE,         name: `RSta0113.${today}-C.csv` },
+    { folderId: CFG.DRIVE.CB_INST,          name: `ThreePrimaryCB_${today}.csv` }
+  ];
+
+  let created = 0, skipped = 0, failed = 0;
+  items.forEach(t => {
+    try {
+      const folder = DriveApp.getFolderById(t.folderId);
+      if (folder.getFilesByName(t.name).hasNext()) {
+        Logger.log("  ⏭  skip (已存在): " + t.name);
+        skipped++;
+        return;
+      }
+      folder.createFile(t.name, '', 'text/csv');
+      Logger.log("  ✅ created: " + t.name);
+      created++;
+    } catch (e) {
+      Logger.log("  ❌ " + t.name + ": " + e.message);
+      failed++;
+    }
+  });
+
+  const summary = `placeholders ${today}: created=${created}, skipped=${skipped}, failed=${failed}`;
+  Logger.log("=== " + summary + " ===");
+  return { created, skipped, failed };
+}
+
+/** 手動測試入口 (Apps Script 編輯器選此函式 → ▶ Run,看 Logger) */
+function testCreateTodayPlaceholders() {
+  const r = createTodayPlaceholders();
+  Logger.log(JSON.stringify(r));
+  return r;
+}

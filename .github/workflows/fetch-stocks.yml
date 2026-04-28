@@ -1,13 +1,13 @@
 name: Fetch Stocks Backup
 
-# GAS 主路徑之外的備援,只允許手動觸發。
-# ⚠️ 已停用自動排程:Service Account 沒有自己的 Drive storage quota,
-#   只能「覆蓋 GAS 已建立的舊檔」,無法「建立新檔」。
-#   故當 TWSE T86 (16:00 後才公布) 還沒被 GAS 抓到時,此 workflow 會 storageQuotaExceeded。
-#   permanent fix 需 Workspace + Shared Drive,目前不採用。
-#   參考: https://developers.google.com/workspace/drive/api/guides/about-shareddrives
+# GAS 主路徑之外的備援。每日 18:00 TPE 自動觸發,把 6 個 CSV 抓網頁覆蓋到 Drive。
+# 前提: GAS CreatePlaceholders.gs 已每日 00:30 預建 6 個空檔
+#       (SA 只能覆蓋既存檔,不能建新檔 - storage quota 限制)。
+# 18:00 TPE = 10:00 UTC,週一~五。
 
 on:
+  schedule:
+    - cron: '0 10 * * 1-5'
   workflow_dispatch:
     inputs:
       date:
