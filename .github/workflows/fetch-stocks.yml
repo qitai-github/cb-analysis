@@ -1,14 +1,15 @@
 name: Fetch Stocks Backup
 
-# GAS 主路徑之外的備援。每日 18:30 TPE 自動觸發,把 6 個 CSV 抓網頁覆蓋到 Drive。
+# GAS 主路徑之外的備援。每日 18:23 TPE 自動觸發,把 6 個 CSV 抓網頁覆蓋到 Drive。
 # 前提: GAS CreatePlaceholders.gs 已每日 00:30 預建 6 個空檔
 #       (SA 只能覆蓋既存檔,不能建新檔 - storage quota 限制)。
-# 18:30 TPE = 10:30 UTC,週一~五。
-# 接著 19:00 TPE parse-and-export.yml 自己 cron 觸發,讀 Drive 的 fresh 資料。
+# 18:23 TPE = 10:23 UTC,週一~五。用奇怪分鐘避開 GHA :00/:30 排程高峰
+# (官方文件說明 schedule 不保證準時,實測 :00 / :30 延遲可達 1-2 小時)。
+# 接著 18:47 TPE parse-and-export.yml 自己 cron 觸發 (相隔 24 分鐘)。
 
 on:
   schedule:
-    - cron: '30 10 * * 1-5'
+    - cron: '23 10 * * 1-5'
   workflow_dispatch:
     inputs:
       date:
