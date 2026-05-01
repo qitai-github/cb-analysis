@@ -8,8 +8,12 @@ const ETFView = (() => {
   const MAX_DISPLAY = 5;
   const ETF_STATIC_URL = 'data/etf-holdings.json';
 
-  // ETF 顯示順序
-  const ETF_ORDER = ['00891', '00881', '00991A', '00981A', '00988A', '00982A', '00992A'];
+  // ETF 顯示順序 (順序不重要,只是左側清單呈現順序;不在清單裡的會自動補在最後)
+  const ETF_ORDER = [
+    '00891', '00881', '00991A', '00981A', '00988A', '00982A', '00992A',
+    '00401A', '00995A', '00996A', '00987A',
+    '00993A', '00984A', '00980A', '00985A'
+  ];
 
   async function loadData() {
     if (etfData) return etfData;
