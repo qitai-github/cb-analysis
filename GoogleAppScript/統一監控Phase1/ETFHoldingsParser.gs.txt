@@ -193,9 +193,12 @@ const ETF_CONFIG = {
 const ETF_GITHUB_PATH = "data/etf-holdings.json";
 
 /**
- * 假日/週末檢查 (內建版，不依賴外部函式)
- * 1. 週末 (六/日) → true
- * 2. Google 台灣節慶假日日曆有事件 → true
+ * 假日/週末檢查
+ * 跳過順序:
+ *   1. 週末 (六/日)
+ *   2. CFG.TW_STOCK_HOLIDAYS (TWSE 公告休市日,含國定假日 + 補假)
+ *      → Config.gs.txt 內手動維護,每年底 TWSE 公告後補新一年
+ *   3. Google 台灣節慶假日日曆 (備援:萬一 CFG 沒及時更新)
  */
 function isHolidayETF_() {
   var today = new Date();
@@ -203,23 +206,36 @@ function isHolidayETF_() {
 
   // 週末
   if (day === 0 || day === 6) {
-    Logger.log("📅 今天是週末，跳過 ETF 更新");
+    Logger.log("📅 今天是週末 (" + ["日","一","二","三","四","五","六"][day] + ")，跳過 ETF 更新");
     return true;
   }
 
-  // Google 台灣節慶假日日曆
+  // CFG 公告休市日 (含國定假日 + 補假) — 主要依據
+  try {
+    if (typeof CFG !== "undefined" && CFG.TW_STOCK_HOLIDAYS) {
+      var dateStr = Utilities.formatDate(today, "GMT+8", "yyyyMMdd");
+      if (CFG.TW_STOCK_HOLIDAYS.has(dateStr)) {
+        Logger.log("📅 今天 (" + dateStr + ") 是 TWSE 公告休市日，跳過 ETF 更新");
+        return true;
+      }
+    }
+  } catch (e) {
+    Logger.log("📅 CFG 休市日檢查失敗 (繼續用 Google 日曆): " + e.message);
+  }
+
+  // Google 台灣節慶假日日曆 — 備援
   try {
     var calendarId = "zh-tw.taiwan#holiday@group.v.calendar.google.com";
     var calendar = CalendarApp.getCalendarById(calendarId);
     if (calendar) {
       var events = calendar.getEventsForDay(today);
       if (events.length > 0) {
-        Logger.log("📅 今天是節慶假日 (" + events[0].getTitle() + ")，跳過 ETF 更新");
+        Logger.log("📅 Google 日曆顯示今天是 " + events[0].getTitle() + "，跳過 ETF 更新");
         return true;
       }
     }
   } catch (e) {
-    Logger.log("📅 假日日曆檢查失敗 (不影響執行): " + e.message);
+    Logger.log("📅 Google 日曆檢查失敗 (不影響執行): " + e.message);
   }
 
   return false;
