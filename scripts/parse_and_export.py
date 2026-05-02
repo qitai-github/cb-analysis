@@ -412,6 +412,16 @@ def main(argv=None) -> int:
     record_db = not args.skip_db
     out_json = Path(args.out_json) if args.out_json else DATA_JSON
 
+    # 非交易日 (週末/國定假日) skip — 但若使用者明確指定 date 仍照跑
+    if not args.date:
+        try:
+            from lib.calendar_tw import is_trading_day
+            if not is_trading_day(trade_date):
+                log(f"ℹ️ {trade_date} 非交易日 (週末/國定假日),跳過 (含 TG)")
+                return 0
+        except Exception as e:  # noqa: BLE001
+            log(f"⚠️ 假日檢查失敗 (照跑): {e}")
+
     t0 = time.time()
     log(f"=== parse_and_export 開始 / 目標日期 {trade_date} ===")
     log(f"flags: skip_db={args.skip_db} skip_sheet={args.skip_sheet} "

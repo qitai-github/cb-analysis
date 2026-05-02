@@ -335,6 +335,16 @@ def main() -> int:
     dstr = d.strftime("%Y%m%d")
     print(f"🗓️  目標日期: {d.strftime('%Y-%m-%d (%A)')}", flush=True)
 
+    # 非交易日 (週末/國定假日) skip — 但若使用者明確指定 FETCH_DATE 仍照跑
+    if not os.environ.get("FETCH_DATE", "").strip():
+        try:
+            from lib.calendar_tw import is_trading_day
+            if not is_trading_day(dstr):
+                print(f"ℹ️ {dstr} 非交易日 (週末/國定假日),跳過", flush=True)
+                return 0
+        except Exception as e:  # noqa: BLE001
+            print(f"⚠️ 假日檢查失敗 (照跑): {e}", file=sys.stderr)
+
     keys = selected_keys(folder_map)
     if not keys:
         print("❌ 沒有任何可執行的來源", file=sys.stderr)
