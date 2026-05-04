@@ -830,14 +830,30 @@ const DataProcessor = (() => {
    * 將 stock.trading 物件格式轉換為陣列格式
    * 回傳 [{date, open, high, low, close, volume}, ...]
    * volume 單位: 張 (已除以1000)
+   *
+   * 處理沒交易日 (close == null 或 0,例如停牌/冷門無成交):
+   *   - 若已有前一日 close → 沿用當該日 OHLC,volume=0 (平頂蠟燭)
+   *   - 若還沒任何 close → 略過,等第一筆成交再開始
    */
   function buildOHLCVArray(stock) {
     const dates = stock.tradingDates || [];
     if (dates.length === 0) return [];
     const arr = [];
+    let prevClose = null;
     for (const d of dates) {
       const close = stock.trading['收盤價']?.[d];
-      if (close == null) continue;
+      if (close == null || close === 0) {
+        if (prevClose === null) continue;
+        arr.push({
+          date: d,
+          open:  prevClose,
+          high:  prevClose,
+          low:   prevClose,
+          close: prevClose,
+          volume: 0
+        });
+        continue;
+      }
       arr.push({
         date: d,
         open:   stock.trading['開盤價']?.[d] ?? close,
@@ -846,6 +862,7 @@ const DataProcessor = (() => {
         close:  close,
         volume: (stock.trading['成交股數']?.[d] ?? 0) / 1000
       });
+      prevClose = close;
     }
     return arr;
   }
