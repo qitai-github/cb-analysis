@@ -299,26 +299,41 @@ function updateETFHoldings(options) {
 
       if (config.type === "auto_download") {
         blob = downloadETFExcel_(config.getUrl(), code, config.extraHeaders);
-        if (blob && ETF_DRIVE_FOLDERS[code]) {
-          // 自動下載成功，備份到 Google Drive 資料夾
-          // 注意:不在這裡設 fileDate=today。result.date 由 extractDate_ 從 xlsx 內容讀出真正資料日期,
-          // 否則來源實際還沒釋出今天資料(回吐昨天 xlsx)時會被誤標成今天。
-          try {
-            var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
-            var folder = DriveApp.getFolderById(ETF_DRIVE_FOLDERS[code]);
-            // 明確指定 xlsx mime，否則某些來源伺服器送的 Content-Type 會讓 Drive 誤判為 CSV/text
-            folder.createFile(
-              blob.copyBlob()
-                  .setName(code + "_" + today + ".xlsx")
-                  .setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            );
-            Logger.log("  已備份到 Drive");
-          } catch (e) {
-            Logger.log("  Drive 備份失敗 (不影響解析): " + e.message);
+
+        // 預先解析確認不是空檔。某些來源(例:JPMorgan/cathay)在當天資料還沒釋出時,
+        // 會回吐「有今天標題但 0 筆持股」的 xlsx。這種垃圾若直接備份到 Drive,
+        // 會污染下次 fallback 來源 → 必須先驗證再備份。
+        if (blob) {
+          var preview = parseETFExcel_(blob, config.parser, code, false);
+          if (!preview || preview.holdingCount === 0) {
+            Logger.log("  下載成功但解析 0 筆 (來源可能還沒釋出),改走 Drive fallback");
+            blob = null;  // 觸發下方 fallback
+          } else {
+            // 真的有資料 → 備份到 Drive + 直接採用 preview 結果(避免重複 parse)
+            if (ETF_DRIVE_FOLDERS[code]) {
+              try {
+                var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
+                var folder = DriveApp.getFolderById(ETF_DRIVE_FOLDERS[code]);
+                folder.createFile(
+                  blob.copyBlob()
+                      .setName(code + "_" + today + ".xlsx")
+                      .setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                );
+                Logger.log("  已備份到 Drive");
+              } catch (e) {
+                Logger.log("  Drive 備份失敗 (不影響解析): " + e.message);
+              }
+            }
+            preview.name = config.name;
+            etfs[code] = preview;
+            Logger.log("  ✓ " + preview.holdingCount + " 檔持股, date=" + preview.date);
+            continue;  // 跳過下方共用 parse 路徑
           }
-        } else if (!blob && ETF_DRIVE_FOLDERS[code]) {
-          // 自動下載失敗，fallback 到 Drive 最新檔案
-          Logger.log("  自動下載失敗，嘗試從 Drive 讀取...");
+        }
+
+        // 下載失敗 / 下載到空檔 → fallback 到 Drive 最新檔案
+        if (!blob && ETF_DRIVE_FOLDERS[code]) {
+          Logger.log("  自動下載失敗或空檔，嘗試從 Drive 讀取...");
           var driveResult = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
           if (driveResult) {
             fileDate = driveResult.fileDate;
@@ -428,7 +443,27 @@ function downloadETFExcel_(url, code, extraHeaders) {
     if (extraHeaders) {
       for (var k in extraHeaders) headers[k] = extraHeaders[k];
     }
-    var cookies = [];
+    // cookie jar: {name: value} — 同名取代,輸出 Cookie header 時只送 name=value
+    // 不能直接把 Set-Cookie 原始字串塞進 Cookie header,
+    // 否則 expires=/HttpOnly/Domain= 等 attribute 會被 server 視為非法 → 拒絕並再 302。
+    var cookieJar = {};
+    function _absorbSetCookie(setCookieHeader) {
+      if (!setCookieHeader) return;
+      var arr = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+      for (var i = 0; i < arr.length; i++) {
+        var firstPart = String(arr[i]).split(";")[0].trim();  // "name=value"
+        var eq = firstPart.indexOf("=");
+        if (eq <= 0) continue;
+        var name = firstPart.substring(0, eq).trim();
+        var value = firstPart.substring(eq + 1).trim();
+        cookieJar[name] = value;  // 同名取代 (而非累加)
+      }
+    }
+    function _buildCookieHeader() {
+      var parts = [];
+      for (var k in cookieJar) parts.push(k + "=" + cookieJar[k]);
+      return parts.join("; ");
+    }
 
     // 第一次請求 (不自動 follow redirect，手動處理)
     var resp = UrlFetchApp.fetch(url, {
@@ -443,12 +478,7 @@ function downloadETFExcel_(url, code, extraHeaders) {
       redirectCount++;
       var allHeaders = resp.getAllHeaders();
 
-      // 收集 Set-Cookie
-      var newCookies = allHeaders["Set-Cookie"];
-      if (newCookies) {
-        if (Array.isArray(newCookies)) cookies = cookies.concat(newCookies);
-        else cookies.push(newCookies);
-      }
+      _absorbSetCookie(allHeaders["Set-Cookie"]);
 
       // 取得 redirect 目標
       var location = allHeaders["Location"] || allHeaders["location"];
@@ -460,9 +490,11 @@ function downloadETFExcel_(url, code, extraHeaders) {
 
       Logger.log("  redirect #" + redirectCount + " → " + location.substring(0, 80));
 
-      // 帶著 cookie 重新請求
-      var nextHeaders = { "User-Agent": headers["User-Agent"] };
-      if (cookies.length > 0) nextHeaders["Cookie"] = cookies.join("; ");
+      // redirect 重新請求:沿用原 headers (含 Referer 等 extraHeaders),只覆蓋 Cookie
+      var nextHeaders = {};
+      for (var hk in headers) nextHeaders[hk] = headers[hk];
+      var cookieStr = _buildCookieHeader();
+      if (cookieStr) nextHeaders["Cookie"] = cookieStr;
 
       Utilities.sleep(500);
       resp = UrlFetchApp.fetch(location, {
