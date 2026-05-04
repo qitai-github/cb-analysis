@@ -852,13 +852,30 @@ const DataProcessor = (() => {
 
   /**
    * 將 cbDailyTrading 的 category→{date:val} 結構轉成 OHLCV 陣列
+   *
+   * 處理沒交易日 (close == null 或 0):
+   *   - 若已經有前一日 close → 沿用前一日 close 當該日 OHLC,volume=0 (平頂蠟燭)
+   *   - 若還沒有任何 close (全段最初幾日就沒交易) → 略過,等第一筆有交易再開始
    */
   function buildCBOHLCVArray(dataObj, dates) {
     if (!dataObj || !dates || dates.length === 0) return [];
     const arr = [];
+    let prevClose = null;
     for (const d of dates) {
       const close = dataObj['收盤價']?.[d];
-      if (close == null || close === 0) continue;
+      if (close == null || close === 0) {
+        if (prevClose === null) continue;  // 暖機期,沒前值可沿用
+        arr.push({
+          date: d,
+          open:  prevClose,
+          high:  prevClose,
+          low:   prevClose,
+          close: prevClose,
+          volume: 0
+        });
+        // 注意: prevClose 不更新 (因為今天沒成交)
+        continue;
+      }
       arr.push({
         date: d,
         open:   dataObj['開盤價']?.[d] ?? close,
@@ -867,6 +884,7 @@ const DataProcessor = (() => {
         close:  close,
         volume: dataObj['成交量(張)']?.[d] ?? 0
       });
+      prevClose = close;
     }
     return arr;
   }
