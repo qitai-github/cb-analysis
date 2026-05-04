@@ -301,9 +301,10 @@ function updateETFHoldings(options) {
         blob = downloadETFExcel_(config.getUrl(), code, config.extraHeaders);
         if (blob && ETF_DRIVE_FOLDERS[code]) {
           // 自動下載成功，備份到 Google Drive 資料夾
+          // 注意:不在這裡設 fileDate=today。result.date 由 extractDate_ 從 xlsx 內容讀出真正資料日期,
+          // 否則來源實際還沒釋出今天資料(回吐昨天 xlsx)時會被誤標成今天。
           try {
             var today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
-            fileDate = formatDateStr_(today);  // 自動下載用當天日期
             var folder = DriveApp.getFolderById(ETF_DRIVE_FOLDERS[code]);
             // 明確指定 xlsx mime，否則某些來源伺服器送的 Content-Type 會讓 Drive 誤判為 CSV/text
             folder.createFile(
