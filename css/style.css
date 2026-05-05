@@ -524,27 +524,28 @@ body {
 }
 
 /* === 狀態徽章 (VCP / 三線開花) === */
+/* 不改 td 的 padding,讓徽章走 inline-block 行內流,row height 自動對齊其他列 */
 .cell-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  padding: 4px 8px;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  font-size: 11px;
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 3px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.3px;
-  border-radius: 10px;
+  border-radius: 9px;
   border: 1px solid transparent;
-  line-height: 1.4;
+  line-height: 14px;
+  vertical-align: middle;
   white-space: nowrap;
   cursor: help;
 }
+
+.badge:last-child { margin-right: 0; }
 
 .badge-vcp {
   background: rgba(239, 68, 68, 0.15);
