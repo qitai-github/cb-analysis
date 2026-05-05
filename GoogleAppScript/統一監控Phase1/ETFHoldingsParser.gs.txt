@@ -900,30 +900,80 @@ function parseCapital_(ss) {
  *   R1: 「投資資產 - 股票 (YYYY-MM-DD)」← 取出日期
  *   R13: 表頭「股票代號 / 股票名稱 / 股數 / 金額 / 權重(%)」
  *   R14+: 持股資料
- *   NAV/units 在「現金與其他存款」分頁,本實作暫不解析
+ *
+ * 強化版:
+ * - 不靠 sheet name 寫死(連字號可能差,例「-」vs「－」),改用「名稱含 股票 但不含 期貨/選擇權/現金」找
+ * - header 找 row 後依欄位文字自動偵測 codeCol/sharesCol/weightCol,不再寫死 0/2/4
+ * - 找不到 header 時 log 前 15 列方便診斷
  */
 function parseJPMorgan_(ss) {
-  var ws = ss.getSheetByName("投資資產 - 股票");
-  if (!ws) ws = ss.getSheets()[0];  // 容錯:找不到指定分頁就用第一個
+  var sheets = ss.getSheets();
+  var sheetNames = sheets.map(function(s) { return s.getName(); });
+  Logger.log("  [JPMorgan] sheets: " + sheetNames.join(" | "));
+
+  // 找包含「股票」但不是期貨/選擇權/現金的分頁
+  var ws = null;
+  for (var i = 0; i < sheets.length; i++) {
+    var n = sheets[i].getName();
+    if (n.indexOf("股票") >= 0 && n.indexOf("期貨") < 0 && n.indexOf("選擇權") < 0 && n.indexOf("現金") < 0) {
+      ws = sheets[i];
+      break;
+    }
+  }
+  if (!ws) ws = sheets[0];
+  Logger.log("  [JPMorgan] 選中 sheet: " + ws.getName());
+
   var data = ws.getDataRange().getValues();
   var date = extractDate_(data);
-  var holdings = [];
-  var foundHeader = false;
 
-  for (var i = 0; i < data.length; i++) {
+  // 自動偵測 header 列 + 欄位位置
+  var headerRowIdx = -1;
+  var codeCol = -1, nameCol = -1, sharesCol = -1, weightCol = -1;
+  for (var i = 0; i < Math.min(data.length, 25); i++) {
     var row = data[i];
-    if (!foundHeader) {
-      if (row[0] && String(row[0]).indexOf("股票代號") >= 0) foundHeader = true;
-      continue;
+    for (var c = 0; c < row.length; c++) {
+      var v = String(row[c] || "");
+      if (v.indexOf("股票代號") >= 0 || (v.indexOf("代號") >= 0 && v.length <= 6)) {
+        headerRowIdx = i;
+        codeCol = c;
+        // 同列掃一次找其他欄位
+        for (var c2 = 0; c2 < row.length; c2++) {
+          var v2 = String(row[c2] || "");
+          if (nameCol < 0 && v2.indexOf("名稱") >= 0) nameCol = c2;
+          if (sharesCol < 0 && v2.indexOf("股數") >= 0) sharesCol = c2;
+          if (weightCol < 0 && (v2.indexOf("權重") >= 0 || v2.indexOf("%") >= 0)) weightCol = c2;
+        }
+        break;
+      }
     }
-    var code = String(row[0]).trim();
-    if (!code || !/^\d/.test(code)) continue;  // 跳過備註或空列
-    var shares = parseNum_(row[2]);
-    var weight = parseWeight_(row[4]);
+    if (headerRowIdx >= 0) break;
+  }
+
+  if (headerRowIdx < 0) {
+    Logger.log("  [JPMorgan] 找不到 header,前 15 列內容:");
+    for (var i = 0; i < Math.min(data.length, 15); i++) {
+      Logger.log("    R" + (i + 1) + ": " + JSON.stringify(data[i]).substring(0, 200));
+    }
+    return { date: date, nav: null, units: null, navPerUnit: null, holdingCount: 0, holdings: [] };
+  }
+
+  // fallback 預設位置(萬一某欄沒對到名稱)
+  if (nameCol < 0) nameCol = codeCol + 1;
+  if (sharesCol < 0) sharesCol = codeCol + 2;
+  if (weightCol < 0) weightCol = codeCol + 4;
+  Logger.log("  [JPMorgan] header row=" + (headerRowIdx + 1) + ", cols code=" + codeCol + " name=" + nameCol + " shares=" + sharesCol + " weight=" + weightCol);
+
+  var holdings = [];
+  for (var i = headerRowIdx + 1; i < data.length; i++) {
+    var row = data[i];
+    var code = String(row[codeCol] || "").trim();
+    if (!code || !/^\d/.test(code)) continue;
+    var shares = parseNum_(row[sharesCol]);
+    var weight = parseWeight_(row[weightCol]);
     if (shares == null && weight == null) continue;
     holdings.push({
       code: code,
-      name: String(row[1]).trim(),
+      name: String(row[nameCol] || "").trim(),
       shares: shares,
       weight: weight
     });
