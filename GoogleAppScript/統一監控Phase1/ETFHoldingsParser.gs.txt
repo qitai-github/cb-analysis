@@ -83,13 +83,12 @@ const ETF_CONFIG = {
   // ─── 國泰 (cathay) 自動下載 xlsx,需 Referer ───
   "00881": {
     name: "國泰科技龍頭",
-    type: "auto_download",
-    getUrl: function() {
-      var today = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd");
-      return "https://cwapi.cathaysite.com.tw/api/ETF/DownloadETFWeightExcel?FundCode=CR&SearchDate=" + today;
-    },
-    extraHeaders: { "Referer": "https://www.cathaysite.com.tw/" },
-    parser: "cathay"
+    type: "api",
+    parser: "cathay_api",
+    apiOpts: { fundCode: "CR" }
+    // 改用 cathay 的 JSON API (GetETFAssets + GetETFDetailStockList)。
+    // 原本走 xlsx download 端點 (DownloadETFWeightExcel) 會被 cathay WAF 擋 GCP IP (HTTP 403),
+    // 但同網域的 JSON API 似乎沒擋。
   },
 
   // ─── 復華 (fhtrust) 自動下載 xlsx ───
@@ -1135,6 +1134,7 @@ function parseETFApi_(config, code) {
       case "allianz_api":  return fetchAllianzApi_(config.apiOpts);
       case "nomura_api":   return fetchNomuraApi_(config.apiOpts);
       case "capital_api":  return fetchCapitalApi_(config.apiOpts);
+      case "cathay_api":   return fetchCathayApi_(config.apiOpts);
     }
     Logger.log("  未知 API parser: " + config.parser);
     return null;
@@ -1368,6 +1368,76 @@ function fetchCapitalApi_(opts) {
     nav: parseNum_(pcf.nav),
     units: parseNum_(pcf.totUnit),
     navPerUnit: parseNum_(pcf.pUnit),
+    holdingCount: holdings.length,
+    holdings: holdings
+  };
+}
+
+/**
+ * 國泰投信 API (00881)
+ * 不需 token,直接 GET 兩支 API 拼起來:
+ *   1) GetETFAssets?FundCode=CR&SearchDate=today
+ *      → preDate (資料日期), fundNav, fundOutstandingShares, fundPerNav
+ *   2) GetETFDetailStockList?FundCode=CR&SearchDate=today
+ *      → [{stockCode, stockName, volumn(股數), weights(權重%)}, ...]
+ *
+ * 注意:cathay 的 xlsx download 端點 (DownloadETFWeightExcel) 會擋 GCP IP (HTTP 403),
+ * 但 JSON API 同域名似乎沒擋。改走 JSON API 不需要 fallback Drive 即可拿到資料。
+ * SearchDate 給未來日期時,API 會自動回吐最近一個有資料的日子,可放心傳今天。
+ */
+function fetchCathayApi_(opts) {
+  var headers = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+    "Referer": "https://www.cathaysite.com.tw/"
+  };
+  var today = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd");
+  var qs = "?FundCode=" + encodeURIComponent(opts.fundCode) + "&SearchDate=" + today;
+
+  var assetsResp = UrlFetchApp.fetch(
+    "https://cwapi.cathaysite.com.tw/api/ETF/GetETFAssets" + qs,
+    { method: "get", muteHttpExceptions: true, headers: headers }
+  );
+  var assetsJson = JSON.parse(assetsResp.getContentText("UTF-8"));
+  if (!assetsJson.success || !assetsJson.result) {
+    Logger.log("  Cathay GetETFAssets failed: " + (assetsJson.returnMessage || "?"));
+    return null;
+  }
+  var assets = assetsJson.result;
+
+  var stockResp = UrlFetchApp.fetch(
+    "https://cwapi.cathaysite.com.tw/api/ETF/GetETFDetailStockList" + qs,
+    { method: "get", muteHttpExceptions: true, headers: headers }
+  );
+  var stockJson = JSON.parse(stockResp.getContentText("UTF-8"));
+  if (!stockJson.success || !stockJson.result || stockJson.result.length === 0) {
+    Logger.log("  Cathay GetETFDetailStockList empty/failed");
+    return null;
+  }
+
+  // 資料日期: preDate "2026/05/05" → "2026-05-05"
+  var date = null;
+  if (assets.preDate) {
+    var m = String(assets.preDate).match(/(20\d{2})\/(\d{1,2})\/(\d{1,2})/);
+    if (m) date = m[1] + "-" + pad2_(m[2]) + "-" + pad2_(m[3]);
+  }
+
+  var holdings = [];
+  for (var i = 0; i < stockJson.result.length; i++) {
+    var s = stockJson.result[i];
+    var c = String(s.stockCode || "").trim();
+    if (!c) continue;
+    var shares = parseNum_(s.volumn);  // API 拼字就是 volumn (沒漏字)
+    var weight = parseWeight_(s.weights);
+    if (shares == null && weight == null) continue;
+    holdings.push({ code: c, name: String(s.stockName || "").trim(), shares: shares, weight: weight });
+  }
+
+  return {
+    date: date,
+    nav: parseNum_(assets.fundNav),
+    units: parseNum_(assets.fundOutstandingShares),
+    navPerUnit: parseNum_(assets.fundPerNav),
     holdingCount: holdings.length,
     holdings: holdings
   };
