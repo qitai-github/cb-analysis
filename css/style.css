@@ -523,6 +523,41 @@ body {
   white-space: nowrap;
 }
 
+/* === 狀態徽章 (VCP / 三線開花) === */
+.cell-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.badge-vcp {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.badge-sanxian {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
 /* === 新聞列表 === */
 .news-list {
   display: flex;

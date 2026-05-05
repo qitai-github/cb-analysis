@@ -9,6 +9,7 @@ const Table = (() => {
     { key: '_star', label: '\u2606', width: '36px', sticky: true, format: 'star', noSort: false },
     { key: 'code', label: '代碼', width: '70px', sticky: true },
     { key: 'name', label: '名稱', width: '100px', sticky: true },
+    { key: '_status', label: '狀態', width: '110px', format: 'status' },
     { key: 'industryCategory', label: '產業分類', width: '140px', format: 'industry' },
     { key: 'latestClose', label: '收盤價', width: '75px', format: 'price', align: 'right' },
     { key: 'priceChangePercent', label: '漲跌%', width: '70px', format: 'percent_color', align: 'right' },
@@ -151,6 +152,11 @@ const Table = (() => {
       return;
     }
 
+    if (format === 'status') {
+      renderStatusBadges(td, stock);
+      return;
+    }
+
     if (val == null || val === '') {
       td.textContent = '-';
       td.classList.add('text-muted');
@@ -250,17 +256,61 @@ const Table = (() => {
   function getVal(obj, key) {
     if (!key) return null;
     if (key === '_star') return Watchlist.has(obj.code) ? 1 : 0;
+    if (key === '_status') {
+      const f = obj.statusFlags;
+      return f ? Object.keys(f).length : 0;
+    }
     return key.split('.').reduce((o, k) => o?.[k], obj) ?? null;
   }
 
+  // 狀態徽章設定 (對齊 status_sheets.SOURCES key)
+  const STATUS_BADGES = {
+    vcp:     { label: 'VCP',  cls: 'badge-vcp'     },
+    sanxian: { label: '三線', cls: 'badge-sanxian' }
+  };
+
+  function renderStatusBadges(td, stock) {
+    const flags = stock.statusFlags;
+    if (!flags) {
+      td.textContent = '';
+      return;
+    }
+    td.classList.add('cell-status');
+    for (const [type, badgeCfg] of Object.entries(STATUS_BADGES)) {
+      const info = flags[type];
+      if (!info) continue;
+      const span = document.createElement('span');
+      span.className = `badge ${badgeCfg.cls}`;
+      span.textContent = badgeCfg.label;
+      span.title = buildStatusTooltip(type, info);
+      td.appendChild(span);
+    }
+  }
+
+  function buildStatusTooltip(type, info) {
+    const lines = [];
+    if (type === 'vcp') {
+      lines.push(`VCP — ${info.date || ''}`.trim());
+      if (info.gain20) lines.push(`近20日漲幅: ${info.gain20}`);
+      if (info.marketShort === 'O') lines.push('大盤淨空 ✓');
+      if (info.consecShort === 'O') lines.push('連續淨空 ✓');
+    } else if (type === 'sanxian') {
+      lines.push(`三線開花 — ${info.date || ''}`.trim());
+      if (info.close)   lines.push(`收盤股價: ${info.close}`);
+      if (info.high55)  lines.push(`55日內最高: ${info.high55}`);
+      if (info.diffPct) lines.push(`差距比: ${info.diffPct}`);
+    }
+    return lines.join('\n');
+  }
+
   function updateInstDays(days) {
-    columns[7].label = `外資${days}日`;
-    columns[7].key = `foreign_${days}d`;
-    columns[8].label = `投信${days}日`;
-    columns[8].key = `investment_${days}d`;
-    columns[9].label = `自營${days}日`;
-    columns[9].key = `dealer_${days}d`;
-    columns[10].key = `totalInst_${days}d`;
+    columns[8].label = `外資${days}日`;
+    columns[8].key = `foreign_${days}d`;
+    columns[9].label = `投信${days}日`;
+    columns[9].key = `investment_${days}d`;
+    columns[10].label = `自營${days}日`;
+    columns[10].key = `dealer_${days}d`;
+    columns[11].key = `totalInst_${days}d`;
   }
 
   function getCurrentData() { return currentData; }

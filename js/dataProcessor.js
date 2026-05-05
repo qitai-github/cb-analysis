@@ -457,12 +457,33 @@ const DataProcessor = (() => {
       mergeYuantaReport(stockMap, rawResults.yuantaReport);
     }
 
+    // 9. 個股狀態 (VCP / 三線開花) — 由 parse_and_export 寫入 all-data.json
+    applyStockStatus(stockMap, rawResults.stockStatus);
+
     // 計算衍生欄位
     for (const [, stock] of stockMap) {
       computeDerivedFields(stock, cbTradingByCode, auctionMap, cbBondInstByCode);
     }
 
     return { stockMap, latestDataDate };
+  }
+
+  /**
+   * 把 VCP / 三線開花 結果掛到 stockMap 對應個股上
+   * stockStatus 結構: { vcp: {date, stocks:{code:{...}}}, sanxian: {date, stocks:{...}} }
+   */
+  function applyStockStatus(stockMap, stockStatus) {
+    if (!stockStatus || typeof stockStatus !== 'object') return;
+    for (const [type, payload] of Object.entries(stockStatus)) {
+      if (!payload || typeof payload.stocks !== 'object') continue;
+      const date = payload.date || '';
+      for (const [code, details] of Object.entries(payload.stocks)) {
+        const entry = stockMap.get(code);
+        if (!entry) continue;  // 只標示 CB 對應個股
+        if (!entry.statusFlags) entry.statusFlags = {};
+        entry.statusFlags[type] = { date, ...(details || {}) };
+      }
+    }
   }
 
   /**

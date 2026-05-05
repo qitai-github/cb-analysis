@@ -52,7 +52,7 @@ try:
 except ImportError:
     pass  # 沒裝 python-dotenv 也能跑,前提是 env 已外部設好
 
-from lib import drive, sheets, supabase_client, telegram, timeseries_merge  # noqa: E402
+from lib import drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge  # noqa: E402
 from parsers import cb_inst, cb_price, stock_inst, stock_price  # noqa: E402
 
 # 直接爬網頁的 fallback (當 Drive 沒檔時用,例如當日 TWSE T86 16:00 才公布,
@@ -385,6 +385,45 @@ def fetch_sheets(trade_date: str, all_data: dict, *,
     return states
 
 
+# ── Phase 4.5: 個股狀態 sheet (VCP / 三線開花) ─────────────────────────
+def fetch_status_sheets(trade_date: str, all_data: dict, *,
+                        record_db: bool) -> list[dict]:
+    """抓 VCP / 三線開花 公開 xlsx,挑最新 worksheet,寫入 all_data['stockStatus']。
+
+    回傳 list of {key, name, status, rows}。任一失敗不影響另一個,也不影響
+    主 pipeline (呼叫端只把摘要送 TG)。
+    """
+    states: list[dict] = []
+    bucket: dict[str, dict] = {}
+    for key, spec in status_sheets.SOURCES.items():
+        name = spec["name"]
+        log(f"  ↓ 狀態 sheet {name} ({key})")
+        try:
+            res = status_sheets.fetch_one(key)
+            bucket[key] = res
+            n = len(res.get("stocks") or {})
+            log(f"     ✓ tab={res['date']}, stocks={n:,}")
+            _record(trade_date, f"status_{key}", "fetch", "ok",
+                    count=n, enabled=record_db)
+            states.append({"key": key, "name": name,
+                           "status": "ok", "rows": n})
+        except Exception as e:  # noqa: BLE001
+            log(f"     ✗ {e}")
+            _record(trade_date, f"status_{key}", "fetch", "fail",
+                    error=str(e), enabled=record_db)
+            states.append({"key": key, "name": name,
+                           "status": "fail", "rows": None})
+
+    # 部分成功時保留既有資料,只覆蓋成功抓到的 key
+    if bucket:
+        existing = all_data.get("stockStatus") or {}
+        if not isinstance(existing, dict):
+            existing = {}
+        existing.update(bucket)
+        all_data["stockStatus"] = existing
+    return states
+
+
 # ── 主入口 ────────────────────────────────────────────────────────────
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__,
@@ -430,7 +469,7 @@ def main(argv=None) -> int:
     # 收尾要用的狀態 (即使中途出錯,finally 也送 TG)
     summary: dict[str, Any] = {
         "trade_date": trade_date,
-        "sources": [], "db": [], "sheets": [],
+        "sources": [], "db": [], "sheets": [], "status_sheets": [],
         "json": {"status": "skip"},
         "elapsed_s": 0.0,
         "dry_run": args.dry_run,
@@ -474,6 +513,14 @@ def main(argv=None) -> int:
             log("[Phase 4] 從 Sheet 讀 5 個非-CSV key")
             summary["sheets"] = fetch_sheets(trade_date, all_data, record_db=record_db)
 
+        # Phase 4.5: 個股狀態 sheet (VCP / 三線開花) — 失敗保留舊資料,不 abort
+        if args.skip_sheet:
+            log("[Phase 4.5] --skip-sheet,狀態 sheet 抓取跳過")
+        else:
+            log("[Phase 4.5] 抓 VCP / 三線開花 狀態 sheet")
+            summary["status_sheets"] = fetch_status_sheets(
+                trade_date, all_data, record_db=record_db)
+
         # Phase 5: 寫回 JSON
         if args.skip_json:
             log("[Phase 5] --skip-json,JSON 寫回跳過")
@@ -502,7 +549,7 @@ def main(argv=None) -> int:
         dt = time.time() - t0
         summary["elapsed_s"] = dt
 
-        # 判斷退出碼
+        # 判斷退出碼 (status_sheets 失敗不算致命,只在 TG 顯示)
         any_fail = (
             any(s.get("fetch") == "fail" or s.get("parse") == "fail"
                 for s in summary["sources"])

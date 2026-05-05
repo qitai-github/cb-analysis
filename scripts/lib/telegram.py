@@ -154,6 +154,20 @@ def format_pipeline_summary(s: dict[str, Any]) -> str:
                 lines.append(f"  {mark} {x['name']}  {x.get('rows', '-')}")
         lines.append("")
 
+    # 個股狀態 sheet (VCP / 三線開花)
+    status_sheets = s.get("status_sheets", [])
+    if status_sheets:
+        ok_st = [x for x in status_sheets if x.get("status") == "ok"]
+        if len(ok_st) == len(status_sheets):
+            parts = " / ".join(f"{x['name']} {x['rows']:,}" for x in status_sheets)
+            lines.append(f"*狀態:* ✅ {parts}")
+        else:
+            lines.append("*狀態:*")
+            for x in status_sheets:
+                mark = {"ok": "✅", "fail": "❌"}.get(x.get("status"), "?")
+                lines.append(f"  {mark} {x['name']}  {x.get('rows', '-')}")
+        lines.append("")
+
     # JSON
     j = s.get("json")
     if j:
