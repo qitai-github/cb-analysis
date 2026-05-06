@@ -395,6 +395,34 @@ const DataProcessor = (() => {
       }
     }
 
+    // 3b. CB Trading fallback — 新發行 CB 富邦交易日報可能延遲幾天才收錄,
+    //     但 cbDailyTrading 已經有 OHLCV → 補一個最小 cb 物件,
+    //     讓主表不會掉檔,後續 yuantaReport / cbDailyTrading 覆蓋會把細節填回來。
+    if (cbTradingByCode) {
+      const seenCBs = new Set();
+      for (const [, st] of stockMap) {
+        if (!st.cbs) continue;
+        for (const cb of st.cbs) {
+          if (cb.cbCode) seenCBs.add(cb.cbCode);
+        }
+      }
+      for (const [cbCode, cbEntry] of Object.entries(cbTradingByCode.stocks)) {
+        if (seenCBs.has(cbCode)) continue;
+        const stockCode = extractStockCode(cbCode);
+        if (!stockCode) continue;
+        const entry = getOrCreate(stockMap, stockCode, '');
+        if (!entry.cbs) entry.cbs = [];
+        entry.cbs.push({
+          cbCode,
+          cbName: cbEntry.name || '',
+          stockCode,
+          tradeType: '等價',
+          close: null,
+          change: 0
+        });
+      }
+    }
+
     // 4. 富邦初級市場
     if (rawResults.fubonPrimary) {
       const fubon = parseFubonPrimary(rawResults.fubonPrimary);
