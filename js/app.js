@@ -612,10 +612,10 @@ const App = (() => {
     const hasDetail = cb.issueDate || cb.listDate || cb.couponRate != null ||
                       cb.remainYears != null || cb.issueConvPrice || cb.underwriter ||
                       cb.nearestPutPrice != null || cb.nearestPutYield != null ||
-                      cb.conversionStop?.length > 0;
+                      cb.callDate || cb.conversionStop?.length > 0;
     if (!hasDetail) return '';
 
-    const f = (label, val) => val ? `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val}</span></div>` : '';
+    const f = (label, val, extra) => val ? `<div class="info-item"><span class="info-label">${label}</span><span class="info-value${extra ? ' ' + extra : ''}">${val}</span></div>` : '';
 
     let detail = '<div class="info-grid info-grid-sm">';
     detail += f('發行日', cb.issueDate);
@@ -626,6 +626,7 @@ const App = (() => {
     detail += f('承銷機構', cb.underwriter);
     detail += f('賣回價格', cb.nearestPutPrice);
     detail += f('賣回殖利率', cb.nearestPutYield != null ? cb.nearestPutYield + '%' : null);
+    detail += f('強制贖回日', cb.callDate, 'text-down');
 
     if (cb.conversionStop?.length > 0) {
       for (const s of cb.conversionStop) {
