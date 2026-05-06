@@ -398,7 +398,9 @@ const DataProcessor = (() => {
     // 3b. CB Trading fallback — 新發行 CB 富邦交易日報可能延遲幾天才收錄,
     //     但 cbDailyTrading 已經有 OHLCV → 補一個最小 cb 物件,
     //     讓主表不會掉檔,後續 yuantaReport / cbDailyTrading 覆蓋會把細節填回來。
+    //     cbName 優先用 yuantaReport.basicInfo (cbDailyTrading 來源偶有亂碼)。
     if (cbTradingByCode) {
+      const yrBasic = rawResults.yuantaReport?.basicInfo || {};
       const seenCBs = new Set();
       for (const [, st] of stockMap) {
         if (!st.cbs) continue;
@@ -412,9 +414,11 @@ const DataProcessor = (() => {
         if (!stockCode) continue;
         const entry = getOrCreate(stockMap, stockCode, '');
         if (!entry.cbs) entry.cbs = [];
+        const yr = yrBasic[cbCode] || {};
+        const cbName = yr.cbName || cleanName(cbEntry.name) || '';
         entry.cbs.push({
           cbCode,
-          cbName: cbEntry.name || '',
+          cbName,
           stockCode,
           tradeType: '等價',
           close: null,
@@ -641,6 +645,8 @@ const DataProcessor = (() => {
         // 基本資料
         const b = yr.basicInfo?.[cbCode];
         if (b) {
+          // 名稱:basicInfo 是最乾淨來源,蓋過 cbDailyReport / cbDailyTrading 偶發亂碼
+          if (b.cbName) cb.cbName = b.cbName;
           cb.couponRate = b.couponRate;
           cb.issueDate = b.issueDate;
           cb.listDate = b.listDate;
@@ -1182,6 +1188,14 @@ const DataProcessor = (() => {
     const code = String(cbCode).trim();
     if (code.length >= 5) return code.substring(0, 4);
     return code;
+  }
+
+  /**
+   * 清掉常見亂碼字 (Unicode replacement char + 末尾管線符號等)
+   */
+  function cleanName(name) {
+    if (!name) return '';
+    return String(name).replace(/�/g, '').replace(/[|｜]+$/, '').trim();
   }
 
   return {

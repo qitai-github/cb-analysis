@@ -528,31 +528,41 @@ const App = (() => {
 
       const f = (label, val, extra) => `<div class="info-item"><span class="info-label">${label}</span><span class="info-value${extra ? ' ' + extra : ''}">${val ?? '-'}</span></div>`;
 
+      const balChgCls = cb.balChange > 0 ? 'text-down' : cb.balChange < 0 ? 'text-up' : '';
+      const balChg = cb.balChange != null
+        ? (cb.balChange > 0 ? '+' : '') + cb.balChange.toLocaleString()
+        : null;
+      const statusBadgesHtml = buildStatusBadgesHTML(stock);
+
       html += `
         <div class="cb-card">
           <div class="cb-card-header">
             <span class="cb-code">${cb.cbCode}</span>
-            <span class="cb-name">${cb.cbName}</span>
+            <span class="cb-name">${cb.cbName || ''}</span>
+            ${statusBadgesHtml}
             ${badges}
             ${auctionBtn}
           </div>
           <div class="info-grid info-grid-sm">
             ${f('收盤', cb.close?.toFixed(2), cls)}
-            ${f('漲跌', changeSign + cb.change.toFixed(2), cls)}
-            ${f('轉換價', cb.conversionPrice?.toFixed(2))}
-            ${f('CB溢價率', cbPrem != null ? (cbPrem >= 0 ? '+' : '') + cbPrem.toFixed(2) + '%' : null, premCls)}
+            ${f('漲跌', cb.change != null ? changeSign + cb.change.toFixed(2) : null, cls)}
             ${f('成交量', cb.volume?.toLocaleString())}
+            ${f('CB溢價率', cbPrem != null ? (cbPrem >= 0 ? '+' : '') + cbPrem.toFixed(2) + '%' : null, premCls)}
             ${f('成交金額', cb.amount ? Number(cb.amount).toLocaleString() : null)}
-            ${cb.tcri != null ? f('TCRI', cb.tcri) : ''}
-            ${cb.asoPremium != null ? f('權利金', cb.asoPremium?.toFixed(2)) : ''}
-            ${cb.ytp != null ? f('YTP', (cb.ytp * 100).toFixed(2) + '%') : ''}
-            ${cb.ytm != null ? f('YTM', (cb.ytm * 100).toFixed(2) + '%') : ''}
-            ${cb.vol120 != null ? f('波動率120天', cb.vol120.toFixed(1) + '%') : ''}
-            ${cb.outstandingPct != null ? f('流通餘額', cb.outstandingPct.toFixed(1) + '%') : ''}
+
+            ${f('轉換價', cb.conversionPrice?.toFixed(2))}
+            ${f('發行總額', cb.actualTotal != null ? cb.actualTotal + '百萬' : null)}
+            ${f('流通餘額', cb.outstandingPct != null ? cb.outstandingPct.toFixed(1) + '%' : null)}
+            ${f('流通餘額(張)', cb.balThisWeek != null ? cb.balThisWeek.toLocaleString() : null)}
+            ${f('餘額增減', balChg, balChgCls)}
+
             ${f('轉換期間', cb.conversionPeriod ? `<span style="font-size:11px">${cb.conversionPeriod}</span>` : null)}
             ${f('到期日', cb.maturityDate)}
-            ${f('賣回權日', cb.nextPutDate)}
-            ${cb.guarantee ? f('擔保', cb.guarantee) : ''}
+            ${f('最近賣回日', cb.nearestPutDate)}
+            ${f('賣回日', cb.nextPutDate)}
+            ${f('擔保', cb.guarantee)}
+
+            ${cb.business ? `<div class="info-item info-item-wide"><span class="info-label">經營項目</span><span class="info-value" style="font-size:11px">${cb.business}</span></div>` : ''}
           </div>
           ${buildCBDetailToggle(cb)}
         </div>`;
@@ -599,58 +609,45 @@ const App = (() => {
   }
 
   function buildCBDetailToggle(cb) {
-    const hasDetail = cb.issueDate || cb.issueTotal || cb.underwriter ||
-                      cb.nearestPutDate || cb.resetFormula || cb.balThisWeek != null ||
-                      cb.conversionStop?.length > 0 || cb.eps != null || cb.business;
+    const hasDetail = cb.issueDate || cb.listDate || cb.couponRate != null ||
+                      cb.remainYears != null || cb.issueConvPrice || cb.underwriter ||
+                      cb.nearestPutPrice != null || cb.nearestPutYield != null ||
+                      cb.conversionStop?.length > 0;
     if (!hasDetail) return '';
 
     const f = (label, val) => val ? `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val}</span></div>` : '';
 
     let detail = '<div class="info-grid info-grid-sm">';
-
-    // 發行資訊
     detail += f('發行日', cb.issueDate);
     detail += f('掛牌日', cb.listDate);
     detail += f('票面利率', cb.couponRate != null ? cb.couponRate + '%' : null);
-    detail += f('發行總額', cb.actualTotal != null ? cb.actualTotal + '百萬' : null);
-    detail += f('發行價格', cb.issuePrice != null ? cb.issuePrice : null);
     detail += f('剩餘年期', cb.remainYears != null ? cb.remainYears.toFixed(2) + '年' : null);
     detail += f('發行時轉換價', cb.issueConvPrice);
     detail += f('承銷機構', cb.underwriter);
-    detail += f('最近賣回日', cb.nearestPutDate);
     detail += f('賣回價格', cb.nearestPutPrice);
     detail += f('賣回殖利率', cb.nearestPutYield != null ? cb.nearestPutYield + '%' : null);
-    detail += f('EPS', cb.eps);
 
-    // 流通餘額
-    if (cb.balThisWeek != null) {
-      const chgCls = cb.balChange > 0 ? 'text-down' : cb.balChange < 0 ? 'text-up' : '';
-      detail += `<div class="info-item"><span class="info-label">流通餘額(張)</span><span class="info-value">${cb.balThisWeek?.toLocaleString()}</span></div>`;
-      detail += `<div class="info-item"><span class="info-label">餘額增減</span><span class="info-value ${chgCls}">${cb.balChange > 0 ? '+' : ''}${cb.balChange?.toLocaleString()}</span></div>`;
-    }
-
-    detail += f('重設公式', cb.resetFormula);
-    detail += f('強制贖回日', cb.callDate);
-
-    // 停止轉換
     if (cb.conversionStop?.length > 0) {
       for (const s of cb.conversionStop) {
         detail += `<div class="info-item info-item-wide"><span class="info-label">停止轉換</span><span class="info-value" style="font-size:11px">${s.startDate}~${s.endDate} (${s.reason})</span></div>`;
       }
     }
-
-    // 經營項目
-    if (cb.business) {
-      detail += `<div class="info-item info-item-wide"><span class="info-label">經營項目</span><span class="info-value" style="font-size:11px">${cb.business.substring(0, 80)}${cb.business.length > 80 ? '...' : ''}</span></div>`;
-    }
-
     detail += '</div>';
 
-    const id = 'cb-detail-' + cb.cbCode;
     return `<div class="cb-detail-toggle">
       <button class="btn-detail-toggle" onclick="this.parentElement.classList.toggle('open');this.textContent=this.parentElement.classList.contains('open')?'收起詳細':'更多資訊'">更多資訊</button>
       <div class="cb-detail-content">${detail}</div>
     </div>`;
+  }
+
+  // 狀態徽章 (VCP / 三線) — stock 層級,所有 CB 卡共用
+  function buildStatusBadgesHTML(stock) {
+    const flags = stock.statusFlags;
+    if (!flags) return '';
+    let html = '';
+    if (flags.vcp)     html += '<span class="badge badge-vcp">VCP</span>';
+    if (flags.sanxian) html += '<span class="badge badge-sanxian">三線</span>';
+    return html;
   }
 
   function buildPrimaryMarketHTML(stock) {
