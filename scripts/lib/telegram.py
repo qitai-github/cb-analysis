@@ -168,6 +168,19 @@ def format_pipeline_summary(s: dict[str, Any]) -> str:
                 lines.append(f"  {mark} {x['name']}  {x.get('rows', '-')}")
         lines.append("")
 
+    # yuantaReport (元大證選擇權 xlsx)
+    yr = s.get("yuanta_report") or {}
+    if yr.get("status") and yr["status"] != "skip":
+        if yr["status"] == "ok":
+            lines.append(
+                f"*元大證選擇權:* ✅ `{yr.get('reportDate','?')}` "
+                f"基本{yr.get('basicCount',0):,} 贖回{yr.get('callRights',0)} "
+                f"停轉{yr.get('conversionStop',0)}"
+            )
+        else:
+            lines.append(f"*元大證選擇權:* ❌ {yr.get('error','unknown')}")
+        lines.append("")
+
     # JSON
     j = s.get("json")
     if j:

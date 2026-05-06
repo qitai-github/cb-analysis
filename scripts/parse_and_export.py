@@ -52,7 +52,7 @@ try:
 except ImportError:
     pass  # 沒裝 python-dotenv 也能跑,前提是 env 已外部設好
 
-from lib import drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge  # noqa: E402
+from lib import drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge, yuanta_report  # noqa: E402
 from parsers import cb_inst, cb_price, stock_inst, stock_price  # noqa: E402
 
 # 直接爬網頁的 fallback (當 Drive 沒檔時用,例如當日 TWSE T86 16:00 才公布,
@@ -385,6 +385,38 @@ def fetch_sheets(trade_date: str, all_data: dict, *,
     return states
 
 
+# ── Phase 4.6: 元大證選擇權 xlsx → yuantaReport ──────────────────────
+def fetch_yuanta_report(trade_date: str, all_data: dict, *,
+                        record_db: bool) -> dict:
+    """從 Drive 撈最新一份元大證選擇權 xlsx,解析後覆寫 all_data['yuantaReport']。
+
+    每日跑時都要拉最新檔 (callDate / 轉換價調整等高警示資訊變化快)。
+    失敗時不擋主流程,保留前次 yuantaReport (避免清空)。
+    回傳 status dict {status, reportDate, basicCount, ...} 給 TG 摘要。
+    """
+    log("  ↓ 元大證選擇權 xlsx (yuantaReport)")
+    try:
+        folder_id = (os.environ.get("YUANTA_REPORT_FOLDER_ID")
+                     or yuanta_report.DEFAULT_FOLDER_ID)
+        date_str, blob = yuanta_report.fetch_latest_xlsx(folder_id)
+        log(f"     ✓ Drive 取到 元大證選擇權{date_str}.xlsx ({len(blob):,} bytes)")
+        result = yuanta_report.parse_xlsx(blob, report_date=date_str)
+        bi = len(result.get("basicInfo") or {})
+        cr = len(result.get("callRights") or [])
+        cs = len(result.get("conversionStop") or [])
+        log(f"     ✓ 解析: basicInfo={bi:,} callRights={cr} conversionStop={cs}")
+        all_data["yuantaReport"] = result
+        _record(trade_date, "yuantaReport", "fetch", "ok",
+                count=bi, enabled=record_db)
+        return {"status": "ok", "reportDate": date_str,
+                "basicCount": bi, "callRights": cr, "conversionStop": cs}
+    except Exception as e:  # noqa: BLE001
+        log(f"     ✗ {e}")
+        _record(trade_date, "yuantaReport", "fetch", "fail",
+                error=str(e), enabled=record_db)
+        return {"status": "fail", "error": str(e)}
+
+
 # ── Phase 4.5: 個股狀態 sheet (VCP / 三線開花) ─────────────────────────
 def fetch_status_sheets(trade_date: str, all_data: dict, *,
                         record_db: bool) -> list[dict]:
@@ -470,6 +502,7 @@ def main(argv=None) -> int:
     summary: dict[str, Any] = {
         "trade_date": trade_date,
         "sources": [], "db": [], "sheets": [], "status_sheets": [],
+        "yuanta_report": {"status": "skip"},
         "json": {"status": "skip"},
         "elapsed_s": 0.0,
         "dry_run": args.dry_run,
@@ -521,6 +554,15 @@ def main(argv=None) -> int:
             summary["status_sheets"] = fetch_status_sheets(
                 trade_date, all_data, record_db=record_db)
 
+        # Phase 4.6: 元大證選擇權 xlsx → yuantaReport
+        # (callDate / 轉換價調整等高警示資訊變化快,每日都要拉最新 xlsx)
+        if args.skip_sheet:
+            log("[Phase 4.6] --skip-sheet,yuantaReport 抓取跳過")
+        else:
+            log("[Phase 4.6] 抓 元大證選擇權 xlsx → yuantaReport")
+            summary["yuanta_report"] = fetch_yuanta_report(
+                trade_date, all_data, record_db=record_db)
+
         # Phase 5: 寫回 JSON
         if args.skip_json:
             log("[Phase 5] --skip-json,JSON 寫回跳過")
@@ -549,7 +591,7 @@ def main(argv=None) -> int:
         dt = time.time() - t0
         summary["elapsed_s"] = dt
 
-        # 判斷退出碼 (status_sheets 失敗不算致命,只在 TG 顯示)
+        # 判斷退出碼 (status_sheets / yuanta_report 失敗不算致命,只在 TG 顯示)
         any_fail = (
             any(s.get("fetch") == "fail" or s.get("parse") == "fail"
                 for s in summary["sources"])
