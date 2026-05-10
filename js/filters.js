@@ -106,6 +106,36 @@ const Filters = (() => {
       }
     },
 
+    // 融資融券
+    marginBalanceMin: {
+      label: '融資餘額(張) >=',
+      type: 'number',
+      group: '融資融券',
+      apply: (stock, val) =>
+        !val || (stock.latestMarginBalance != null && stock.latestMarginBalance >= val)
+    },
+    marginIncreasing: {
+      label: '今日融資增加',
+      type: 'checkbox',
+      group: '融資融券',
+      apply: (stock, val) =>
+        !val || (stock.latestMarginChange != null && stock.latestMarginChange > 0)
+    },
+    shortIncreasing: {
+      label: '今日融券增加',
+      type: 'checkbox',
+      group: '融資融券',
+      apply: (stock, val) =>
+        !val || (stock.latestShortChange != null && stock.latestShortChange > 0)
+    },
+    shortBalanceMin: {
+      label: '融券餘額(張) >=',
+      type: 'number',
+      group: '融資融券',
+      apply: (stock, val) =>
+        !val || (stock.latestShortBalance != null && stock.latestShortBalance >= val)
+    },
+
     // CB
     hasCB: {
       label: '僅顯示有CB交易',

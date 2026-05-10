@@ -4,6 +4,7 @@ const Charts = (() => {
   let instChart = null;
   let cbPriceChart = null;
   let cbInstChart = null;
+  let marginChart = null;
 
   /**
    * 計算移動平均線陣列
@@ -420,6 +421,127 @@ const Charts = (() => {
     });
   }
 
+  /**
+   * 繪製融資融券走勢圖
+   *   bar: 融資增減 (紅) / 融券增減 (青) — 左軸,signed
+   *   line: 融資餘額 (紅虛線) / 融券餘額 (青虛線) — 右軸,趨勢
+   */
+  function renderMarginChart(canvasId, stock) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (marginChart) { marginChart.destroy(); marginChart = null; }
+
+    const dates = stock.marginDates || [];
+    if (!stock.margin || dates.length === 0) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = APP_CONFIG.colors.textMuted;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('無融資融券資料', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
+    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const labels = recentDates.map(d => formatDateLabel(d));
+
+    const marginChange  = recentDates.map(d => stock.margin['融資增減']?.[d] ?? null);
+    const shortChange   = recentDates.map(d => stock.margin['融券增減']?.[d] ?? null);
+    const marginBalance = recentDates.map(d => stock.margin['融資餘額']?.[d] ?? null);
+    const shortBalance  = recentDates.map(d => stock.margin['融券餘額']?.[d] ?? null);
+
+    marginChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: '融資增減',
+            data: marginChange,
+            backgroundColor: 'rgba(239,68,68,0.7)',
+            borderColor: 'rgba(239,68,68,1)',
+            borderWidth: 1,
+            yAxisID: 'yChange',
+            order: 3
+          },
+          {
+            type: 'bar',
+            label: '融券增減',
+            data: shortChange,
+            backgroundColor: 'rgba(34,197,94,0.7)',
+            borderColor: 'rgba(34,197,94,1)',
+            borderWidth: 1,
+            yAxisID: 'yChange',
+            order: 3
+          },
+          {
+            type: 'line',
+            label: '融資餘額',
+            data: marginBalance,
+            borderColor: 'rgba(239,68,68,1)',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [4, 3],
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            yAxisID: 'yBalance',
+            order: 1,
+            tension: 0.1
+          },
+          {
+            type: 'line',
+            label: '融券餘額',
+            data: shortBalance,
+            borderColor: 'rgba(34,197,94,1)',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [4, 3],
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            yAxisID: 'yBalance',
+            order: 1,
+            tension: 0.1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.raw;
+                if (v == null) return `${ctx.dataset.label}: -`;
+                const sign = (ctx.dataset.label.includes('增減') && v > 0) ? '+' : '';
+                return `${ctx.dataset.label}: ${sign}${Number(v).toLocaleString()} 張`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          },
+          yChange: {
+            position: 'left',
+            ticks: { color: APP_CONFIG.colors.text, callback: v => v.toLocaleString() },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          },
+          yBalance: {
+            position: 'right',
+            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
   function formatDateLabel(dateStr) {
     if (!dateStr || dateStr.length < 8) return dateStr;
     return dateStr.substring(4, 6) + '/' + dateStr.substring(6, 8);
@@ -430,7 +552,8 @@ const Charts = (() => {
     if (instChart) { instChart.destroy(); instChart = null; }
     if (cbPriceChart) { cbPriceChart.destroy(); cbPriceChart = null; }
     if (cbInstChart) { cbInstChart.destroy(); cbInstChart = null; }
+    if (marginChart) { marginChart.destroy(); marginChart = null; }
   }
 
-  return { renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, destroy };
+  return { renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, renderMarginChart, destroy };
 })();

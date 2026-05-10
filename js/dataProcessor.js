@@ -492,6 +492,17 @@ const DataProcessor = (() => {
     // 9. 個股狀態 (VCP / 三線開花) — 由 parse_and_export 寫入 all-data.json
     applyStockStatus(stockMap, rawResults.stockStatus);
 
+    // 10. 融資融券 — parse_and_export 寫入,categories: 融資餘額/融資增減/融券餘額/融券增減
+    if (rawResults.marginTrading) {
+      const { dates, stocks } = parseTimeSeries(rawResults.marginTrading);
+      for (const [code, st] of Object.entries(stocks)) {
+        const entry = stockMap.get(code);
+        if (!entry) continue;  // 只給 CB 對應股
+        entry.margin = st.data;
+        entry.marginDates = dates;
+      }
+    }
+
     // 計算衍生欄位
     for (const [, stock] of stockMap) {
       computeDerivedFields(stock, cbTradingByCode, auctionMap, cbBondInstByCode);
@@ -876,6 +887,15 @@ const DataProcessor = (() => {
     if (stock.mainCB?.close && stock.conversionPrice && stock.latestClose) {
       const conversionValue = (100 / stock.conversionPrice) * stock.latestClose;
       stock.cbPremiumRate = ((stock.mainCB.close - conversionValue) / conversionValue) * 100;
+    }
+
+    // === 融資融券 latest 值 (主表排序用) ===
+    if (stock.margin && stock.marginDates?.length > 0) {
+      const last = stock.marginDates[stock.marginDates.length - 1];
+      stock.latestMarginBalance = stock.margin['融資餘額']?.[last] ?? null;
+      stock.latestMarginChange  = stock.margin['融資增減']?.[last] ?? null;
+      stock.latestShortBalance  = stock.margin['融券餘額']?.[last] ?? null;
+      stock.latestShortChange   = stock.margin['融券增減']?.[last] ?? null;
     }
   }
 

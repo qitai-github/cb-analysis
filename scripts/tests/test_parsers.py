@@ -321,5 +321,24 @@ class MarginTradingTpexTest(unittest.TestCase):
         self.assertEqual(dv["融券增減"], 1 - 17)           # -16
 
 
+class MarginTradingHeaderDateGuardTest(unittest.TestCase):
+    """防止 TWSE/TPEX 服務異常回舊日期資料 (踩過 5/8 收到 2017/12/18 案例)。"""
+
+    def test_twse_wrong_date_raises(self):
+        # 拿真實 5/8 fixture 但帶 trade_date='20260507' 進來
+        with self.assertRaises(ValueError) as ctx:
+            margin_trading.parse(
+                _load("MI_MARGN_STOCK_20260508.csv"),
+                market="TWSE", trade_date="20260507")
+        self.assertIn("不等於期望 20260507", str(ctx.exception))
+
+    def test_tpex_wrong_date_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            margin_trading.parse(
+                _load("RSTA3106_20260508.csv"),
+                market="TPEX", trade_date="20260507")
+        self.assertIn("不等於期望 20260507", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

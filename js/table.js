@@ -18,12 +18,10 @@ const Table = (() => {
     { key: 'investment_1d', label: '投信1日', width: '85px', format: 'inst', align: 'right' },
     { key: 'dealer_1d', label: '自營1日', width: '85px', format: 'inst', align: 'right' },
     { key: 'totalInst_1d', label: '法人合計', width: '85px', format: 'inst', align: 'right' },
-    { key: 'mainCB.cbCode', label: 'CB代碼', width: '75px' },
-    { key: 'mainCB.close', label: 'CB價格', width: '75px', format: 'price', align: 'right' },
-    { key: 'mainCB.change', label: 'CB漲跌', width: '70px', format: 'change_color', align: 'right' },
-    { key: 'conversionPrice', label: '轉換價', width: '75px', format: 'price', align: 'right' },
-    { key: 'cbPremiumRate', label: 'CB溢價%', width: '80px', format: 'percent_color', align: 'right' },
-    { key: 'conversionPeriod', label: '轉換日期(起)', width: '100px' }
+    { key: 'latestMarginBalance', label: '融資餘額', width: '90px', format: 'volume', align: 'right' },
+    { key: 'latestMarginChange',  label: '融資增減', width: '90px', format: 'inst',   align: 'right' },
+    { key: 'latestShortBalance',  label: '融券餘額', width: '90px', format: 'volume', align: 'right' },
+    { key: 'latestShortChange',   label: '融券增減', width: '90px', format: 'inst',   align: 'right' }
   ];
 
   function render(containerId, data, options = {}) {

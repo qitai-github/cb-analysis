@@ -7,8 +7,7 @@ const ExportCSV = (() => {
     const headers = [
       '代碼', '名稱', '收盤價', '漲跌%', '成交量(張)',
       '外資5日', '投信5日', '自營5日', '法人合計',
-      'CB代碼', 'CB名稱', 'CB價格', 'CB漲跌',
-      '轉換價', 'CB溢價%', '轉換日期(起)'
+      '融資餘額(張)', '融資增減(張)', '融券餘額(張)', '融券增減(張)'
     ];
 
     const rows = data.map(stock => [
@@ -21,13 +20,10 @@ const ExportCSV = (() => {
       stock.investment_5d ?? '',
       stock.dealer_5d ?? '',
       stock.totalInst_5d ?? '',
-      stock.mainCB?.cbCode ?? '',
-      stock.mainCB?.cbName ?? '',
-      stock.mainCB?.close != null ? stock.mainCB.close.toFixed(2) : '',
-      stock.mainCB?.change != null ? stock.mainCB.change.toFixed(2) : '',
-      stock.conversionPrice != null ? stock.conversionPrice.toFixed(2) : '',
-      stock.cbPremiumRate != null ? stock.cbPremiumRate.toFixed(2) : '',
-      stock.conversionPeriod ?? ''
+      stock.latestMarginBalance ?? '',
+      stock.latestMarginChange ?? '',
+      stock.latestShortBalance ?? '',
+      stock.latestShortChange ?? ''
     ]);
 
     downloadCSV(headers, rows, `CB篩選結果_${getDateStr()}.csv`);

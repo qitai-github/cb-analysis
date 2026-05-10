@@ -450,9 +450,12 @@ const App = (() => {
     document.getElementById('detail-cb-inst-info').innerHTML = buildCBInstInfoHTML(stock);
     document.getElementById('detail-news-info').innerHTML = buildNewsHTML(stock);
 
+    document.getElementById('detail-margin-info').innerHTML = buildMarginInfoHTML(stock);
+
     setTimeout(() => {
       Charts.renderPriceChart('detail-price-chart', stock);
       Charts.renderCBPriceChart('detail-cb-price-chart', stock);
+      Charts.renderMarginChart('detail-margin-chart', stock);
     }, 100);
   }
 
@@ -812,6 +815,47 @@ const App = (() => {
         <td class="${cc(inv)}">${fmtInst(inv)}</td>
         <td class="${cc(deal)}">${fmtInst(deal)}</td>
         <td class="${cc(total)}"><strong>${fmtInst(total)}</strong></td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+    return html;
+  }
+
+  function buildMarginInfoHTML(stock) {
+    const dates = stock.marginDates || [];
+    if (!stock.margin || dates.length === 0) {
+      return '<div class="text-muted">無融資融券資料</div>';
+    }
+
+    // 摘要 (今日餘額/增減)
+    const mb  = stock.latestMarginBalance;
+    const mc  = stock.latestMarginChange;
+    const sb  = stock.latestShortBalance;
+    const sc  = stock.latestShortChange;
+    let html = `<div class="info-grid">
+      <div class="info-item"><span class="info-label">融資餘額(張)</span><span class="info-value">${mb != null ? mb.toLocaleString() : '-'}</span></div>
+      <div class="info-item"><span class="info-label">融資增減(張)</span><span class="info-value ${cc(mc)}">${fmtInst(mc)}</span></div>
+      <div class="info-item"><span class="info-label">融券餘額(張)</span><span class="info-value">${sb != null ? sb.toLocaleString() : '-'}</span></div>
+      <div class="info-item"><span class="info-label">融券增減(張)</span><span class="info-value ${cc(sc)}">${fmtInst(sc)}</span></div>
+    </div>`;
+
+    // 近10日明細
+    const recent = dates.slice(-10).reverse();
+    html += `<table class="inst-summary-table"><thead><tr>
+      <th>日期</th><th>融資餘額</th><th>融資增減</th><th>融券餘額</th><th>融券增減</th>
+    </tr></thead><tbody>`;
+    for (const d of recent) {
+      const a = stock.margin['融資餘額']?.[d] ?? null;
+      const b = stock.margin['融資增減']?.[d] ?? null;
+      const c = stock.margin['融券餘額']?.[d] ?? null;
+      const e = stock.margin['融券增減']?.[d] ?? null;
+      const dateLabel = d.length >= 8 ? d.substring(4, 6) + '/' + d.substring(6, 8) : d;
+      html += `<tr>
+        <td>${dateLabel}</td>
+        <td>${a != null ? a.toLocaleString() : '-'}</td>
+        <td class="${cc(b)}">${fmtInst(b)}</td>
+        <td>${c != null ? c.toLocaleString() : '-'}</td>
+        <td class="${cc(e)}">${fmtInst(e)}</td>
       </tr>`;
     }
     html += `</tbody></table>`;

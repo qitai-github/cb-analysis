@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 
 from .common import (
     ParsedSource,
@@ -29,6 +30,27 @@ CATEGORIES = ["融資餘額", "融資增減", "融券餘額", "融券增減"]
 TIMESERIES_KEY = "marginTrading"
 DB_TABLE = "stock_margin"
 
+# 從 header 抽 "115年05月08日" / "115/05/08" → YYYYMMDD
+_ROC_RE = re.compile(r"(\d{2,3})\s*[年/]\s*(\d{1,2})\s*[月/]\s*(\d{1,2})")
+
+
+def _check_header_date(text: str, expected: str, market: str) -> None:
+    """從 CSV 前幾行抽出 ROC 日期,跟期望 trade_date 比對。
+    不一致 raise — 防止 TWSE/TPEX 服務 hiccup 回舊日期 demo 資料,
+    污染 Drive 跟 DB (踩過真實案例:5/8 query 收到 2017/12/18 資料)。
+    """
+    head = "\n".join(text.splitlines()[:5])
+    m = _ROC_RE.search(head)
+    if not m:
+        raise ValueError(f"{market}: 找不到 header 日期 (前 5 行: {head!r})")
+    roc_y, mm, dd = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    actual = f"{roc_y + 1911:04d}{mm:02d}{dd:02d}"
+    if actual != expected:
+        raise ValueError(
+            f"{market}: header 日期 {actual} 不等於期望 {expected} "
+            f"(可能 TWSE/TPEX 服務異常,回了舊資料)"
+        )
+
 
 def parse(csv_bytes: bytes, *, market: str, trade_date: str) -> ParsedSource:
     """market 必須是 'TWSE' 或 'TPEX',trade_date 為 YYYYMMDD。
@@ -40,6 +62,8 @@ def parse(csv_bytes: bytes, *, market: str, trade_date: str) -> ParsedSource:
         text = csv_bytes.decode("utf-8")
     except UnicodeDecodeError:
         text = csv_bytes.decode("ms950", errors="replace")
+
+    _check_header_date(text, trade_date, market)
 
     if market == "TWSE":
         return _parse_twse(text, trade_date)
