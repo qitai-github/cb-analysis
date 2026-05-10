@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * 每日預建 6 個 CSV 空檔到 Drive (給 SA fetch-stocks 覆蓋用)
+ * 每日預建 8 個 CSV 空檔到 Drive (給 SA fetch-stocks 覆蓋用)
  * ============================================================
  * 為什麼:
  *   Service Account 沒自己的 Drive storage quota,只能「覆蓋既存檔」
@@ -31,7 +31,7 @@ function runDailyCreatePlaceholders() {
   }
 }
 
-/** 主邏輯:6 個資料夾各建一個今日空 CSV (已存在則跳過) */
+/** 主邏輯:8 個資料夾各建一個今日空 CSV (已存在則跳過) */
 function createTodayPlaceholders() {
   const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMdd');
   Logger.log("=== createTodayPlaceholders " + today + " ===");
@@ -43,7 +43,9 @@ function createTodayPlaceholders() {
     { folderId: CFG.DRIVE.STOCK_PRICE_TWSE, name: `TWSE-Daily-${today}.csv` },
     { folderId: CFG.DRIVE.STOCK_PRICE_TPEX, name: `TPEx-EW-${today}.csv` },
     { folderId: CFG.DRIVE.CB_PRICE,         name: `RSta0113.${today}-C.csv` },
-    { folderId: CFG.DRIVE.CB_INST,          name: `ThreePrimaryCB_${today}.csv` }
+    { folderId: CFG.DRIVE.CB_INST,          name: `ThreePrimaryCB_${today}.csv` },
+    { folderId: CFG.DRIVE.MARGIN_TWSE,      name: `MI_MARGN_STOCK_${today}.csv` },
+    { folderId: CFG.DRIVE.MARGIN_TPEX,      name: `RSTA3106_${today}.csv` }
   ];
 
   let created = 0, skipped = 0, failed = 0;

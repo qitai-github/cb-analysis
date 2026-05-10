@@ -1,7 +1,7 @@
 name: Fetch Stocks Backup
 
-# GAS 主路徑之外的備援。每日 18:23 TPE 自動觸發,把 6 個 CSV 抓網頁覆蓋到 Drive。
-# 前提: GAS CreatePlaceholders.gs 已每日 00:30 預建 6 個空檔
+# GAS 主路徑之外的備援。每日 18:23 TPE 自動觸發,把 8 個 CSV 抓網頁覆蓋到 Drive。
+# 前提: GAS CreatePlaceholders.gs 已每日 00:30 預建 8 個空檔
 #       (SA 只能覆蓋既存檔,不能建新檔 - storage quota 限制)。
 # 18:23 TPE = 10:23 UTC,週一~五。用奇怪分鐘避開 GHA :00/:30 排程高峰
 # (官方文件說明 schedule 不保證準時,實測 :00 / :30 延遲可達 1-2 小時)。
@@ -17,7 +17,7 @@ on:
         required: false
         default: ''
       sources:
-        description: '只跑指定來源 (逗號分隔,例 STOCK_INST_TWSE,CB_INST);空白 = 全跑 6 個'
+        description: '只跑指定來源 (逗號分隔,例 STOCK_INST_TWSE,CB_INST);空白 = 全跑 8 個'
         required: false
         default: ''
 

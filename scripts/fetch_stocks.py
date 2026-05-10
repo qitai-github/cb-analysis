@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""GitHub Actions 備援:6 類每日 CSV → Google Drive (Service Account).
+"""GitHub Actions 備援:每日 CSV → Google Drive (Service Account).
 
 與 GAS AutoRepair.gs 的 SOURCE_RULES 平行對應。當 GAS 路徑因 307 / bot 偵測
 失敗時,由 GitHub Actions 在非 Google 雲端 IP 上重抓,存進相同 Drive 資料夾
 (同名覆蓋),讓下游 GAS pipeline 透明無感。
 
 涵蓋來源 (folder_key):
-  STOCK_INST_TWSE    個股法人(上市)    TWSE_T86_YYYYMMDD.csv       Big5 raw
-  STOCK_INST_TPEX    個股法人(上櫃)    TPEx_T86_YYYYMMDD.csv       Big5 raw
-  STOCK_PRICE_TWSE   個股交易(上市)    TWSE-Daily-YYYYMMDD.csv     MS950→UTF-8
-  STOCK_PRICE_TPEX   個股交易(上櫃)    TPEx-EW-YYYYMMDD.csv        MS950→UTF-8
-  CB_PRICE           CB每日交易        RSta0113.YYYYMMDD-C.csv     Big5 raw
-  CB_INST            CB每日法人        ThreePrimaryCB_YYYYMMDD.csv Big5→UTF-8
+  STOCK_INST_TWSE    個股法人(上市)    TWSE_T86_YYYYMMDD.csv          Big5 raw
+  STOCK_INST_TPEX    個股法人(上櫃)    TPEx_T86_YYYYMMDD.csv          Big5 raw
+  STOCK_PRICE_TWSE   個股交易(上市)    TWSE-Daily-YYYYMMDD.csv        MS950→UTF-8
+  STOCK_PRICE_TPEX   個股交易(上櫃)    TPEx-EW-YYYYMMDD.csv           MS950→UTF-8
+  CB_PRICE           CB每日交易        RSta0113.YYYYMMDD-C.csv        Big5 raw
+  CB_INST            CB每日法人        ThreePrimaryCB_YYYYMMDD.csv    Big5→UTF-8
+  MARGIN_TWSE        融資融券(上市)    MI_MARGN_STOCK_YYYYMMDD.csv    MS950→UTF-8
+  MARGIN_TPEX        融資融券(上櫃)    RSTA3106_YYYYMMDD.csv          MS950→UTF-8
 
 環境變數:
   GOOGLE_CREDENTIALS  Service Account JSON (整份內容字串)
@@ -139,6 +141,33 @@ SOURCE_RULES: dict[str, dict] = {
         "min_len": 100,
         "save_mode": "createFile",  # 在 Python 這邊等同 textBlob(都 UTF-8)
         "must_contain": None,
+    },
+    "MARGIN_TWSE": {
+        "label": "融資融券(上市)",
+        "url": lambda d: (
+            "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
+            f"?date={d}&selectType=STOCK&response=csv"
+        ),
+        "filename": lambda d: f"MI_MARGN_STOCK_{d}.csv",
+        "referer": "https://www.twse.com.tw/zh/marginTrading/MI_MARGN",
+        "encoding": "ms950",
+        "min_len": 1000,
+        "save_mode": "textBlob",
+        # 真資料一定有「融資融券彙總」標題,假日 / 空 response 沒有
+        "must_contain": "融資融券彙總",
+    },
+    "MARGIN_TPEX": {
+        "label": "融資融券(上櫃)",
+        "url": lambda d: (
+            "https://www.tpex.org.tw/www/zh-tw/margin/balance"
+            f"?date={urllib.parse.quote(_slash(d), safe='')}&id=&response=csv"
+        ),
+        "filename": lambda d: f"RSTA3106_{d}.csv",
+        "referer": "https://www.tpex.org.tw/www/zh-tw/margin/balance",
+        "encoding": "ms950",
+        "min_len": 500,
+        "save_mode": "textBlob",
+        "must_contain": "融資融券餘額",
     },
 }
 

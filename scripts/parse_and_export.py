@@ -1,8 +1,8 @@
 """Step 3 主編排:
-  1. 從 Drive 下載 6 個 CSV (假設 fetch_stocks.py 剛跑完)
-  2. 跑 4 個 parser → db_rows + daily_values
-  3. Upsert 到 Supabase (4 張表)
-  4. 讀既有 data/all-data.json,合併 4 個 timeseries key (今日 column)
+  1. 從 Drive 下載 8 個 CSV (假設 fetch_stocks.py 剛跑完)
+  2. 跑 5 個 parser → db_rows + daily_values
+  3. Upsert 到 Supabase (5 張表)
+  4. 讀既有 data/all-data.json,合併 5 個 timeseries key (今日 column)
   5. 從 Google Sheet 讀 5 個非-CSV key 覆蓋
   6. 寫回 data/all-data.json
   7. 寫 fetch_runs 監控紀錄
@@ -53,7 +53,7 @@ except ImportError:
     pass  # 沒裝 python-dotenv 也能跑,前提是 env 已外部設好
 
 from lib import drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge, yuanta_report  # noqa: E402
-from parsers import cb_inst, cb_price, stock_inst, stock_price  # noqa: E402
+from parsers import cb_inst, cb_price, margin_trading, stock_inst, stock_price  # noqa: E402
 
 # 直接爬網頁的 fallback (當 Drive 沒檔時用,例如當日 TWSE T86 16:00 才公布,
 # GAS HealthCheck 隔天 09:30 才抓)。fetch_stocks.py 有完整的 anti-bot 邏輯
@@ -108,6 +108,20 @@ SOURCES = [
         "kwargs": {},
         "label": "CB 每日法人",
     },
+    {
+        "folder_key": "MARGIN_TWSE",
+        "filename": "MI_MARGN_STOCK_{date}.csv",
+        "parser": margin_trading,
+        "kwargs": {"market": "TWSE"},
+        "label": "融資融券(上市)",
+    },
+    {
+        "folder_key": "MARGIN_TPEX",
+        "filename": "RSTA3106_{date}.csv",
+        "parser": margin_trading,
+        "kwargs": {"market": "TPEX"},
+        "label": "融資融券(上櫃)",
+    },
 ]
 
 # ── 5 個 Sheet 來源 (對齊 js/config.js DATA_SOURCES) ──────────────────
@@ -132,13 +146,14 @@ SHEET_SOURCES = [
 CONFLICT_KEY = {
     "stock_quotes": "trade_date,market,stock_id",
     "stock_inst":   "trade_date,market,stock_id",
+    "stock_margin": "trade_date,market,stock_id",
     "cb_quotes":    "trade_date,cb_id",
     "cb_inst":      "trade_date,cb_id",
 }
 
-# 個股 timeseries 必須過濾,否則 T86 把全部權證都塞進來會把 JSON 從 8MB 暴衝到 39MB
-# 且 Supabase free tier 撐不住。CB 來源量小,不過濾。
-FILTERED_TIMESERIES_KEYS = {"stockTrading", "cbInstitutional"}
+# 個股 timeseries 必須過濾,否則 T86 / 融資融券把全部權證都塞進來會把 JSON 暴衝。
+# CB 來源量小,不過濾。
+FILTERED_TIMESERIES_KEYS = {"stockTrading", "cbInstitutional", "marginTrading"}
 
 
 # ── 共用工具 ──────────────────────────────────────────────────────────
@@ -510,7 +525,7 @@ def main(argv=None) -> int:
 
     try:
         # Phase 1: fetch + parse
-        log("[Phase 1] 從 Drive 下載 6 個 CSV + 解析")
+        log("[Phase 1] 從 Drive 下載 8 個 CSV + 解析")
         parsed, summary["sources"] = fetch_and_parse(trade_date, record_db=record_db)
         if not parsed:
             log("❌ 沒有任何 source 解析成功;abort")
@@ -536,7 +551,7 @@ def main(argv=None) -> int:
             summary["db"] = upsert_all(trade_date, parsed, record_db=True)
 
         # Phase 3: 合併 timeseries
-        log("[Phase 3] 合併 4 個 timeseries 進 all-data.json")
+        log("[Phase 3] 合併 5 個 timeseries 進 all-data.json")
         merge_into_alldata(all_data, parsed)
 
         # Phase 4: Sheet

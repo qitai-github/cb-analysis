@@ -20,7 +20,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from parsers import cb_inst, cb_price, stock_inst, stock_price  # noqa: E402
+from parsers import cb_inst, cb_price, margin_trading, stock_inst, stock_price  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DATE = "20260424"
@@ -225,6 +225,100 @@ class CBInstTest(unittest.TestCase):
         self.assertEqual(r["foreign_net"], 6)
         self.assertEqual(r["dealer_net"], -17)
         self.assertEqual(r["total_inst_net"], -11)
+
+
+class MarginTradingTwseTest(unittest.TestCase):
+    DATE_LOCAL = "20260508"
+
+    def setUp(self):
+        self.result = margin_trading.parse(
+            _load("MI_MARGN_STOCK_20260508.csv"),
+            market="TWSE", trade_date=self.DATE_LOCAL)
+
+    def test_basic_shape(self):
+        r = self.result
+        self.assertEqual(r.db_table, "stock_margin")
+        self.assertEqual(r.timeseries_key, "marginTrading")
+        self.assertEqual(r.timeseries_categories,
+                         ["融資餘額", "融資增減", "融券餘額", "融券增減"])
+        self.assertEqual(r.trade_date, "20260508")
+        self.assertGreater(len(r.db_rows), 500, "TWSE 上市應有上千檔")
+
+    def test_skips_summary_row(self):
+        # 「合計」列代號是全形空白,不該進 db_rows
+        names = [r["stock_name"] for r in self.result.db_rows]
+        self.assertNotIn("合計", names)
+
+    def test_1101_values(self):
+        r = _find(self.result.db_rows, stock_id="1101")
+        self.assertIsNotNone(r, "1101 必須存在")
+        self.assertEqual(r["market"], "TWSE")
+        self.assertEqual(r["stock_name"], "台泥")
+        self.assertEqual(r["trade_date"], "2026-05-08")
+        # 融資 1,481 / 398 / 12 / 31,054 → 32,125
+        self.assertEqual(r["margin_buy"], 1481)
+        self.assertEqual(r["margin_sell"], 398)
+        self.assertEqual(r["margin_cash_repay"], 12)
+        self.assertEqual(r["margin_balance_prev"], 31054)
+        self.assertEqual(r["margin_balance"], 32125)
+        # 融券:TWSE col 8=買進(回補)=12 / col 9=賣出(建立)=3
+        self.assertEqual(r["short_buy_close"], 12)
+        self.assertEqual(r["short_sell_open"], 3)
+        self.assertEqual(r["short_share_repay"], 0)
+        self.assertEqual(r["short_balance_prev"], 116)
+        self.assertEqual(r["short_balance"], 107)
+        self.assertEqual(r["net_offset"], 10)
+
+    def test_1101_daily_values(self):
+        dv = self.result.daily_values.get("1101")
+        self.assertIsNotNone(dv)
+        self.assertEqual(set(dv.keys()),
+                         {"融資餘額", "融資增減", "融券餘額", "融券增減"})
+        self.assertEqual(dv["融資餘額"], 32125)
+        self.assertEqual(dv["融資增減"], 32125 - 31054)   # +1071
+        self.assertEqual(dv["融券餘額"], 107)
+        self.assertEqual(dv["融券增減"], 107 - 116)        # -9
+
+
+class MarginTradingTpexTest(unittest.TestCase):
+    DATE_LOCAL = "20260508"
+
+    def setUp(self):
+        self.result = margin_trading.parse(
+            _load("RSTA3106_20260508.csv"),
+            market="TPEX", trade_date=self.DATE_LOCAL)
+
+    def test_basic_shape(self):
+        self.assertEqual(self.result.db_table, "stock_margin")
+        self.assertEqual(self.result.timeseries_key, "marginTrading")
+        self.assertGreater(len(self.result.db_rows), 100)
+
+    def test_00679b_values(self):
+        # ETF 元大美債20年: 4980 + 62 - 109 - 0 = 4933 / 17 + 0 - 16 - 0 = 1
+        r = _find(self.result.db_rows, stock_id="00679B")
+        self.assertIsNotNone(r)
+        self.assertEqual(r["market"], "TPEX")
+        self.assertEqual(r["stock_name"], "元大美債20年")
+        self.assertEqual(r["margin_balance_prev"], 4980)
+        self.assertEqual(r["margin_buy"], 62)
+        self.assertEqual(r["margin_sell"], 109)
+        self.assertEqual(r["margin_cash_repay"], 0)
+        self.assertEqual(r["margin_balance"], 4933)
+        # TPEX 融券: col 11=券賣(建立)=0, col 12=券買(回補)=16
+        self.assertEqual(r["short_sell_open"], 0)
+        self.assertEqual(r["short_buy_close"], 16)
+        self.assertEqual(r["short_share_repay"], 0)
+        self.assertEqual(r["short_balance_prev"], 17)
+        self.assertEqual(r["short_balance"], 1)
+        self.assertEqual(r["net_offset"], 0)
+
+    def test_00679b_daily_values(self):
+        dv = self.result.daily_values.get("00679B")
+        self.assertIsNotNone(dv)
+        self.assertEqual(dv["融資餘額"], 4933)
+        self.assertEqual(dv["融資增減"], 4933 - 4980)      # -47
+        self.assertEqual(dv["融券餘額"], 1)
+        self.assertEqual(dv["融券增減"], 1 - 17)           # -16
 
 
 if __name__ == "__main__":
