@@ -807,6 +807,17 @@ const DataProcessor = (() => {
     }
 
     // === CB三大法人 ===
+    // 對所有 cb 都掛上對應的 bondInst (給多 CB 切換用),mainCB 額外保留為 stock 層級欄位
+    if (cbBondInstByCode && stock.cbs) {
+      for (const cb of stock.cbs) {
+        if (!cb.cbCode) continue;
+        const cbInstEntry = cbBondInstByCode.stocks[cb.cbCode];
+        if (cbInstEntry) {
+          cb.bondInstData  = cbInstEntry.data;
+          cb.bondInstDates = cbBondInstByCode.dates;
+        }
+      }
+    }
     if (cbBondInstByCode && stock.mainCB?.cbCode) {
       const cbInstEntry = cbBondInstByCode.stocks[stock.mainCB.cbCode];
       if (cbInstEntry) {
@@ -827,14 +838,25 @@ const DataProcessor = (() => {
     }
 
     // === CB 自身價格走勢 (cbDailyTrading) ===
+    // 對所有 cb 算一份 ohlcv (給多 CB 切換用);mainCB 同時鏡射到 stock 層級
+    if (cbTradingByCode && stock.cbs) {
+      for (const cb of stock.cbs) {
+        if (!cb.cbCode) continue;
+        const cbEntry = cbTradingByCode.stocks[cb.cbCode];
+        if (!cbEntry) continue;
+        const ohlcv = buildCBOHLCVArray(cbEntry.data, cbTradingByCode.dates);
+        if (ohlcv.length > 0) {
+          cb.ohlcv = ohlcv;
+        }
+      }
+    }
     if (cbTradingByCode && stock.mainCB?.cbCode) {
       const cbEntry = cbTradingByCode.stocks[stock.mainCB.cbCode];
       if (cbEntry) {
         stock.cbTrading = cbEntry.data;       // { 收盤價:{date:val}, ... }
         stock.cbTradingDates = cbTradingByCode.dates;
-
-        const cbOhlcv = buildCBOHLCVArray(cbEntry.data, cbTradingByCode.dates);
-        if (cbOhlcv.length > 0) {
+        const cbOhlcv = stock.mainCB.ohlcv;
+        if (cbOhlcv && cbOhlcv.length > 0) {
           stock.cbOhlcv = cbOhlcv;
           stock.cbFirstBarSignal = checkFirstBarSignal(cbOhlcv);
           stock.cbHighDays = calcNewHighDays(cbOhlcv);

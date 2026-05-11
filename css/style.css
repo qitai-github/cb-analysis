@@ -879,6 +879,38 @@ body {
   grid-column: 1 / -1;
 }
 
+/* === CB tab 切換 (多 CB 時顯示在 K 線圖上方) === */
+.cb-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 8px;
+}
+.cb-tab-strip:empty {
+  display: none;
+}
+.cb-tab {
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cb-tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+.cb-tab.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .primary-market-section {
   margin-top: 12px;
 }

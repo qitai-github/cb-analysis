@@ -447,16 +447,51 @@ const App = (() => {
     document.getElementById('detail-price-info').innerHTML = buildPriceInfoHTML(stock);
     document.getElementById('detail-cb-info').innerHTML = buildCBInfoHTML(stock);
     document.getElementById('detail-inst-info').innerHTML = buildInstInfoHTML(stock);
-    document.getElementById('detail-cb-inst-info').innerHTML = buildCBInstInfoHTML(stock);
     document.getElementById('detail-news-info').innerHTML = buildNewsHTML(stock);
 
     document.getElementById('detail-margin-info').innerHTML = buildMarginInfoHTML(stock);
 
+    // 多 CB 切換: 預設 mainCB, 同時控制 K 線 + 三大法人表
+    const tabCBs = (stock.cbs || []).filter(cb => cb.cbCode);
+    const defaultCB = stock.mainCB?.cbCode || tabCBs[0]?.cbCode || null;
+    selectedCBTab = defaultCB;
+    renderCBTabStrip(stock, defaultCB);
+    document.getElementById('detail-cb-inst-info').innerHTML =
+      buildCBInstInfoHTML(stock, defaultCB);
+
     setTimeout(() => {
       Charts.renderPriceChart('detail-price-chart', stock);
-      Charts.renderCBPriceChart('detail-cb-price-chart', stock);
+      Charts.renderCBPriceChart('detail-cb-price-chart', stock, defaultCB);
       Charts.renderMarginChart('detail-margin-chart', stock);
     }, 100);
+  }
+
+  // CB tab 切換 — 同時更新 K 線圖 + 三大法人買賣超表
+  let selectedCBTab = null;
+  function selectCBTab(cbCode) {
+    if (!selectedStock || cbCode === selectedCBTab) return;
+    selectedCBTab = cbCode;
+    Charts.renderCBPriceChart('detail-cb-price-chart', selectedStock, cbCode);
+    document.getElementById('detail-cb-inst-info').innerHTML =
+      buildCBInstInfoHTML(selectedStock, cbCode);
+    document.querySelectorAll('#cb-tab-strip .cb-tab').forEach(b => {
+      b.classList.toggle('active', b.dataset.cbcode === cbCode);
+    });
+  }
+
+  function renderCBTabStrip(stock, activeCBCode) {
+    const host = document.getElementById('cb-tab-strip');
+    if (!host) return;
+    const cbs = (stock.cbs || []).filter(cb => cb.cbCode);
+    if (cbs.length <= 1) { host.innerHTML = ''; return; }
+    let html = '';
+    for (const cb of cbs) {
+      const cls = cb.cbCode === activeCBCode ? 'cb-tab active' : 'cb-tab';
+      html += `<button class="${cls}" data-cbcode="${cb.cbCode}" `
+            + `onclick="App.selectCBTab('${cb.cbCode}')">`
+            + `${cb.cbCode} ${cb.cbName || ''}</button>`;
+    }
+    host.innerHTML = html;
   }
 
   function buildPriceInfoHTML(stock) {
@@ -664,13 +699,20 @@ const App = (() => {
       'yuanta_board': '元大 董事會決議'
     };
 
-    // 按 section 分組
+    // 已上市的 CB (有價格資料 = cb.close 不為 null) 不需要再顯示初級市場
+    const listedCBs = new Set(
+      (stock.cbs || []).filter(c => c.close != null && c.cbCode).map(c => c.cbCode)
+    );
+
+    // 按 section 分組,跳過已上市 CB
     const grouped = {};
     for (const pm of stock.primaryMarket) {
+      if (listedCBs.has(pm.cbCode)) continue;
       const sec = pm.section || 'unknown';
       if (!grouped[sec]) grouped[sec] = [];
       grouped[sec].push(pm);
     }
+    if (Object.keys(grouped).length === 0) return '';
 
     let html = '<div class="primary-market-section"><h4>初級市場資訊</h4>';
 
@@ -791,9 +833,20 @@ const App = (() => {
     return html;
   }
 
-  function buildCBInstInfoHTML(stock) {
-    const inst = stock.cbBondInstitutional;
-    const dates = stock.cbBondInstitutionalDates || [];
+  function buildCBInstInfoHTML(stock, cbCode) {
+    // 多 CB 切換: 優先用指定 cbCode 對應的 cb.bondInst*,fallback 回 stock 層級 (mainCB)
+    let inst = null, dates = [];
+    if (cbCode && stock.cbs) {
+      const cb = stock.cbs.find(c => c.cbCode === cbCode);
+      if (cb?.bondInstData) {
+        inst = cb.bondInstData;
+        dates = cb.bondInstDates || [];
+      }
+    }
+    if (!inst) {
+      inst = stock.cbBondInstitutional;
+      dates = stock.cbBondInstitutionalDates || [];
+    }
     if (!inst || dates.length === 0) {
       return '<div class="text-muted">無 CB 三大法人資料</div>';
     }
@@ -1039,7 +1092,7 @@ const App = (() => {
     ETFView.renderColumns('main-table');
   }
 
-  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal, switchTab, showDetail };
+  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal, switchTab, showDetail, selectCBTab };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

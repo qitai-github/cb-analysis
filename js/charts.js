@@ -239,14 +239,22 @@ const Charts = (() => {
   }
 
   /**
-   * 繪製 CB 自身價格 K 線走勢圖 (使用 stock.cbOhlcv)
+   * 繪製 CB 自身價格 K 線走勢圖
+   * @param {string} canvasId
+   * @param {object} stock
+   * @param {string} [cbCode] 指定 CB 代碼 (多 CB 切換用);未給用 mainCB
    */
-  function renderCBPriceChart(canvasId, stock) {
+  function renderCBPriceChart(canvasId, stock, cbCode) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (cbPriceChart) { cbPriceChart.destroy(); cbPriceChart = null; }
 
-    const ohlcv = stock.cbOhlcv;
+    let ohlcv = null;
+    if (cbCode && stock.cbs) {
+      const cb = stock.cbs.find(c => c.cbCode === cbCode);
+      ohlcv = cb?.ohlcv || null;
+    }
+    if (!ohlcv) ohlcv = stock.cbOhlcv;
     if (!ohlcv || ohlcv.length === 0) {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
