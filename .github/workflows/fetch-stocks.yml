@@ -1,11 +1,15 @@
 name: Fetch Stocks Backup
 
-# GAS 主路徑之外的備援。每日 18:23 TPE 自動觸發,把 8 個 CSV 抓網頁覆蓋到 Drive。
+# GAS 主路徑之外的備援。每日 18:23 TPE 自動觸發,把 6 個 CSV 抓網頁覆蓋到 Drive。
 # 前提: GAS CreatePlaceholders.gs 已每日 00:30 預建 8 個空檔
 #       (SA 只能覆蓋既存檔,不能建新檔 - storage quota 限制)。
 # 18:23 TPE = 10:23 UTC,週一~五。用奇怪分鐘避開 GHA :00/:30 排程高峰
 # (官方文件說明 schedule 不保證準時,實測 :00 / :30 延遲可達 1-2 小時)。
 # 接著 18:47 TPE parse-and-export.yml 自己 cron 觸發 (相隔 24 分鐘)。
+#
+# 注意: 融資融券 (MARGIN_TWSE/TPEX) 排除在此 cron 之外!
+#       TWSE/TPEX 融資融券通常 21:00 後才公布,18:23 抓會拿到舊資料或失敗,
+#       改由 margin-late.yml 在 21:30 TPE 單獨抓。
 
 on:
   schedule:
@@ -17,7 +21,7 @@ on:
         required: false
         default: ''
       sources:
-        description: '只跑指定來源 (逗號分隔,例 STOCK_INST_TWSE,CB_INST);空白 = 全跑 8 個'
+        description: '只跑指定來源 (逗號分隔);空白 = 跑 6 個(排除融資融券)'
         required: false
         default: ''
 
@@ -43,5 +47,6 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           DRIVE_FOLDERS: ${{ secrets.DRIVE_FOLDERS }}
           FETCH_DATE: ${{ inputs.date }}
-          SOURCES: ${{ inputs.sources }}
+          # 手動 dispatch 沒填 sources → 跑 6 個 (排除融資融券,改由 margin-late.yml 跑)
+          SOURCES: ${{ inputs.sources || 'STOCK_INST_TWSE,STOCK_INST_TPEX,STOCK_PRICE_TWSE,STOCK_PRICE_TPEX,CB_PRICE,CB_INST' }}
         run: python scripts/fetch_stocks.py

@@ -1,23 +1,25 @@
-name: Parse + Export (CSV → DB + JSON)
+name: Margin Late (融資融券 21:30)
 
-# 自己 cron 觸發,不依賴 fetch-stocks workflow。
-# 排在 fetch-stocks (18:23) 之後 24 分鐘,GAS publishAllData (14:40 TPE) 之後,
-# TWSE T86 充分發布時間 (~16:00) 之後。
-# 18:47 TPE = 10:47 UTC,週一~五。用奇怪分鐘避開 GHA :00/:30 排程高峰。
+# 融資融券資料 TWSE/TPEX 通常 21:00 後才公布,
+# 18:23 主 cron 抓會拿到舊資料或失敗,所以分離出來在 21:30 單獨跑。
 #
-# 注意: 融資融券 (MARGIN_TWSE/TPEX) 用 --only-sources 排除,
-#       改由 margin-late.yml 在 21:30 TPE (融資融券公布之後) 單獨補抓。
+# 21:30 TPE = 13:30 UTC,週一~五。
+#
+# 流程:
+#   1. fetch_stocks (SOURCES=MARGIN_TWSE,MARGIN_TPEX) → Drive
+#   2. parse_and_export --only-sources MARGIN_TWSE,MARGIN_TPEX --skip-sheet
+#      → Supabase stock_margin + all-data.json marginTrading 欄
+#   3. commit + push JSON
+#
+# TG 標題客製為「融資融券」以區分主 pipeline 通知。
+
 on:
   schedule:
-    - cron: '47 10 * * 1-5'
+    - cron: '30 13 * * 1-5'
   workflow_dispatch:
     inputs:
       date:
         description: '特定日期 YYYYMMDD (空白則抓今天 Asia/Taipei)'
-        required: false
-        default: ''
-      only_sources:
-        description: '只跑指定 source (逗號分隔);空白 = 6 個(排除融資融券)'
         required: false
         default: ''
 
@@ -25,7 +27,7 @@ permissions:
   contents: write   # 需要 commit data/all-data.json
 
 jobs:
-  parse:
+  margin:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,7 +43,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r scripts/requirements-stocks.txt
 
-      - name: Run parse_and_export
+      - name: Fetch margin CSVs (TWSE + TPEX)
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          DRIVE_FOLDERS:      ${{ secrets.DRIVE_FOLDERS }}
+          FETCH_DATE:         ${{ inputs.date }}
+          SOURCES:            MARGIN_TWSE,MARGIN_TPEX
+        run: python scripts/fetch_stocks.py
+
+      - name: Parse + Export (margin only)
         env:
           GOOGLE_CREDENTIALS:        ${{ secrets.GOOGLE_CREDENTIALS }}
           DRIVE_FOLDERS:             ${{ secrets.DRIVE_FOLDERS }}
@@ -49,9 +59,12 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TG_BOT_TOKEN:              ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID:                ${{ secrets.TG_CHAT_ID }}
-          # 手動 dispatch 沒填 → 6 個 source (排除融資融券)
-          ONLY: ${{ inputs.only_sources || 'STOCK_INST_TWSE,STOCK_INST_TPEX,STOCK_PRICE_TWSE,STOCK_PRICE_TPEX,CB_PRICE,CB_INST' }}
-        run: python scripts/parse_and_export.py --only-sources "$ONLY" ${{ inputs.date }}
+        run: |
+          python scripts/parse_and_export.py \
+            --only-sources MARGIN_TWSE,MARGIN_TPEX \
+            --skip-sheet \
+            --label "融資融券" \
+            ${{ inputs.date }}
 
       - name: Commit & push data/all-data.json
         run: |
@@ -62,8 +75,7 @@ jobs:
             echo "no JSON changes"
             exit 0
           fi
-          git commit -m "Update data/all-data.json @ $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
-          # 重試 3 次,中間 rebase 解小衝突
+          git commit -m "Update data/all-data.json @ $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M') (margin)"
           for i in 1 2 3; do
             if git push; then
               echo "pushed on attempt $i"

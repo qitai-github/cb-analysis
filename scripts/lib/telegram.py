@@ -101,7 +101,8 @@ def format_pipeline_summary(s: dict[str, Any]) -> str:
     if s.get("dry_run"):
         headline = "🧪 *DRY RUN*"
 
-    lines = [f"{headline} 台股管線  `{td_iso}`", ""]
+    label = s.get("label") or "台股管線"
+    lines = [f"{headline} {label}  `{td_iso}`", ""]
 
     # 抓+解析
     sources = s.get("sources", [])

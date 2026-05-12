@@ -489,10 +489,24 @@ def main(argv=None) -> int:
                    help="改寫到指定路徑 (測試用,不動 production data/all-data.json)")
     p.add_argument("--no-notify", action="store_true",
                    help="不送 Telegram 通知")
+    p.add_argument("--only-sources", default=None,
+                   help="只跑指定 folder_key (逗號分隔),用於分時段執行 "
+                        "(例 MARGIN_TWSE,MARGIN_TPEX)。空白 = 跑全部 SOURCES")
+    p.add_argument("--label", default=None,
+                   help="TG 標題覆寫 (default '台股管線')")
     args = p.parse_args(argv)
     if args.dry_run:
         args.skip_db = True
         args.skip_json = True
+
+    # 過濾 SOURCES (--only-sources 用)
+    global SOURCES
+    if args.only_sources:
+        keep = {k.strip() for k in args.only_sources.split(",") if k.strip()}
+        SOURCES = [s for s in SOURCES if s["folder_key"] in keep]
+        if not SOURCES:
+            log(f"❌ --only-sources {keep} 無對應 folder_key,abort")
+            return 2
 
     trade_date = parse_date_arg(args.date)
     record_db = not args.skip_db
@@ -521,6 +535,7 @@ def main(argv=None) -> int:
         "json": {"status": "skip"},
         "elapsed_s": 0.0,
         "dry_run": args.dry_run,
+        "label": args.label,
     }
 
     try:
