@@ -328,7 +328,11 @@ def target_date() -> datetime:
     override = os.environ.get("FETCH_DATE", "").strip()
     if override:
         return datetime.strptime(override, "%Y%m%d").replace(tzinfo=TAIPEI)
-    return datetime.now(TAIPEI)
+    now = datetime.now(TAIPEI)
+    # GHA cron 偶爾延遲跨午夜,00:00-05:59 TPE 視為前一日 (避免抓到隔天還沒開市的資料)
+    if now.hour < 6:
+        now = now - timedelta(days=1)
+    return now
 
 
 def selected_keys(folder_map: dict[str, str]) -> list[str]:

@@ -168,7 +168,11 @@ def parse_date_arg(arg: Optional[str]) -> str:
         if len(s) != 8 or not s.isdigit():
             raise SystemExit(f"日期格式錯誤: {arg!r}; 預期 YYYYMMDD")
         return s
-    return datetime.now(TAIPEI).strftime("%Y%m%d")
+    now = datetime.now(TAIPEI)
+    # GHA cron 偶爾延遲跨午夜,00:00-05:59 TPE 視為前一日
+    if now.hour < 6:
+        now = now - timedelta(days=1)
+    return now.strftime("%Y%m%d")
 
 
 def _to_iso(yyyymmdd: str) -> str:
