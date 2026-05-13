@@ -11,11 +11,11 @@
  * 支援 ETF (全部已自動化)：
  *   ① 自動下載 xlsx
  *      00981A 統一台股增長    ezmoney
+ *      00403A 統一台股升級50  ezmoney
  *      00988A 統一全球創新    ezmoney
  *      00991A 復華未來50      fhtrust
  *      00401A 摩根台灣鑫收益  jpmorgan
  *   ② API JSON
- *      00881  國泰科技龍頭    cathay_api  (xlsx download 與 API 都被 cathay WAF 擋 GCP IP,API 失敗時 fallback Drive xlsx)
  *      00891  中信關鍵半導體  ctbc_api    (兩步驟:取 token → POST holdings)
  *      00995A 中信卓越成長    ctbc_api    (同上)
  *      00984A 安聯高息成長    allianz_api (需 X-XSRF-TOKEN + Cookie)
@@ -47,8 +47,8 @@ const ETF_DRIVE_FOLDERS = {
   "00992A": "1EZPIL8NOJLe_iYWyQxSZbUqovvUBshxq",
   "00988A": "1mYvA2JcKLErjhprLf4AFfBBcVMUOPrJu",
   "00981A": "149KSRg_XAb9zgLlsJUUi_QUAeFyYRxp7",
+  "00403A": "1mPwEPkKX7Mp9swwAfFKvlEWXpo8vCEua",
   "00991A": "19tJmWNXcMvD4tHdQeACVXdzOCZiYREYO",
-  "00881":  "1Ml-P6qShyEPLE6rgtVnwF23g1HBSwsRF",
   "00401A": "175_xbALqU6IwzDObeeA8uudCfIMVglXx",
   "00995A": "13CfE8ChRDZp2CUuqSuUETVjJEuJ8IQCA",
   "00996A": "1SpQ4PxvKLG2od3xZBspJGS15cdgUb7qy",
@@ -71,6 +71,14 @@ const ETF_CONFIG = {
     },
     parser: "ezmoney"
   },
+  "00403A": {
+    name: "統一台股升級50",
+    type: "auto_download",
+    getUrl: function() {
+      return "https://www.ezmoney.com.tw/ETF/Fund/AssetExcelNPOI?fundCode=63YTW";
+    },
+    parser: "ezmoney"
+  },
   "00988A": {
     name: "統一全球創新",
     type: "auto_download",
@@ -78,16 +86,6 @@ const ETF_CONFIG = {
       return "https://www.ezmoney.com.tw/ETF/Fund/AssetExcelNPOI?fundCode=61YTW";
     },
     parser: "ezmoney"
-  },
-
-  // ─── 國泰 (cathay) JSON API,xlsx download / API 都被 WAF 擋 GCP IP ───
-  "00881": {
-    name: "國泰科技龍頭",
-    type: "api",
-    parser: "cathay_api",
-    apiOpts: { fundCode: "CR" },
-    // API 失敗時 (cathay WAF 偶爾擋 GCP IP) 改讀手動上傳的 xlsx。
-    xlsxFallbackParser: "cathay"
   },
 
   // ─── 復華 (fhtrust) 自動下載 xlsx ───
@@ -487,7 +485,7 @@ function downloadETFExcel_(url, code, extraHeaders) {
 
     // 手動處理 redirect + cookie (統一投信 ezmoney 的模式)
     var redirectCount = 0;
-    while ((resp.getResponseCode() === 301 || resp.getResponseCode() === 302 || resp.getResponseCode() === 307) && redirectCount < 5) {
+    while ((resp.getResponseCode() === 301 || resp.getResponseCode() === 302 || resp.getResponseCode() === 307) && redirectCount < 10) {
       redirectCount++;
       var allHeaders = resp.getAllHeaders();
 
@@ -1695,8 +1693,14 @@ function recoverFromDriveBackup_(etfs, prevEtfs) {
         continue;
       }
       var parseInput = prevDriveFile.isSheet ? prevDriveFile.fileId : prevDriveFile.blob;
-      var prevResult = parseETFExcel_(parseInput, config.parser, code, !!prevDriveFile.isSheet);
-      if (!prevResult || !prevResult.holdings || prevResult.holdings.length === 0) continue;
+      // api 型 ETF (如 00881) 的 config.parser 是 "cathay_api",但 Drive 上是 xlsx,
+      // 必須改用 xlsxFallbackParser ("cathay") 才能解析
+      var prevParser = config.xlsxFallbackParser || config.parser;
+      var prevResult = parseETFExcel_(parseInput, prevParser, code, !!prevDriveFile.isSheet);
+      if (!prevResult || !prevResult.holdings || prevResult.holdings.length === 0) {
+        Logger.log("  [recover] " + code + " parseETFExcel_ 回傳空 (parser=" + prevParser + ")");
+        continue;
+      }
       if (prevDriveFile.fileDate) prevResult.date = prevDriveFile.fileDate;
       prevResult.name = config.name;
       prevEtfs[code] = prevResult;
@@ -1863,9 +1867,25 @@ function manualUploadToGithub() {
           etfs[code] = apiResult;
           archiveResultToDrive_(code, apiResult);
           Logger.log("  ✓ " + apiResult.holdingCount + " 檔持股, date=" + apiResult.date + " (API)");
-        } else {
-          errors.push(code);
+          continue;
         }
+        // API 失敗 → 若有 xlsxFallbackParser 設定,改讀 Drive 最新 xlsx (手動上傳備援)
+        if (config.xlsxFallbackParser && ETF_DRIVE_FOLDERS[code]) {
+          Logger.log("  API 失敗,嘗試從 Drive 讀取 xlsx fallback...");
+          var fbFile = getLatestFromDrive_(ETF_DRIVE_FOLDERS[code], code);
+          if (fbFile) {
+            var fbInput = fbFile.isSheet ? fbFile.fileId : fbFile.blob;
+            var fbParsed = parseETFExcel_(fbInput, config.xlsxFallbackParser, code, !!fbFile.isSheet);
+            if (fbParsed && fbParsed.holdingCount > 0) {
+              if (fbFile.fileDate) fbParsed.date = fbFile.fileDate;  // 用檔名日期
+              fbParsed.name = config.name;
+              etfs[code] = fbParsed;
+              Logger.log("  ✓ " + fbParsed.holdingCount + " 檔持股, date=" + fbParsed.date + " (Drive fallback)");
+              continue;
+            }
+          }
+        }
+        errors.push(code);
         continue;
       }
 
