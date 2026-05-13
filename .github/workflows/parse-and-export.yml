@@ -6,7 +6,7 @@ name: Parse + Export (CSV → DB + JSON)
 # 18:47 TPE = 10:47 UTC,週一~五。用奇怪分鐘避開 GHA :00/:30 排程高峰。
 #
 # 注意: 融資融券 (MARGIN_TWSE/TPEX) 用 --only-sources 排除,
-#       改由 margin-late.yml 在 21:30 TPE (融資融券公布之後) 單獨補抓。
+#       改由 margin-late.yml 在 19:30 TPE (融資融券公布之後) 單獨補抓。
 on:
   schedule:
     - cron: '47 10 * * 1-5'

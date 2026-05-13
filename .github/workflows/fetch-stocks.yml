@@ -9,7 +9,7 @@ name: Fetch Stocks Backup
 #
 # 注意: 融資融券 (MARGIN_TWSE/TPEX) 排除在此 cron 之外!
 #       TWSE/TPEX 融資融券通常 21:00 後才公布,18:23 抓會拿到舊資料或失敗,
-#       改由 margin-late.yml 在 21:30 TPE 單獨抓。
+#       改由 margin-late.yml 在 19:30 TPE 單獨抓。
 
 on:
   schedule:
