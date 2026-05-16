@@ -1,0 +1,40 @@
+name: Pages Rebuild (手動觸發)
+
+# GitHub Pages 內建的 "pages build and deployment" 是自動產生的,
+# 本身無法加 workflow_dispatch。這個 workflow 用「推一個空 commit」
+# 強制觸發 main 的自動 Pages rebuild。
+#
+# 用途:本機 backfill 補完資料 push 後,想立刻確保網站重新部署;
+#       或自動 build 看起來卡住 / 被 skip 時手動踢一下。
+#
+# 安全性:沒有其他 workflow 監聽 push 事件,所以空 commit 只會觸發
+#         GitHub 內建的 pages-build-deployment,不會連鎖跑別的 job。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Empty commit → 觸發 Pages 自動 rebuild
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "chore: 手動觸發 Pages rebuild @ $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+          for i in 1 2 3; do
+            if git push; then
+              echo "pushed on attempt $i"
+              exit 0
+            fi
+            echo "push attempt $i failed,rebase 後重試..."
+            git pull --rebase --autostash
+          done
+          echo "push failed after 3 retries"
+          exit 1
