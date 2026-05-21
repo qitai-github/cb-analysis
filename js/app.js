@@ -447,7 +447,7 @@ const App = (() => {
     const panel = document.getElementById('detail-panel');
     panel.classList.add('show');
 
-    document.getElementById('detail-title').textContent = `${stock.code} ${stock.name}`;
+    renderDetailTitle(stock);
     document.getElementById('detail-price-info').innerHTML = buildPriceInfoHTML(stock);
     document.getElementById('detail-cb-info').innerHTML = buildCBInfoHTML(stock);
     document.getElementById('detail-inst-info').innerHTML = buildInstInfoHTML(stock);
@@ -468,6 +468,27 @@ const App = (() => {
       Charts.renderCBPriceChart('detail-cb-price-chart', stock, defaultCB);
       Charts.renderMarginChart('detail-margin-chart', stock);
     }, 100);
+  }
+
+  // 詳情面板標題:股票代號前加追蹤清單星星 (與主表第一欄同款選單)
+  function renderDetailTitle(stock) {
+    const titleEl = document.getElementById('detail-title');
+    titleEl.innerHTML = '';
+
+    const star = document.createElement('span');
+    star.className = 'detail-star';
+    const starred = Watchlist.has(stock.code);
+    star.textContent = starred ? '★' : '☆';
+    star.style.color = starred ? '#f59e0b' : 'var(--text-dim)';
+    star.addEventListener('click', (e) => {
+      e.stopPropagation();
+      Table.showStarMenu(star, stock.code);
+    });
+
+    const label = document.createElement('span');
+    label.textContent = `${stock.code} ${stock.name}`;
+
+    titleEl.append(star, label);
   }
 
   // CB tab 切換 — 同時更新 K 線圖 + 三大法人買賣超表

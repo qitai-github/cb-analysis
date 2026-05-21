@@ -313,5 +313,5 @@ const Table = (() => {
 
   function getCurrentData() { return currentData; }
 
-  return { render, updateInstDays, getCurrentData, columns };
+  return { render, updateInstDays, getCurrentData, columns, showStarMenu };
 })();

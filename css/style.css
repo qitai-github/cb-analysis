@@ -799,6 +799,16 @@ body {
 .detail-title {
   font-size: 18px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-star {
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
 }
 
 .detail-close {
