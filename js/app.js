@@ -4,9 +4,11 @@ const App = (() => {
   let filteredData = [];
   let selectedStock = null;
   let latestDataDate = '';
-  let currentTab = 'cb';   // 'cb' | 'etf'
+  let currentTab = 'cb';   // 'cb' | 'etf' | 'calendar'
   let etfLoaded = false;
+  let calendarLoaded = false;
   let rawCBIssuance = null; // 保留 CB 發行資訊供 ETF 交叉比對
+  let rawCalendar = null;   // 保留 CBAS 日曆事件供日曆頁使用
 
   async function init() {
     showLoading(true);
@@ -19,6 +21,7 @@ const App = (() => {
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
       rawCBIssuance = cached.data.cbIssuance || null;
+      rawCalendar = cached.data.cbasCalendar || null;
       updateDateDisplay();
       showLoading(false);
       buildFilterPanel();
@@ -40,6 +43,7 @@ const App = (() => {
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
+      rawCalendar = rawResults.cbasCalendar || null;
 
       // 顯示更新日期
       updateDateDisplay();
@@ -1021,7 +1025,9 @@ const App = (() => {
       stockMap = result.stockMap;
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
+      rawCalendar = rawResults.cbasCalendar || null;
       etfLoaded = false; // 重新載入 ETF CB 交叉比對
+      calendarLoaded = false;
       SheetsAPI.saveToStorage(rawResults);
       updateDateDisplay();
       applyCurrentFilters();
@@ -1056,6 +1062,7 @@ const App = (() => {
     // 更新 tab 按鈕樣式
     document.getElementById('tab-cb').classList.toggle('active', tab === 'cb');
     document.getElementById('tab-etf').classList.toggle('active', tab === 'etf');
+    document.getElementById('tab-calendar').classList.toggle('active', tab === 'calendar');
 
     // 關閉 detail panel
     closeDetail();
@@ -1065,7 +1072,34 @@ const App = (() => {
       applyCurrentFilters();
     } else if (tab === 'etf') {
       await initETFView();
+    } else if (tab === 'calendar') {
+      initCalendarView();
     }
+  }
+
+  function initCalendarView() {
+    if (!calendarLoaded) {
+      Calendar.setData(rawCalendar, { onEventClick: openCBFromCalendar });
+      calendarLoaded = true;
+    }
+    Calendar.renderLegend('filter-panel');
+    Calendar.render('main-table');
+    const statusEl = document.getElementById('header-status');
+    if (statusEl) {
+      const n = (rawCalendar && rawCalendar.events) ? rawCalendar.events.length : 0;
+      statusEl.textContent = `CB 日曆 | ${n} 筆事件`;
+      statusEl.style.color = '';
+    }
+  }
+
+  /** 日曆事件點擊 → 切回 CB 分析並開該股詳情 */
+  function openCBFromCalendar(cbCode) {
+    if (!cbCode) return;
+    const stockCode = String(cbCode).length >= 5
+      ? String(cbCode).substring(0, 4) : String(cbCode);
+    const stock = stockMap ? stockMap.get(stockCode) : null;
+    if (!stock) return;
+    switchTab('cb').then(() => showDetail(stock));
   }
 
   async function initETFView() {

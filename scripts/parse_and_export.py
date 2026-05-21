@@ -52,7 +52,7 @@ try:
 except ImportError:
     pass  # 沒裝 python-dotenv 也能跑,前提是 env 已外部設好
 
-from lib import drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge, yuanta_report  # noqa: E402
+from lib import cbas_calendar, drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge, yuanta_report  # noqa: E402
 from parsers import cb_inst, cb_price, margin_trading, stock_inst, stock_price  # noqa: E402
 
 # 直接爬網頁的 fallback (當 Drive 沒檔時用,例如當日 TWSE T86 16:00 才公布,
@@ -436,6 +436,30 @@ def fetch_yuanta_report(trade_date: str, all_data: dict, *,
         return {"status": "fail", "error": str(e)}
 
 
+# ── Phase 4.7: 統一 CBAS 日曆 (已發行 + 預計發行 xlsx) ────────────────
+def fetch_cbas_calendar(trade_date: str, all_data: dict, *,
+                        record_db: bool) -> dict:
+    """從 Drive 撈最新一對 CBAS xlsx,解析成 calendar events 寫入
+    all_data['cbasCalendar']。失敗保留前次資料,不擋主流程。"""
+    log("  ↓ 統一 CBAS 日曆 xlsx (已發行 + 預計發行)")
+    try:
+        folder_id = (os.environ.get("CBAS_CALENDAR_FOLDER_ID")
+                     or cbas_calendar.DEFAULT_FOLDER_ID)
+        result = cbas_calendar.fetch_and_parse(folder_id)
+        n = len(result.get("events") or [])
+        log(f"     ✓ reportDate={result.get('reportDate')}, events={n:,}")
+        all_data["cbasCalendar"] = result
+        _record(trade_date, "cbasCalendar", "fetch", "ok",
+                count=n, enabled=record_db)
+        return {"status": "ok", "reportDate": result.get("reportDate"),
+                "events": n}
+    except Exception as e:  # noqa: BLE001
+        log(f"     ✗ {e}")
+        _record(trade_date, "cbasCalendar", "fetch", "fail",
+                error=str(e), enabled=record_db)
+        return {"status": "fail", "error": str(e)}
+
+
 # ── Phase 4.5: 個股狀態 sheet (VCP / 三線開花) ─────────────────────────
 def fetch_status_sheets(trade_date: str, all_data: dict, *,
                         record_db: bool) -> list[dict]:
@@ -536,6 +560,7 @@ def main(argv=None) -> int:
         "trade_date": trade_date,
         "sources": [], "db": [], "sheets": [], "status_sheets": [],
         "yuanta_report": {"status": "skip"},
+        "cbas_calendar": {"status": "skip"},
         "json": {"status": "skip"},
         "elapsed_s": 0.0,
         "dry_run": args.dry_run,
@@ -595,6 +620,14 @@ def main(argv=None) -> int:
         else:
             log("[Phase 4.6] 抓 元大證選擇權 xlsx → yuantaReport")
             summary["yuanta_report"] = fetch_yuanta_report(
+                trade_date, all_data, record_db=record_db)
+
+        # Phase 4.7: 統一 CBAS 日曆 xlsx → cbasCalendar
+        if args.skip_sheet:
+            log("[Phase 4.7] --skip-sheet,CBAS 日曆抓取跳過")
+        else:
+            log("[Phase 4.7] 抓 統一 CBAS 日曆 xlsx → cbasCalendar")
+            summary["cbas_calendar"] = fetch_cbas_calendar(
                 trade_date, all_data, record_db=record_db)
 
         # Phase 5: 寫回 JSON

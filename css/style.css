@@ -523,6 +523,138 @@ body {
   white-space: nowrap;
 }
 
+/* === CB 日曆 === */
+.cal-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.cal-nav-title {
+  font-size: 18px;
+  font-weight: 700;
+  min-width: 130px;
+  text-align: center;
+}
+.cal-nav-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cal-nav-btn:hover { background: var(--accent); border-color: var(--accent); }
+.cal-today-btn {
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cal-today-btn:hover { color: var(--text); border-color: var(--accent); }
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border-light);
+  border: 1px solid var(--border-light);
+}
+.cal-weekday {
+  background: var(--bg);
+  text-align: center;
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.cal-cell {
+  background: var(--bg-card);
+  min-height: 96px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cal-cell.cal-other { background: var(--bg); }
+.cal-cell.cal-other .cal-daynum { color: var(--text-dim); }
+.cal-cell.cal-today { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-daynum {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.cal-chip {
+  font-size: 11px;
+  color: #fff;
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  line-height: 1.45;
+}
+.cal-chip:hover { filter: brightness(1.15); }
+.cal-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+
+/* 日曆圖例 (左側面板) */
+.cal-legend { padding: 4px 2px; }
+.cal-legend-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.cal-legend-item:hover { background: var(--bg-hover); }
+.cal-legend-item input { cursor: pointer; }
+.cal-legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.cal-legend-label { font-size: 13px; color: var(--text); }
+.cal-legend-meta {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+@media (max-width: 768px) {
+  .cal-cell { min-height: 68px; }
+  .cal-chip { font-size: 10px; padding: 1px 4px; }
+  .cal-nav-title { font-size: 16px; }
+}
+
 /* === 狀態徽章 (VCP / 三線開花) === */
 /* 不改 td 的 padding,讓徽章走 inline-block 行內流,row height 自動對齊其他列 */
 .cell-status {

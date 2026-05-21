@@ -182,6 +182,18 @@ def format_pipeline_summary(s: dict[str, Any]) -> str:
             lines.append(f"*元大證選擇權:* ❌ {yr.get('error','unknown')}")
         lines.append("")
 
+    # cbasCalendar (統一 CBAS 日曆 xlsx)
+    cc = s.get("cbas_calendar") or {}
+    if cc.get("status") and cc["status"] != "skip":
+        if cc["status"] == "ok":
+            lines.append(
+                f"*CBAS日曆:* ✅ `{cc.get('reportDate','?')}` "
+                f"{cc.get('events',0):,} 事件"
+            )
+        else:
+            lines.append(f"*CBAS日曆:* ❌ {cc.get('error','unknown')}")
+        lines.append("")
+
     # JSON
     j = s.get("json")
     if j:
