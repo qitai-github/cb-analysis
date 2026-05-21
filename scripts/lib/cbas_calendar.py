@@ -33,6 +33,9 @@ import re
 import sys
 from typing import Any, Optional
 
+import requests
+import urllib3
+
 # Windows console UTF-8
 for _s in (sys.stdout, sys.stderr):
     try:
@@ -40,8 +43,18 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-# 統一CBAS日曆 folder
+# 統一CBAS日曆 folder (API 抓不到時的 fallback 來源)
 DEFAULT_FOLDER_ID = "1qAauB30BsCZ2_dHMJ_3qlTfr5IhK0Q2s"
+
+# 統一 CBAS 平台下載 API (公開 GET,無需登入)
+API_ISSUED = "https://cbas16889.pscnet.com.tw/api/MiDownloadExcel/GetExcel_IssuedCB"
+API_RECENTLY = "https://cbas16889.pscnet.com.tw/api/MiDownloadExcel/GetExcel_RecentlyCB"
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+)
+# 統一憑證缺 Subject Key Identifier,Python 嚴格驗證會擋 → verify=False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 _DATE_IN_NAME = re.compile(r"(\d{8})")
 # 詢圈/競拍 文字:M/D-M/D詢圈 或 M/D-M/D競拍
@@ -240,7 +253,34 @@ def _dedup(events: list[dict]) -> list[dict]:
     return out
 
 
-# ── Drive 取最新一對 xlsx ─────────────────────────────────────────────
+# ── 直接從統一 CBAS API 下載 (主要來源) ─────────────────────────────
+def _api_get(url: str) -> tuple[Optional[str], bytes]:
+    """GET 一個 CBAS 下載 API,回傳 (date_str|None, xlsx_bytes)。"""
+    r = requests.get(
+        url, timeout=60, verify=False,
+        headers={"User-Agent": _UA,
+                 "Referer": "https://cbas16889.pscnet.com.tw/",
+                 "Accept": "*/*"},
+    )
+    r.raise_for_status()
+    if r.content[:2] != b"PK":
+        raise RuntimeError(f"回應不是 xlsx (前 8 bytes: {r.content[:8]!r})")
+    # 檔名形如 20260521_已發行CB資料.xlsx → 取開頭 8 碼日期
+    cd = r.headers.get("content-disposition", "")
+    m = _DATE_IN_NAME.search(cd)
+    return (m.group(1) if m else None), r.content
+
+
+def fetch_from_api() -> tuple[str, bytes, bytes]:
+    """從統一 CBAS API 直接下載兩份 xlsx。回傳 (date_str, issued, planned)。"""
+    d1, issued = _api_get(API_ISSUED)
+    d2, planned = _api_get(API_RECENTLY)
+    date_str = d1 or d2 or _dt.datetime.now(
+        _dt.timezone(_dt.timedelta(hours=8))).strftime("%Y%m%d")
+    return date_str, issued, planned
+
+
+# ── Drive 取最新一對 xlsx (API 失敗時 fallback) ──────────────────────
 def fetch_latest_pair(folder_id: str = DEFAULT_FOLDER_ID
                       ) -> tuple[str, bytes, bytes]:
     """回傳 (date_str, issued_blob, planned_blob)。失敗拋 RuntimeError。"""
@@ -291,30 +331,29 @@ def fetch_latest_pair(folder_id: str = DEFAULT_FOLDER_ID
 
 
 def fetch_and_parse(folder_id: str = DEFAULT_FOLDER_ID) -> dict[str, Any]:
-    """主入口:抓最新 xlsx → 解析 → {reportDate, events}。"""
-    date_str, issued_blob, planned_blob = fetch_latest_pair(folder_id)
+    """主入口:抓最新 xlsx → 解析 → {reportDate, events, source}。
+
+    優先直接打統一 CBAS API (最即時);失敗才退回 Drive 上 fetch_stocks
+    備份的 xlsx。
+    """
+    source = "api"
+    try:
+        date_str, issued_blob, planned_blob = fetch_from_api()
+    except Exception as e:  # noqa: BLE001
+        print(f"⚠️ CBAS API 下載失敗,改讀 Drive 備份: {e}",
+              file=sys.stderr, flush=True)
+        date_str, issued_blob, planned_blob = fetch_latest_pair(folder_id)
+        source = "drive"
     events = parse_issued(issued_blob) + parse_planned(planned_blob)
-    return {"reportDate": date_str, "events": _dedup(events)}
+    return {"reportDate": date_str, "events": _dedup(events), "source": source}
 
 
-# ── Smoke test ────────────────────────────────────────────────────────
+# ── Smoke test (走 API,不需任何憑證) ────────────────────────────────
 def _smoke() -> int:
-    import json
-    import os
-    import re as _re
-    from pathlib import Path
-
-    # 手動讀 scripts/.env (GOOGLE_CREDENTIALS 是多行 JSON,dotenv 會截掉)
-    env_path = Path(__file__).resolve().parent.parent / ".env"
-    txt = env_path.read_text(encoding="utf-8")
-    m = _re.search(r"GOOGLE_CREDENTIALS=(\{.*?\})\nDRIVE_FOLDERS=", txt, _re.DOTALL)
-    if m:
-        os.environ["GOOGLE_CREDENTIALS"] = json.dumps(
-            json.loads(m.group(1), strict=False))
-
     result = fetch_and_parse()
     events = result["events"]
-    print(f"reportDate={result['reportDate']}  events={len(events)}")
+    print(f"source={result['source']}  reportDate={result['reportDate']}  "
+          f"events={len(events)}")
     from collections import Counter
     for t, n in Counter(e["type"] for e in events).most_common():
         print(f"  {t:14s} {n}")
