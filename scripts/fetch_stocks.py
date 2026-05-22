@@ -34,7 +34,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 import requests
-import urllib3
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -46,19 +45,9 @@ UA = (
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
 
-# ── 統一 CBAS 日曆 xlsx (公開下載 API,無需登入) ──────────────────────
-# 統一憑證缺 Subject Key Identifier,Python 嚴格驗證會擋 → verify=False
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-CBAS_FOLDER_ID_DEFAULT = "1qAauB30BsCZ2_dHMJ_3qlTfr5IhK0Q2s"  # 統一CBAS日曆
-CBAS_XLSX_MIME = (
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-CBAS_SOURCES = {
-    "已發行CB資料":
-        "https://cbas16889.pscnet.com.tw/api/MiDownloadExcel/GetExcel_IssuedCB",
-    "預計發行CB資料":
-        "https://cbas16889.pscnet.com.tw/api/MiDownloadExcel/GetExcel_RecentlyCB",
-}
+# 註:統一 CBAS 日曆 xlsx 不在這裡抓 —— service account 無 Drive 儲存配額,
+# 無法 create 新檔。改由 parse_and_export.py Phase 4.7 直接打統一公開 API
+# (見 lib/cbas_calendar.py,API 優先)。
 
 MAX_RETRIES = 5
 # 2 / 4 / 8 / 16 / 32s,第 1 次不等
@@ -338,35 +327,6 @@ def upload(
         print(f"✅ 新建: {filename}", flush=True)
 
 
-# ── 統一 CBAS 日曆 xlsx ───────────────────────────────────────────────
-def fetch_and_upload_cbas(svc, date_str: str) -> list[str]:
-    """下載統一 CBAS 兩份 xlsx (已發行 / 預計發行) → 上傳到 Drive 統一CBAS日曆。
-
-    與 6 個 CSV 來源獨立。回傳失敗清單 (空 = 全成功)。
-    """
-    folder_id = (os.environ.get("CBAS_CALENDAR_FOLDER_ID", "").strip()
-                 or CBAS_FOLDER_ID_DEFAULT)
-    failed: list[str] = []
-    print("\n=== 統一 CBAS 日曆 xlsx ===", flush=True)
-    for name, url in CBAS_SOURCES.items():
-        try:
-            r = requests.get(
-                url, timeout=60, verify=False,
-                headers={"User-Agent": UA, "Accept": "*/*",
-                         "Referer": "https://cbas16889.pscnet.com.tw/"},
-            )
-            r.raise_for_status()
-            if r.content[:2] != b"PK":
-                raise RuntimeError(
-                    f"回應不是 xlsx (前 8 bytes: {r.content[:8]!r})")
-            filename = f"{name}_{date_str}.xlsx"
-            upload(svc, folder_id, filename, r.content, mime=CBAS_XLSX_MIME)
-        except Exception as e:  # noqa: BLE001
-            print(f"❌ CBAS {name} 失敗: {e}", file=sys.stderr, flush=True)
-            failed.append(f"CBAS:{name}")
-    return failed
-
-
 # ── Main ─────────────────────────────────────────────────────────────
 def target_date() -> datetime:
     override = os.environ.get("FETCH_DATE", "").strip()
@@ -423,13 +383,13 @@ def main() -> int:
             print(f"⚠️ 假日檢查失敗 (照跑): {e}", file=sys.stderr)
 
     keys = selected_keys(folder_map)
-    print(f"🎯 將處理 {len(keys)} 個 CSV 來源: {keys}", flush=True)
+    if not keys:
+        print("❌ 沒有任何可執行的來源", file=sys.stderr)
+        return 2
+    print(f"🎯 將處理 {len(keys)} 個來源: {keys}", flush=True)
 
     svc = drive_service()
     failed: list[str] = []
-
-    # 統一 CBAS 日曆 xlsx — 獨立於 6 CSV,直接打統一公開 API
-    failed.extend(fetch_and_upload_cbas(svc, dstr))
 
     for i, key in enumerate(keys):
         rule = SOURCE_RULES[key]
