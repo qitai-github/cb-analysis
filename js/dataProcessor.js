@@ -489,6 +489,10 @@ const DataProcessor = (() => {
       mergeYuantaReport(stockMap, rawResults.yuantaReport);
     }
 
+    // 8.5 CBAS 已發行CB資料 — 補元大證 xlsx 還沒收錄的新上市 CB 基本資料
+    //     (CBAS 每日 API 更新,新掛牌當天就有;元大 xlsx 每週才換)
+    applyCbasIssuedInfo(stockMap, rawResults.cbasCalendar);
+
     // 9. 個股狀態 (VCP / 三線開花) — 由 parse_and_export 寫入 all-data.json
     applyStockStatus(stockMap, rawResults.stockStatus);
 
@@ -509,6 +513,35 @@ const DataProcessor = (() => {
     }
 
     return { stockMap, latestDataDate };
+  }
+
+  /**
+   * 用 CBAS「已發行CB資料」補 CB 基本欄位 — 只填 yuantaReport 沒給的。
+   * 主要救新上市 CB:元大證 xlsx 每週才更新,新掛牌 CB 會落後幾天,
+   * CBAS 每日 API 更新,掛牌當天就有完整資料。
+   * cbasCalendar.issuedInfo 結構: { cbCode: {conversionPrice, maturityDate, ...} }
+   */
+  function applyCbasIssuedInfo(stockMap, cbasCalendar) {
+    const info = cbasCalendar && cbasCalendar.issuedInfo;
+    if (!info || typeof info !== 'object') return;
+    const FIELDS = [
+      'conversionPrice', 'actualTotal', 'outstandingPct', 'balThisWeek',
+      'maturityDate', 'nearestPutDate', 'nextPutDate', 'nearestPutPrice',
+      'guarantee', 'callDate', 'issueDate', 'tcri'
+    ];
+    for (const [, stock] of stockMap) {
+      if (!stock.cbs) continue;
+      for (const cb of stock.cbs) {
+        const ci = info[cb.cbCode];
+        if (!ci) continue;
+        for (const f of FIELDS) {
+          const cur = cb[f];
+          if ((cur == null || cur === '') && ci[f] != null && ci[f] !== '') {
+            cb[f] = ci[f];
+          }
+        }
+      }
+    }
   }
 
   /**

@@ -141,8 +141,31 @@ def _valid_cb(code: Any) -> bool:
     return s.isdigit() and 4 <= len(s) <= 6
 
 
+def _num(v: Any) -> Optional[float]:
+    """xlsx cell → number;'-' / 空 / 無法解析回 None。整數去小數。"""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        f = float(v)
+        return int(f) if f.is_integer() else f
+    s = str(v).strip().replace(",", "")
+    if not s or s in ("-", "—", "未定"):
+        return None
+    try:
+        f = float(s)
+        return int(f) if f.is_integer() else f
+    except ValueError:
+        return None
+
+
 # ── 解析:已發行CB資料 ───────────────────────────────────────────────
-def parse_issued(blob: bytes) -> list[dict]:
+def parse_issued(blob: bytes) -> tuple[list[dict], dict[str, dict]]:
+    """回傳 (events, info_map)。
+
+    events   — 日期事件清單 (發行/到期/賣回/強制贖回/重設轉換)
+    info_map — {cbCode: {基本資料}},給前端補新上市 CB 的基本欄位
+               (元大證 xlsx 每週才更新,新掛牌 CB 會落後幾天)
+    """
     from openpyxl import load_workbook
 
     # 不用 read_only:統一匯出的 xlsx 缺 dimension metadata,
@@ -151,29 +174,70 @@ def parse_issued(blob: bytes) -> list[dict]:
     ws = wb[wb.sheetnames[0]]
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
-        return []
+        return [], {}
     h = _header_map(rows[0])
     c_code = h.get("債券代號", 0)
     c_name = h.get("標的債券", 1)
-    field_cols = {
+    date_cols = {
         "issue": h.get("發行日期"),
         "maturity": h.get("到期日"),
         "putback": h.get("最新賣回日"),
         "forcedRedeem": h.get("強制贖回日"),
         "resetConv": h.get("重設轉換日"),
     }
+    c_conv = h.get("轉換價格")
+    c_amt = h.get("發行量(億)")
+    c_bal = h.get("流通餘額(張數)")
+    c_pct = h.get("餘額比例")
+    c_tcri = h.get("TCRI")
+    c_guar = h.get("擔保情形")
+    c_mat = h.get("到期日")
+    c_put = h.get("最新賣回日")
+    c_putp = h.get("最新賣回價")
+    c_call = h.get("強制贖回日")
+    c_iss = h.get("發行日期")
+
     events: list[dict] = []
+    info: dict[str, dict] = {}
     for row in rows[1:]:
         code = str(_cell(row, c_code) or "").strip()
         if not _valid_cb(code):
             continue
         name = str(_cell(row, c_name) or "").strip()
-        for etype, col in field_cols.items():
+        for etype, col in date_cols.items():
             iso = _to_iso(_cell(row, col))
             if iso:
                 events.append({"date": iso, "type": etype,
                                "cbCode": code, "cbName": name})
-    return events
+        # 基本資料 (只收非空欄位)
+        amt_yi = _num(_cell(row, c_amt))
+        rec: dict[str, Any] = {"cbName": name}
+        _put_if(rec, "conversionPrice", _num(_cell(row, c_conv)))
+        # 發行量(億) → 百萬,對齊 yuantaReport.actualTotal 單位
+        _put_if(rec, "actualTotal", amt_yi * 100 if amt_yi is not None else None)
+        _put_if(rec, "balThisWeek", _num(_cell(row, c_bal)))
+        _put_if(rec, "outstandingPct", _num(_cell(row, c_pct)))
+        _put_if(rec, "tcri", _num(_cell(row, c_tcri)))
+        _put_if(rec, "guarantee", _clean_str(_cell(row, c_guar)))
+        _put_if(rec, "maturityDate", _to_iso(_cell(row, c_mat)))
+        put_iso = _to_iso(_cell(row, c_put))
+        _put_if(rec, "nearestPutDate", put_iso)
+        _put_if(rec, "nextPutDate", put_iso)
+        _put_if(rec, "nearestPutPrice", _num(_cell(row, c_putp)))
+        _put_if(rec, "callDate", _to_iso(_cell(row, c_call)))
+        _put_if(rec, "issueDate", _to_iso(_cell(row, c_iss)))
+        info[code] = rec
+    return events, info
+
+
+def _put_if(d: dict, key: str, val: Any) -> None:
+    if val is not None and val != "":
+        d[key] = val
+
+
+def _clean_str(v: Any) -> Optional[str]:
+    s = str(v or "").strip()
+    return s if s and s not in ("-", "—") else None
 
 
 # ── 解析:預計發行CB資料 ─────────────────────────────────────────────
@@ -344,16 +408,21 @@ def fetch_and_parse(folder_id: str = DEFAULT_FOLDER_ID) -> dict[str, Any]:
               file=sys.stderr, flush=True)
         date_str, issued_blob, planned_blob = fetch_latest_pair(folder_id)
         source = "drive"
-    events = parse_issued(issued_blob) + parse_planned(planned_blob)
-    return {"reportDate": date_str, "events": _dedup(events), "source": source}
+    issued_events, issued_info = parse_issued(issued_blob)
+    events = issued_events + parse_planned(planned_blob)
+    return {"reportDate": date_str, "events": _dedup(events),
+            "issuedInfo": issued_info, "source": source}
 
 
 # ── Smoke test (走 API,不需任何憑證) ────────────────────────────────
 def _smoke() -> int:
     result = fetch_and_parse()
     events = result["events"]
+    info = result.get("issuedInfo") or {}
     print(f"source={result['source']}  reportDate={result['reportDate']}  "
-          f"events={len(events)}")
+          f"events={len(events)}  issuedInfo={len(info)}")
+    if "36806" in info:
+        print(f"  36806 issuedInfo: {info['36806']}")
     from collections import Counter
     for t, n in Counter(e["type"] for e in events).most_common():
         print(f"  {t:14s} {n}")
