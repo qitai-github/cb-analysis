@@ -449,6 +449,19 @@ const DataProcessor = (() => {
       }
     }
 
+    // 5b. 統一 CBAS 預計發行 (近期掛牌 / 近期生效 / 董事會公告)
+    //     section 標記為 cbas_listed / cbas_effective / cbas_board,
+    //     讓前端 buildPrimaryMarketHTML 以 CBAS 為主、合併元大/富邦
+    const plannedPrimary = rawResults.cbasCalendar?.plannedPrimary;
+    if (Array.isArray(plannedPrimary)) {
+      for (const item of plannedPrimary) {
+        if (!item.stockCode) continue;
+        const entry = getOrCreate(stockMap, item.stockCode, '');
+        if (!entry.primaryMarket) entry.primaryMarket = [];
+        entry.primaryMarket.push(item);
+      }
+    }
+
     // 6. twsa 競拍開標統計表 (以 cbCode 為 key)
     const auctionMap = parseTwsaAuction(rawResults.twsaAuction);
 

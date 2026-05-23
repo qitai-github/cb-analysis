@@ -719,114 +719,145 @@ const App = (() => {
          + mk('badge-sanxian', '三線', flags.sanxian);
   }
 
-  function buildPrimaryMarketHTML(stock) {
-    // 依 section 分組顯示
-    const sectionLabels = {
-      'fubon_listed': '富邦 初級市場',
-      'fubon_filing': '富邦 送件標的',
-      'fubon_board': '富邦 董事會通過',
-      'yuanta_listed': '元大 初級案件',
-      'yuanta_board': '元大 董事會決議'
-    };
+  // 初級市場資訊 — 三大階段 (近期掛牌 / 近期生效 / 董事會公告)
+  // CBAS 為主、元大次之、富邦第三;備註合併三方
+  const PM_STAGE_OF = {
+    cbas_listed:    'listed',    fubon_listed: 'listed',  yuanta_listed: 'listed',
+    cbas_effective: 'effective', fubon_filing: 'effective',
+    cbas_board:     'board',     fubon_board:  'board',   yuanta_board:  'board'
+  };
+  const PM_SOURCE_OF = {
+    cbas_listed: '統一', cbas_effective: '統一', cbas_board: '統一',
+    yuanta_listed: '元大', yuanta_board: '元大',
+    fubon_listed: '富邦', fubon_filing: '富邦', fubon_board: '富邦'
+  };
+  // 排序:CBAS 0 > 元大 1 > 富邦 2
+  const PM_SOURCE_RANK = {
+    cbas_listed: 0, cbas_effective: 0, cbas_board: 0,
+    yuanta_listed: 1, yuanta_board: 1,
+    fubon_listed: 2, fubon_filing: 2, fubon_board: 2
+  };
+  const PM_STAGE_LABEL = {
+    listed: '近期掛牌', effective: '近期生效', board: '董事會公告'
+  };
+  const PM_STAGE_ORDER = ['listed', 'effective', 'board'];
 
-    // 已上市的 CB (有價格資料 = cb.close 不為 null) 不需要再顯示初級市場
+  function buildPrimaryMarketHTML(stock) {
+    // 已上市 CB (有價格) → 不再顯示初級市場
     const listedCBs = new Set(
       (stock.cbs || []).filter(c => c.close != null && c.cbCode).map(c => c.cbCode)
     );
 
-    // 按 section 分組,跳過已上市 CB
-    const grouped = {};
-    for (const pm of stock.primaryMarket) {
-      if (listedCBs.has(pm.cbCode)) continue;
-      const sec = pm.section || 'unknown';
-      if (!grouped[sec]) grouped[sec] = [];
-      grouped[sec].push(pm);
+    // 依 (stage, cbCode) 分組
+    const groups = new Map();
+    for (const pm of (stock.primaryMarket || [])) {
+      if (!pm || listedCBs.has(pm.cbCode)) continue;
+      const stage = PM_STAGE_OF[pm.section];
+      if (!stage) continue;
+      const key = stage + '|' + pm.cbCode;
+      let g = groups.get(key);
+      if (!g) {
+        g = { stage, cbCode: pm.cbCode, cbName: pm.cbName || '', items: [] };
+        groups.set(key, g);
+      }
+      g.items.push(pm);
+      if (!g.cbName && pm.cbName) g.cbName = pm.cbName;
     }
-    if (Object.keys(grouped).length === 0) return '';
+    if (groups.size === 0) return '';
+
+    const sorted = [...groups.values()].sort((a, b) =>
+      (PM_STAGE_ORDER.indexOf(a.stage) - PM_STAGE_ORDER.indexOf(b.stage))
+      || a.cbCode.localeCompare(b.cbCode)
+    );
 
     let html = '<div class="primary-market-section"><h4>初級市場資訊</h4>';
-
-    for (const [secKey, items] of Object.entries(grouped)) {
-      const secLabel = sectionLabels[secKey] || secKey;
-
-      for (const pm of items) {
-        html += `<div class="cb-card">
-          <div class="cb-card-header">
-            <span class="cb-code">${pm.cbCode}</span>
-            <span class="cb-name">${pm.cbName}</span>
-            <span class="cb-type">${secLabel}</span>
-          </div>
-          <div class="info-grid info-grid-sm">`;
-
-        html += buildPrimaryFields(pm, secKey);
-
-        html += `</div></div>`;
-      }
+    for (const grp of sorted) {
+      // CBAS 排前面;前端 pickField 從第一個 items 開始找非空值
+      grp.items.sort((a, b) =>
+        (PM_SOURCE_RANK[a.section] ?? 99) - (PM_SOURCE_RANK[b.section] ?? 99));
+      html += renderPMCard(grp);
     }
-
     html += '</div>';
     return html;
   }
 
-  function buildPrimaryFields(pm, section) {
-    const f = (label, val) => `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val ?? '-'}</span></div>`;
+  function renderPMCard(grp) {
+    // 跨來源取第一個非空值 (items 已排好序:統一 > 元大 > 富邦)
+    const pick = (...fields) => {
+      for (const it of grp.items) {
+        for (const f of fields) {
+          const v = it[f];
+          if (v != null && v !== '') return v;
+        }
+      }
+      return null;
+    };
+    const f = (label, val) => (val == null || val === '')
+      ? ''
+      : `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val}</span></div>`;
+    const wide = (label, html) =>
+      `<div class="info-item info-item-wide"><span class="info-label">${label}</span><span class="info-value" style="font-size:11px">${html}</span></div>`;
 
-    switch (section) {
-      case 'fubon_listed':
-        return f('發行金額(億)', pm.issueAmount) +
-          f('TCRI/擔保', pm.guarantee) +
-          f('詢圈/競拍', pm.bidding) +
-          f('溢價率', pm.premium) +
-          f('轉換價', pm.conversionPrice) +
-          f('掛牌日', pm.listingDate) +
-          f('可拆解選擇權日', pm.opDate) +
-          f('備註', pm.remark);
+    const capital     = pick('capital');
+    const tcriGuarantee = pick('tcriGuarantee', 'guarantee');
+    const issueAmount = pick('issueAmount');
+    const underwriter = pick('underwriter');
+    const putCondition = pick('putCondition');
+    const years       = pick('years');
+    const premiumRate = pick('premiumRate', 'premium');
+    const convPrice   = pick('convPrice', 'conversionPrice');
+    const convValue   = pick('convValue');
+    const listingDate = pick('listingDate');
+    const opDate      = pick('opDate');
+    const polling     = pick('polling', 'bidding');
+    const announcementDate = pick('announcementDate');
+    const filingDate  = pick('filingDate');
+    const effectiveDate = pick('effectiveDate');
 
-      case 'fubon_filing':
-        return f('發行金額(億)', pm.issueAmount) +
-          f('TCRI/擔保', pm.guarantee) +
-          f('詢圈/競拍', pm.bidding) +
-          f('溢價率', pm.premium) +
-          f('發行期間(年)', pm.years) +
-          f('送件日', pm.filingDate) +
-          f('生效日', pm.effectiveDate) +
-          f('備註', pm.remark);
+    // 備註 — 合併三家來源
+    const remarks = grp.items
+      .filter(it => it.remark)
+      .map(it => `<span class="pm-remark-src">[${PM_SOURCE_OF[it.section] || ''}]</span> ${it.remark}`);
+    const remarkHtml = remarks.length ? remarks.join('<br>') : null;
 
-      case 'fubon_board':
-        return f('產業別', pm.industry) +
-          f('資本額(億)', pm.capital) +
-          f('發行金額(億)', pm.issueAmount) +
-          f('TCRI/擔保', pm.guarantee) +
-          f('詢圈/競拍', pm.bidding) +
-          f('發行期間(年)', pm.years) +
-          f('公告日期', pm.announcementDate) +
-          f('備註', pm.remark);
-
-      case 'yuanta_listed':
-        return f('股本', pm.capital) +
-          f('詢圈/競拍', pm.bidding) +
-          f('TCRI/擔保', pm.guarantee) +
-          f('發行量', pm.issueAmount) +
-          f('生效日', pm.effectiveDate) +
-          f('轉換價', pm.conversionPrice) +
-          f('掛牌日', pm.listingDate) +
-          f('可拆解選擇權日', pm.opDate) +
-          f('備註', pm.remark);
-
-      case 'yuanta_board':
-        return f('股本', pm.capital) +
-          f('詢圈/競拍', pm.bidding) +
-          f('TCRI/擔保', pm.guarantee) +
-          f('發行量', pm.issueAmount) +
-          f('董事會通過', pm.announcementDate) +
-          f('到期日', pm.maturityDate) +
-          f('備註', pm.remark);
-
-      default:
-        return f('TCRI/擔保', pm.guarantee) +
-          f('轉換價', pm.conversionPrice) +
-          f('掛牌日', pm.listingDate);
+    let body = '';
+    if (grp.stage === 'listed') {
+      body =
+        f('股本', capital) + f('TCRI/擔保', tcriGuarantee) +
+        f('發行量(億)', issueAmount) + f('主辦券商', underwriter) +
+        f('賣回條件', putCondition) + f('年期', years) +
+        f('轉換溢價率', premiumRate) + f('轉換價', convPrice) +
+        f('轉換價值', convValue) + f('掛牌日', listingDate) +
+        f('拆解日', opDate) +
+        (remarkHtml ? wide('備註', remarkHtml) : '') +
+        f('詢圈/競拍', polling);
+    } else if (grp.stage === 'effective') {
+      body =
+        f('股本', capital) + f('TCRI/擔保', tcriGuarantee) +
+        f('發行量(億)', issueAmount) + f('主辦券商', underwriter) +
+        f('(暫定)賣回條件', putCondition) + f('年期', years) +
+        f('(暫定)溢價率', premiumRate) +
+        (remarkHtml ? wide('備註', remarkHtml) : '') +
+        f('詢圈/競拍', polling) + f('公告日', announcementDate) +
+        f('送件日', filingDate) + f('預計生效日', effectiveDate);
+    } else { // board
+      body =
+        f('股本', capital) + f('TCRI/擔保', tcriGuarantee) +
+        f('發行量(億)', issueAmount) + f('主辦券商', underwriter) +
+        f('(暫定)賣回條件', putCondition) + f('年期', years) +
+        f('(暫定)溢價率', premiumRate) +
+        (remarkHtml ? wide('備註', remarkHtml) : '') +
+        f('詢圈/競拍', polling) + f('公告日', announcementDate);
     }
+
+    return `<div class="cb-card">
+      <div class="cb-card-header">
+        <span class="cb-code">${grp.cbCode}</span>
+        <span class="cb-name">${grp.cbName}</span>
+        <span class="cb-type">${PM_STAGE_LABEL[grp.stage]}</span>
+      </div>
+      <div class="info-grid info-grid-sm">${body}</div>
+    </div>`;
   }
 
   function buildInstInfoHTML(stock) {

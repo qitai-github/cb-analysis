@@ -241,66 +241,167 @@ def _clean_str(v: Any) -> Optional[str]:
 
 
 # ── 解析:預計發行CB資料 ─────────────────────────────────────────────
-def parse_planned(blob: bytes) -> list[dict]:
+def parse_planned(blob: bytes) -> tuple[list[dict], list[dict]]:
+    """回傳 (events, primary_entries)。
+
+    events           — 日期事件 (issue/aso/board/詢圈/競拍 range)
+    primary_entries  — 三分頁的完整結構,給前端「初級市場資訊」當主來源
+                       (CBAS 為主、元大/富邦 補殘缺欄位)
+    """
     from openpyxl import load_workbook
 
     # 不用 read_only:統一匯出的 xlsx 缺 dimension metadata,
     # read_only 模式會誤判成只有 1 列
     wb = load_workbook(io.BytesIO(blob), data_only=True)
     events: list[dict] = []
+    primary: list[dict] = []
 
-    # 近期掛牌:掛牌日(issue) + 拆解日(aso) + 詢圈/競拍(range)
+    # 近期掛牌
     if "近期掛牌" in wb.sheetnames:
         rows = list(wb["近期掛牌"].iter_rows(values_only=True))
         if rows:
             h = _header_map(rows[0])
-            c_code = h.get("CB代號", 1)
-            c_name = h.get("CB名稱", 2)
-            c_list = h.get("掛牌日")
-            c_aso = h.get("拆解日")
-            c_period = h.get("詢圈/競拍")
             for row in rows[1:]:
-                code = str(_cell(row, c_code) or "").strip()
+                code = str(_cell(row, h.get("CB代號", 1)) or "").strip()
                 if not _valid_cb(code):
                     continue
-                name = str(_cell(row, c_name) or "").strip()
-                list_iso = _to_iso(_cell(row, c_list))
+                name = str(_cell(row, h.get("CB名稱", 2)) or "").strip()
+                list_iso = _to_iso(_cell(row, h.get("掛牌日")))
+                aso_iso = _to_iso(_cell(row, h.get("拆解日")))
+                period_raw = _cell(row, h.get("詢圈/競拍"))
+
                 if list_iso:
                     events.append({"date": list_iso, "type": "issue",
                                    "cbCode": code, "cbName": name})
-                aso_iso = _to_iso(_cell(row, c_aso))
                 if aso_iso:
                     events.append({"date": aso_iso, "type": "aso",
                                    "cbCode": code, "cbName": name})
-                period = _parse_period(_cell(row, c_period), list_iso)
+                period = _parse_period(period_raw, list_iso)
                 if period:
                     events.append({"date": period["start"],
                                    "endDate": period["end"],
                                    "type": period["type"],
                                    "cbCode": code, "cbName": name})
 
-    # 近期生效 + 董事會公告:公告日(board)
-    for sheet_name in ("近期生效", "董事會公告"):
-        if sheet_name not in wb.sheetnames:
-            continue
-        rows = list(wb[sheet_name].iter_rows(values_only=True))
-        if not rows:
-            continue
-        h = _header_map(rows[0])
-        c_code = h.get("CB代號", 1)
-        c_name = h.get("CB名稱", 2)
-        c_board = h.get("公告日")
-        for row in rows[1:]:
-            code = str(_cell(row, c_code) or "").strip()
-            if not _valid_cb(code):
-                continue
-            name = str(_cell(row, c_name) or "").strip()
-            board_iso = _to_iso(_cell(row, c_board))
-            if board_iso:
-                events.append({"date": board_iso, "type": "board",
-                               "cbCode": code, "cbName": name})
+                entry: dict[str, Any] = {
+                    "section": "cbas_listed", "cbCode": code, "cbName": name,
+                    "stockCode": _extract_stock4(
+                        _cell(row, h.get("代號", 0)), code),
+                }
+                _put_if(entry, "tcriGuarantee",
+                        _clean_str(_cell(row, h.get("TCRI/擔保"))))
+                _put_if(entry, "issueAmount",
+                        _num(_cell(row, h.get("發行量(億)"))))
+                _put_if(entry, "underwriter",
+                        _clean_str(_cell(row, h.get("主辦券商"))))
+                _put_if(entry, "putCondition",
+                        _clean_str(_cell(row, h.get("賣回條件"))))
+                _put_if(entry, "years",
+                        _clean_str(_cell(row, h.get("年期"))))
+                _put_if(entry, "premiumRate",
+                        _clean_str(_cell(row, h.get("轉換溢價率"))))
+                _put_if(entry, "convPrice",
+                        _num(_cell(row, h.get("轉換價"))))
+                _put_if(entry, "convValue",
+                        _num(_cell(row, h.get("轉換價值"))))
+                _put_if(entry, "listingDate", list_iso)
+                _put_if(entry, "opDate", aso_iso)
+                _put_if(entry, "remark",
+                        _clean_str(_cell(row, h.get("備註"))))
+                _put_if(entry, "polling", _clean_str(period_raw))
+                primary.append(entry)
 
-    return events
+    # 近期生效
+    if "近期生效" in wb.sheetnames:
+        rows = list(wb["近期生效"].iter_rows(values_only=True))
+        if rows:
+            h = _header_map(rows[0])
+            for row in rows[1:]:
+                code = str(_cell(row, h.get("CB代號", 1)) or "").strip()
+                if not _valid_cb(code):
+                    continue
+                name = str(_cell(row, h.get("CB名稱", 2)) or "").strip()
+                board_iso = _to_iso(_cell(row, h.get("公告日")))
+                if board_iso:
+                    events.append({"date": board_iso, "type": "board",
+                                   "cbCode": code, "cbName": name})
+
+                entry: dict[str, Any] = {
+                    "section": "cbas_effective", "cbCode": code, "cbName": name,
+                    "stockCode": _extract_stock4(
+                        _cell(row, h.get("代號", 0)), code),
+                }
+                _put_if(entry, "tcriGuarantee",
+                        _clean_str(_cell(row, h.get("TCRI/擔保"))))
+                _put_if(entry, "issueAmount",
+                        _num(_cell(row, h.get("發行量(億)"))))
+                _put_if(entry, "underwriter",
+                        _clean_str(_cell(row, h.get("主辦券商"))))
+                _put_if(entry, "putCondition",
+                        _clean_str(_cell(row, h.get("(暫定)賣回條件"))))
+                _put_if(entry, "years",
+                        _clean_str(_cell(row, h.get("年期"))))
+                _put_if(entry, "premiumRate",
+                        _clean_str(_cell(row, h.get("(暫定)溢價率"))))
+                _put_if(entry, "remark",
+                        _clean_str(_cell(row, h.get("備註"))))
+                _put_if(entry, "polling",
+                        _clean_str(_cell(row, h.get("詢圈/競拍"))))
+                _put_if(entry, "announcementDate", board_iso)
+                _put_if(entry, "filingDate",
+                        _to_iso(_cell(row, h.get("送件日"))))
+                _put_if(entry, "effectiveDate",
+                        _to_iso(_cell(row, h.get("預計生效日"))))
+                primary.append(entry)
+
+    # 董事會公告
+    if "董事會公告" in wb.sheetnames:
+        rows = list(wb["董事會公告"].iter_rows(values_only=True))
+        if rows:
+            h = _header_map(rows[0])
+            for row in rows[1:]:
+                code = str(_cell(row, h.get("CB代號", 1)) or "").strip()
+                if not _valid_cb(code):
+                    continue
+                name = str(_cell(row, h.get("CB名稱", 2)) or "").strip()
+                board_iso = _to_iso(_cell(row, h.get("公告日")))
+                if board_iso:
+                    events.append({"date": board_iso, "type": "board",
+                                   "cbCode": code, "cbName": name})
+
+                entry: dict[str, Any] = {
+                    "section": "cbas_board", "cbCode": code, "cbName": name,
+                    "stockCode": _extract_stock4(
+                        _cell(row, h.get("代號", 0)), code),
+                }
+                _put_if(entry, "tcriGuarantee",
+                        _clean_str(_cell(row, h.get("TCRI/擔保"))))
+                _put_if(entry, "issueAmount",
+                        _num(_cell(row, h.get("發行量(億)"))))
+                _put_if(entry, "underwriter",
+                        _clean_str(_cell(row, h.get("主辦券商"))))
+                _put_if(entry, "putCondition",
+                        _clean_str(_cell(row, h.get("(暫定)賣回條件"))))
+                _put_if(entry, "years",
+                        _clean_str(_cell(row, h.get("年期"))))
+                _put_if(entry, "premiumRate",
+                        _clean_str(_cell(row, h.get("(暫定)溢價率"))))
+                _put_if(entry, "remark",
+                        _clean_str(_cell(row, h.get("備註"))))
+                _put_if(entry, "polling",
+                        _clean_str(_cell(row, h.get("詢圈/競拍"))))
+                _put_if(entry, "announcementDate", board_iso)
+                primary.append(entry)
+
+    return events, primary
+
+
+def _extract_stock4(stock_cell: Any, cb_code: str) -> str:
+    """優先用「代號」欄,空就退回 CB 代號前 4 碼。"""
+    s = str(stock_cell or "").strip()
+    if s.isdigit() and len(s) >= 4:
+        return s[:4]
+    return cb_code[:4] if len(cb_code) >= 4 else cb_code
 
 
 def _dedup(events: list[dict]) -> list[dict]:
@@ -409,9 +510,11 @@ def fetch_and_parse(folder_id: str = DEFAULT_FOLDER_ID) -> dict[str, Any]:
         date_str, issued_blob, planned_blob = fetch_latest_pair(folder_id)
         source = "drive"
     issued_events, issued_info = parse_issued(issued_blob)
-    events = issued_events + parse_planned(planned_blob)
+    planned_events, planned_primary = parse_planned(planned_blob)
+    events = issued_events + planned_events
     return {"reportDate": date_str, "events": _dedup(events),
-            "issuedInfo": issued_info, "source": source}
+            "issuedInfo": issued_info, "plannedPrimary": planned_primary,
+            "source": source}
 
 
 # ── Smoke test (走 API,不需任何憑證) ────────────────────────────────
@@ -419,10 +522,14 @@ def _smoke() -> int:
     result = fetch_and_parse()
     events = result["events"]
     info = result.get("issuedInfo") or {}
+    primary = result.get("plannedPrimary") or []
     print(f"source={result['source']}  reportDate={result['reportDate']}  "
-          f"events={len(events)}  issuedInfo={len(info)}")
-    if "36806" in info:
-        print(f"  36806 issuedInfo: {info['36806']}")
+          f"events={len(events)}  issuedInfo={len(info)}  "
+          f"plannedPrimary={len(primary)}")
+    # 範例:47491 三個分頁的內容
+    for p in primary:
+        if p.get("cbCode") == "47491":
+            print(f"  {p['section']} 47491: {p}")
     from collections import Counter
     for t, n in Counter(e["type"] for e in events).most_common():
         print(f"  {t:14s} {n}")

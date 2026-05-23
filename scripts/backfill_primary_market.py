@@ -57,12 +57,25 @@ def _load_env() -> None:
 _load_env()
 
 from lib import drive  # noqa: E402
-from parsers import stock_inst, stock_price  # noqa: E402
+from parsers import margin_trading, stock_inst, stock_price  # noqa: E402
+import fetch_stocks  # noqa: E402  (拿 SOURCE_RULES + fetch_source 做 scrape fallback)
+
+# TPEx 憑證偶爾缺 Subject Key Identifier 害 SSL handshake 失敗 + 30 秒 retry。
+# 只在 backfill 走 scrape 時放寬,Drive API 不走 requests 不受影響。
+import requests as _req  # noqa: E402
+import urllib3 as _ul3  # noqa: E402
+_ul3.disable_warnings(_ul3.exceptions.InsecureRequestWarning)
+_orig_request = _req.Session.request
+def _request_no_verify(self, method, url, **kw):
+    kw.setdefault("verify", False)
+    return _orig_request(self, method, url, **kw)
+_req.Session.request = _request_no_verify
 
 REPO_ROOT = SCRIPTS_DIR.parent
 DATA_JSON = REPO_ROOT / "data" / "all-data.json"
 
-# 每個 timeseries 對應的多個 (folder_key, parser, market, filename_tpl)
+# 每個 timeseries 對應的多個 (folder_key, parser, market, filename_tpl[, scrape_key])
+# scrape_key 有設 → Drive miss 時自動 fallback 去 fetch_stocks.SOURCE_RULES 那邊直接爬。
 SOURCES: dict[str, list[dict[str, Any]]] = {
     "stockTrading": [
         {"folder": "STOCK_PRICE_TWSE", "parser": stock_price,
@@ -75,6 +88,15 @@ SOURCES: dict[str, list[dict[str, Any]]] = {
          "market": "TWSE", "filename": "TWSE_T86_{date}.csv"},
         {"folder": "STOCK_INST_TPEX", "parser": stock_inst,
          "market": "TPEX", "filename": "TPEx_T86_{date}.csv"},
+    ],
+    "marginTrading": [
+        # 融資融券 Drive 只有最近 ~2 週,其餘走 fetch_stocks 直接爬 TWSE/TPEx
+        {"folder": "MARGIN_TWSE", "parser": margin_trading,
+         "market": "TWSE", "filename": "MI_MARGN_STOCK_{date}.csv",
+         "scrape_key": "MARGIN_TWSE"},
+        {"folder": "MARGIN_TPEX", "parser": margin_trading,
+         "market": "TPEX", "filename": "RSTA3106_{date}.csv",
+         "scrape_key": "MARGIN_TPEX"},
     ],
 }
 
@@ -180,14 +202,27 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
 
         for src in sources:
             folder_id = folder_map.get(src["folder"])
-            if not folder_id:
-                continue
-            fname = src["filename"].format(date=date)
-            try:
-                blob = drive.download(folder_id, fname)
-            except Exception as e:  # noqa: BLE001
-                fail_dates.append((date, str(e)[:40]))
-                continue
+            blob = None
+            # 1) 先試 Drive
+            if folder_id:
+                fname = src["filename"].format(date=date)
+                try:
+                    blob = drive.download(folder_id, fname)
+                except Exception as e:  # noqa: BLE001
+                    fail_dates.append((date, f"drive: {str(e)[:40]}"))
+
+            # 2) Drive 沒檔 + scrape_key 有設 → 直接爬 TWSE/TPEx
+            if blob is None and src.get("scrape_key"):
+                rule = fetch_stocks.SOURCE_RULES[src["scrape_key"]]
+                try:
+                    raw = fetch_stocks.fetch_source(rule, date)
+                except Exception as e:  # noqa: BLE001
+                    fail_dates.append((date, f"scrape: {str(e)[:40]}"))
+                    continue
+                if raw is None:
+                    continue  # 該日無資料 (假日 / 尚未公布)
+                blob = fetch_stocks.prepare_upload_bytes(rule, raw)
+
             if blob is None:
                 continue
             try:
