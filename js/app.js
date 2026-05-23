@@ -464,13 +464,11 @@ const App = (() => {
       buildCBInstInfoHTML(stock, defaultCB);
 
     setTimeout(() => {
-      Charts.renderPriceChart('detail-price-chart', stock);
       Charts.renderCBPriceChart('detail-cb-price-chart', stock, defaultCB);
-      Charts.renderMarginChart('detail-margin-chart', stock);
     }, 100);
   }
 
-  // 詳情面板標題:股票代號前加追蹤清單星星 (與主表第一欄同款選單)
+  // 詳情面板標題:星星 + 代號名稱 + 技術分析按鈕
   function renderDetailTitle(stock) {
     const titleEl = document.getElementById('detail-title');
     titleEl.innerHTML = '';
@@ -488,7 +486,117 @@ const App = (() => {
     const label = document.createElement('span');
     label.textContent = `${stock.code} ${stock.name}`;
 
-    titleEl.append(star, label);
+    const techBtn = document.createElement('button');
+    techBtn.className = 'btn-tech-analysis';
+    techBtn.type = 'button';
+    techBtn.title = '技術分析 (K線 / 法人 / 融資券)';
+    techBtn.textContent = '技術分析';
+    techBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTechModal();
+    });
+
+    titleEl.append(star, label, techBtn);
+  }
+
+  // ============================================================
+  // 技術分析 Modal
+  // ============================================================
+  let techInstWhich = '外資';
+  let techMarginWhich = '融資';
+
+  function openTechModal() {
+    if (!selectedStock) return;
+    document.getElementById('tech-modal-title').textContent =
+      `${selectedStock.code} ${selectedStock.name} 技術分析`;
+    document.getElementById('tech-modal').classList.add('show');
+
+    // 重設 toggle 為預設 (外資 / 融資)
+    techInstWhich = '外資';
+    techMarginWhich = '融資';
+    syncTechToggle('tech-inst-toggle', techInstWhich);
+    syncTechToggle('tech-margin-toggle', techMarginWhich);
+
+    // 綁定 toggle (用 dataset.bound 避免重複綁)
+    bindTechToggle('tech-inst-toggle', (which) => {
+      techInstWhich = which;
+      renderTechInst();
+    });
+    bindTechToggle('tech-margin-toggle', (which) => {
+      techMarginWhich = which;
+      renderTechMargin();
+    });
+
+    // 等 modal 顯示後 canvas 才有寬高,延遲一拍再畫
+    setTimeout(() => {
+      Charts.renderTechPriceChart('tech-price-chart', selectedStock);
+      renderTechInst();
+      renderTechMargin();
+    }, 50);
+  }
+
+  function renderTechInst() {
+    const meta = Charts.renderTechInstChart('tech-inst-chart', selectedStock, techInstWhich);
+    const metaEl = document.getElementById('tech-inst-meta');
+    if (metaEl) {
+      if (!meta || meta.latest == null) {
+        metaEl.textContent = '';
+      } else {
+        const sign = meta.latest > 0 ? '+' : '';
+        const cum = meta.cumulative != null ? meta.cumulative.toLocaleString() : '-';
+        metaEl.innerHTML =
+          `買賣超 <strong class="${cc(meta.latest)}">${sign}${meta.latest.toLocaleString()}張</strong>` +
+          ` &middot; 累積 <strong>${cum}張</strong>`;
+      }
+    }
+  }
+
+  function renderTechMargin() {
+    const meta = Charts.renderTechMarginChart('tech-margin-chart', selectedStock, techMarginWhich);
+    const metaEl = document.getElementById('tech-margin-meta');
+    if (metaEl) {
+      if (!meta || (meta.latestChange == null && meta.latestBalance == null)) {
+        metaEl.textContent = '';
+      } else {
+        const c = meta.latestChange;
+        const b = meta.latestBalance;
+        const sign = (c != null && c > 0) ? '+' : '';
+        const chgHtml = c != null
+          ? `<strong class="${cc(c)}">${sign}${c.toLocaleString()}張</strong>`
+          : '-';
+        const balHtml = b != null ? `<strong>${b.toLocaleString()}張</strong>` : '-';
+        metaEl.innerHTML =
+          `${techMarginWhich}增減 ${chgHtml} &middot; ${techMarginWhich}餘額 ${balHtml}`;
+      }
+    }
+  }
+
+  function bindTechToggle(toggleId, onChange) {
+    const host = document.getElementById(toggleId);
+    if (!host || host.dataset.bound === '1') return;
+    host.dataset.bound = '1';
+    host.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tech-toggle-btn');
+      if (!btn) return;
+      const which = btn.dataset.which;
+      if (!which) return;
+      host.querySelectorAll('.tech-toggle-btn').forEach(b =>
+        b.classList.toggle('active', b === btn));
+      onChange(which);
+    });
+  }
+
+  function syncTechToggle(toggleId, which) {
+    const host = document.getElementById(toggleId);
+    if (!host) return;
+    host.querySelectorAll('.tech-toggle-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.which === which));
+  }
+
+  function closeTechModal(event) {
+    if (event && event.target && event.target.id !== 'tech-modal') return;
+    document.getElementById('tech-modal').classList.remove('show');
+    Charts.destroyTech();
   }
 
   // CB tab 切換 — 同時更新 K 線圖 + 三大法人買賣超表
@@ -1221,7 +1329,12 @@ const App = (() => {
     ETFView.renderColumns('main-table');
   }
 
-  return { init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter, showAuctionModal, closeAuctionModal, switchTab, showDetail, selectCBTab };
+  return {
+    init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter,
+    showAuctionModal, closeAuctionModal,
+    openTechModal, closeTechModal,
+    switchTab, showDetail, selectCBTab
+  };
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);

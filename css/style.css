@@ -1230,6 +1230,110 @@ body {
   border-radius: 4px;
 }
 
+/* === 技術分析 Modal === */
+.btn-tech-analysis {
+  margin-left: 8px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: filter 0.15s;
+}
+.btn-tech-analysis:hover { filter: brightness(1.15); }
+
+.tech-modal-content {
+  max-width: 860px;
+  width: 100%;
+}
+
+.tech-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.tech-chart-block {
+  background: rgba(15,23,42,0.5);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+
+.tech-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  min-height: 26px;
+}
+
+.tech-chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+}
+
+.tech-chart-meta {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.tech-chart-container {
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  height: 200px;
+}
+
+.tech-chart-container.tech-chart-tall {
+  height: 280px;
+}
+
+.tech-toggle {
+  display: inline-flex;
+  background: rgba(30,41,59,0.6);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tech-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tech-toggle-btn + .tech-toggle-btn {
+  border-left: 1px solid var(--border-light);
+}
+
+.tech-toggle-btn:hover { color: var(--text); }
+
+.tech-toggle-btn.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .tech-modal-content { max-width: 100%; }
+  .tech-chart-container { height: 180px; }
+  .tech-chart-container.tech-chart-tall { height: 240px; }
+}
+
 /* === ETF 7-欄佈局 === */
 .etf-columns-wrapper {
   display: grid;

@@ -51,13 +51,10 @@
       <button class="detail-close" onclick="App.closeDetail()">&times;</button>
     </div>
 
-    <!-- 1. 股價資訊 + 2. 個股K線 -->
+    <!-- 1. 股價資訊 -->
     <div class="detail-section">
       <h3>股價資訊</h3>
       <div id="detail-price-info"></div>
-      <div class="chart-container">
-        <canvas id="detail-price-chart"></canvas>
-      </div>
     </div>
 
     <!-- 3. 個股三大法人 -->
@@ -70,9 +67,6 @@
     <div class="detail-section">
       <h3>融資融券</h3>
       <div id="detail-margin-info"></div>
-      <div class="chart-container">
-        <canvas id="detail-margin-chart"></canvas>
-      </div>
     </div>
 
     <!-- 4. CB 資訊 + 5. CB K線 -->
@@ -95,6 +89,53 @@
     <div class="detail-section">
       <h3>新聞資訊</h3>
       <div id="detail-news-info"></div>
+    </div>
+  </div>
+
+  <!-- 技術分析 Modal -->
+  <div class="auction-modal" id="tech-modal" onclick="App.closeTechModal(event)">
+    <div class="auction-modal-content tech-modal-content" onclick="event.stopPropagation()">
+      <div class="auction-modal-header">
+        <div class="auction-modal-title" id="tech-modal-title"></div>
+        <button class="detail-close" onclick="App.closeTechModal()">&times;</button>
+      </div>
+      <div class="auction-modal-body tech-modal-body">
+        <div class="tech-chart-block">
+          <div class="tech-chart-head">
+            <span class="tech-chart-title">K 線 / 量能</span>
+          </div>
+          <div class="chart-container tech-chart-container tech-chart-tall">
+            <canvas id="tech-price-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="tech-chart-block">
+          <div class="tech-chart-head">
+            <div class="tech-toggle" id="tech-inst-toggle">
+              <button class="tech-toggle-btn active" data-which="外資">外資</button>
+              <button class="tech-toggle-btn" data-which="投信">投信</button>
+              <button class="tech-toggle-btn" data-which="自營商">自營商</button>
+            </div>
+            <span class="tech-chart-meta" id="tech-inst-meta"></span>
+          </div>
+          <div class="chart-container tech-chart-container">
+            <canvas id="tech-inst-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="tech-chart-block">
+          <div class="tech-chart-head">
+            <div class="tech-toggle" id="tech-margin-toggle">
+              <button class="tech-toggle-btn active" data-which="融資">融資</button>
+              <button class="tech-toggle-btn" data-which="融券">融券</button>
+            </div>
+            <span class="tech-chart-meta" id="tech-margin-meta"></span>
+          </div>
+          <div class="chart-container tech-chart-container">
+            <canvas id="tech-margin-chart"></canvas>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

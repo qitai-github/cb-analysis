@@ -5,6 +5,9 @@ const Charts = (() => {
   let cbPriceChart = null;
   let cbInstChart = null;
   let marginChart = null;
+  let techPriceChart = null;
+  let techInstChart = null;
+  let techMarginChart = null;
 
   /**
    * 計算移動平均線陣列
@@ -555,13 +558,371 @@ const Charts = (() => {
     return dateStr.substring(4, 6) + '/' + dateStr.substring(6, 8);
   }
 
+  // ============================================================
+  // 技術分析 Modal 專用圖表
+  // ============================================================
+
+  /** Modal K 線:結構同 renderPriceChart,僅換 canvasId + chart 變數 */
+  function renderTechPriceChart(canvasId, stock) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (techPriceChart) { techPriceChart.destroy(); techPriceChart = null; }
+
+    const dates = stock.tradingDates || [];
+    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const labels = recentDates.map(d => formatDateLabel(d));
+
+    const openData = recentDates.map(d => stock.trading['開盤價']?.[d] ?? null);
+    const highData = recentDates.map(d => stock.trading['最高價']?.[d] ?? null);
+    const lowData = recentDates.map(d => stock.trading['最低價']?.[d] ?? null);
+    const closeData = recentDates.map(d => stock.trading['收盤價']?.[d] ?? null);
+    const volumeData = recentDates.map(d => {
+      const raw = stock.trading['成交股數']?.[d] ?? null;
+      return raw != null ? Math.round(raw / 1000) : null;
+    });
+
+    const volumeColors = recentDates.map((d, i) => {
+      const o = openData[i], c = closeData[i];
+      if (o == null || c == null) return 'rgba(148,163,184,0.4)';
+      return c >= o ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)';
+    });
+
+    const ma5Data = calcMAArray(closeData, 5);
+    const ma10Data = calcMAArray(closeData, 10);
+    const ma20Data = calcMAArray(closeData, 20);
+
+    const allPrices = [...highData, ...lowData, ...ma5Data, ...ma10Data, ...ma20Data].filter(v => v != null);
+    const priceMin = allPrices.length > 0 ? Math.min(...allPrices) * 0.995 : 0;
+    const priceMax = allPrices.length > 0 ? Math.max(...allPrices) * 1.005 : 100;
+
+    const candlestickPlugin = {
+      id: 'techCandlestick',
+      afterDatasetsDraw(chart) {
+        const ctx = chart.ctx;
+        const xScale = chart.scales.x;
+        const yPrice = chart.scales.yPrice;
+        if (!yPrice) return;
+        const barWidth = Math.max(3, Math.min(12, (chart.chartArea.width / recentDates.length) * 0.4));
+        ctx.save();
+        for (let i = 0; i < recentDates.length; i++) {
+          const o = openData[i], h = highData[i], l = lowData[i], c = closeData[i];
+          if (o == null || h == null || l == null || c == null) continue;
+          const x = xScale.getPixelForValue(i);
+          const yOpen = yPrice.getPixelForValue(o);
+          const yHigh = yPrice.getPixelForValue(h);
+          const yLow = yPrice.getPixelForValue(l);
+          const yClose = yPrice.getPixelForValue(c);
+          const isUp = c >= o;
+          const color = isUp ? APP_CONFIG.colors.up : APP_CONFIG.colors.down;
+          ctx.beginPath();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.moveTo(x, yHigh);
+          ctx.lineTo(x, yLow);
+          ctx.stroke();
+          const bodyTop = Math.min(yOpen, yClose);
+          const bodyHeight = Math.abs(yOpen - yClose) || 1;
+          ctx.fillStyle = color;
+          ctx.fillRect(x - barWidth, bodyTop, barWidth * 2, bodyHeight);
+        }
+        ctx.restore();
+      }
+    };
+
+    techPriceChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { type: 'line', label: 'MA5',  data: ma5Data,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA10', data: ma10Data, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA20', data: ma20Data, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'bar',  label: '成交量', data: volumeData, backgroundColor: volumeColors, yAxisID: 'yVolume', order: 3, barPercentage: 0.6 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              afterTitle: (items) => {
+                if (!items.length) return '';
+                const i = items[0].dataIndex;
+                const o = openData[i], h = highData[i], l = lowData[i], c = closeData[i];
+                if (o == null) return '';
+                return `開:${o.toFixed(2)}  高:${h.toFixed(2)}  低:${l.toFixed(2)}  收:${c.toFixed(2)}`;
+              },
+              label: (ctx) => {
+                if (ctx.dataset.label === '成交量') return `成交量: ${Number(ctx.raw).toLocaleString()} 張`;
+                return `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yPrice: { position: 'left', min: priceMin, max: priceMax, ticks: { color: APP_CONFIG.colors.text }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yVolume: {
+            position: 'right',
+            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
+            grid: { display: false },
+            max: (Math.max(...volumeData.filter(v => v != null && v > 0)) || 1) * 3
+          }
+        }
+      },
+      plugins: [candlestickPlugin]
+    });
+  }
+
+  /**
+   * Modal 法人圖:外資 / 投信 / 自營商 (擇一)
+   *   bar  = 當日買賣超 (張)
+   *   line = 累積買賣超 (張) — 持股趨勢
+   * @param {string} which '外資' | '投信' | '自營商'
+   * @returns {{latest:number|null, cumulative:number|null}}
+   */
+  function renderTechInstChart(canvasId, stock, which) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return { latest: null, cumulative: null };
+    if (techInstChart) { techInstChart.destroy(); techInstChart = null; }
+
+    const dates = stock.institutionalDates || [];
+    if (!stock.institutional || dates.length === 0) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = APP_CONFIG.colors.textMuted;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('無法人買賣超資料', canvas.width / 2, canvas.height / 2);
+      return { latest: null, cumulative: null };
+    }
+
+    const key = which + '買賣超';
+    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const labels = recentDates.map(d => formatDateLabel(d));
+    const toLots = v => v != null ? Math.round(v / 1000) : null;
+
+    // 累積:從整段歷史 ( 不只 recent ) 算,line 才有合理的位移
+    let runningTotal = 0;
+    for (let i = 0; i < dates.length - recentDates.length; i++) {
+      const v = toLots(stock.institutional[key]?.[dates[i]] ?? null);
+      if (v != null) runningTotal += v;
+    }
+    const recentValues = recentDates.map(d => toLots(stock.institutional[key]?.[d] ?? null));
+    const cumulative = [];
+    let acc = runningTotal;
+    for (const v of recentValues) {
+      if (v != null) acc += v;
+      cumulative.push(acc);
+    }
+
+    const colorMap = {
+      '外資':   { bar: 'rgba(34,197,94,0.7)',  line: 'rgba(34,197,94,1)' },
+      '投信':   { bar: 'rgba(251,146,60,0.7)', line: 'rgba(251,146,60,1)' },
+      '自營商': { bar: 'rgba(168,85,247,0.7)', line: 'rgba(168,85,247,1)' }
+    };
+    const col = colorMap[which] || colorMap['外資'];
+
+    const barColors = recentValues.map(v => v == null
+      ? 'rgba(148,163,184,0.4)'
+      : (v >= 0 ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.7)'));
+
+    techInstChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: which + '買賣超(張)',
+            data: recentValues,
+            backgroundColor: barColors,
+            borderWidth: 0,
+            yAxisID: 'yBar',
+            order: 3
+          },
+          {
+            type: 'line',
+            label: '累積持股(張)',
+            data: cumulative,
+            borderColor: col.line,
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            yAxisID: 'yLine',
+            order: 1,
+            tension: 0.15
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.raw;
+                if (v == null) return `${ctx.dataset.label}: -`;
+                const sign = ctx.dataset.label.includes('買賣超') && v > 0 ? '+' : '';
+                return `${ctx.dataset.label}: ${sign}${Number(v).toLocaleString()} 張`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          },
+          yBar: {
+            position: 'left',
+            ticks: { color: APP_CONFIG.colors.text, callback: v => v.toLocaleString() },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          },
+          yLine: {
+            position: 'right',
+            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+
+    const latest = recentValues.length ? recentValues[recentValues.length - 1] : null;
+    const cumLatest = cumulative.length ? cumulative[cumulative.length - 1] : null;
+    return { latest, cumulative: cumLatest };
+  }
+
+  /**
+   * Modal 融資/融券圖
+   *   bar  = 融資增減 / 融券增減 (張)
+   *   line = 融資餘額 / 融券餘額 (張)
+   * @param {string} which '融資' | '融券'
+   * @returns {{latestChange:number|null, latestBalance:number|null}}
+   */
+  function renderTechMarginChart(canvasId, stock, which) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return { latestChange: null, latestBalance: null };
+    if (techMarginChart) { techMarginChart.destroy(); techMarginChart = null; }
+
+    const dates = stock.marginDates || [];
+    if (!stock.margin || dates.length === 0) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = APP_CONFIG.colors.textMuted;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('無融資融券資料', canvas.width / 2, canvas.height / 2);
+      return { latestChange: null, latestBalance: null };
+    }
+
+    const changeKey = which + '增減';
+    const balanceKey = which + '餘額';
+    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const labels = recentDates.map(d => formatDateLabel(d));
+    const changeData  = recentDates.map(d => stock.margin[changeKey]?.[d] ?? null);
+    const balanceData = recentDates.map(d => stock.margin[balanceKey]?.[d] ?? null);
+
+    const lineColor = which === '融資' ? 'rgba(239,68,68,1)' : 'rgba(34,197,94,1)';
+    const barColors = changeData.map(v => v == null
+      ? 'rgba(148,163,184,0.4)'
+      : (v >= 0 ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.7)'));
+
+    techMarginChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: changeKey + '(張)',
+            data: changeData,
+            backgroundColor: barColors,
+            borderWidth: 0,
+            yAxisID: 'yBar',
+            order: 3
+          },
+          {
+            type: 'line',
+            label: balanceKey + '(張)',
+            data: balanceData,
+            borderColor: lineColor,
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            yAxisID: 'yLine',
+            order: 1,
+            tension: 0.15
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.raw;
+                if (v == null) return `${ctx.dataset.label}: -`;
+                const sign = ctx.dataset.label.includes('增減') && v > 0 ? '+' : '';
+                return `${ctx.dataset.label}: ${sign}${Number(v).toLocaleString()} 張`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          },
+          yBar: {
+            position: 'left',
+            ticks: { color: APP_CONFIG.colors.text, callback: v => v.toLocaleString() },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          },
+          yLine: {
+            position: 'right',
+            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+
+    const latestChange = changeData.length ? changeData[changeData.length - 1] : null;
+    const latestBalance = balanceData.length ? balanceData[balanceData.length - 1] : null;
+    return { latestChange, latestBalance };
+  }
+
+  function destroyTech() {
+    if (techPriceChart)  { techPriceChart.destroy();  techPriceChart = null; }
+    if (techInstChart)   { techInstChart.destroy();   techInstChart = null; }
+    if (techMarginChart) { techMarginChart.destroy(); techMarginChart = null; }
+  }
+
   function destroy() {
     if (priceChart) { priceChart.destroy(); priceChart = null; }
     if (instChart) { instChart.destroy(); instChart = null; }
     if (cbPriceChart) { cbPriceChart.destroy(); cbPriceChart = null; }
     if (cbInstChart) { cbInstChart.destroy(); cbInstChart = null; }
     if (marginChart) { marginChart.destroy(); marginChart = null; }
+    destroyTech();
   }
 
-  return { renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, renderMarginChart, destroy };
+  return {
+    renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, renderMarginChart,
+    renderTechPriceChart, renderTechInstChart, renderTechMarginChart, destroyTech,
+    destroy
+  };
 })();
