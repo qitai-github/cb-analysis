@@ -748,17 +748,41 @@ const App = (() => {
       (stock.cbs || []).filter(c => c.close != null && c.cbCode).map(c => c.cbCode)
     );
 
-    // 每檔 CB 只留「最新階段」一張卡 (listed > effective > board);
-    // 例:同檔同時在三分頁中出現 → 只顯示近期掛牌
+    // 每檔 CB 只留一張卡。階段優先序 listed > effective > board,
+    // 但「CBAS 分類權威最高」:CBAS 有給 stage 就用 CBAS 的
+    // (fubon/yuanta 在 Google Sheet 上偶有 section 邊界錯,例如 30285
+    //  增你強五其實是董事會公告,卻被 fubon 排到 fubon_listed)。
+    // 同 CBAS 內若多個 stage (理論不會) 才用 PRIORITY 取最高。
     const PRIORITY = { listed: 0, effective: 1, board: 2 };
-    const topStageOfCB = new Map();
+    const cbasStageOfCB = new Map();
+    const otherStagesOfCB = new Map();
     for (const pm of (stock.primaryMarket || [])) {
       if (!pm || listedCBs.has(pm.cbCode)) continue;
       const stage = PM_STAGE_OF[pm.section];
       if (!stage) continue;
-      const prev = topStageOfCB.get(pm.cbCode);
-      if (prev == null || PRIORITY[stage] < PRIORITY[prev]) {
-        topStageOfCB.set(pm.cbCode, stage);
+      const isCbas = String(pm.section || '').startsWith('cbas_');
+      if (isCbas) {
+        const prev = cbasStageOfCB.get(pm.cbCode);
+        if (prev == null || PRIORITY[stage] < PRIORITY[prev]) {
+          cbasStageOfCB.set(pm.cbCode, stage);
+        }
+      } else {
+        if (!otherStagesOfCB.has(pm.cbCode)) otherStagesOfCB.set(pm.cbCode, []);
+        otherStagesOfCB.get(pm.cbCode).push(stage);
+      }
+    }
+    const topStageOfCB = new Map();
+    const allCBs = new Set([...cbasStageOfCB.keys(), ...otherStagesOfCB.keys()]);
+    for (const cb of allCBs) {
+      if (cbasStageOfCB.has(cb)) {
+        topStageOfCB.set(cb, cbasStageOfCB.get(cb));
+      } else {
+        const stages = otherStagesOfCB.get(cb) || [];
+        let best = null, bestP = 99;
+        for (const s of stages) {
+          if (PRIORITY[s] < bestP) { best = s; bestP = PRIORITY[s]; }
+        }
+        if (best) topStageOfCB.set(cb, best);
       }
     }
 

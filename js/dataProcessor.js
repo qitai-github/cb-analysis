@@ -154,13 +154,32 @@ const DataProcessor = (() => {
   function parseFubonPrimary(rawData) {
     if (!rawData || rawData.length < 4) return [];
 
-    // 用表頭列的獨特關鍵字來區分三個區段
-    // 順序很重要: OP交易 先匹配 (避免賣回條件也匹配到 listed 表頭)
-    const sections = detectSections(rawData, [
-      { keyword: 'OP交易', name: 'fubon_listed' },
-      { keyword: '賣回條件', name: 'fubon_filing' },
-      { keyword: '公告日期', name: 'fubon_board' }
-    ]);
+    // 富邦三個 section (已掛牌 / 送件中 / 董事會通過) 的欄位標頭都是
+    // 「主辦承銷商」,沒辦法用單一 keyword 區分;但 fubon_board 標頭多
+    // 一欄「產業別」可以辨識,前兩個按出現順序分。
+    const headers = [];
+    for (let i = 0; i < rawData.length; i++) {
+      const row = rawData[i] || [];
+      const text = row.map(c => String(c || '').trim()).join('|');
+      if (text.includes('主辦承銷商')) {
+        headers.push({ row: i, hasIndustry: text.includes('產業別') });
+      }
+    }
+    const sections = [];
+    let listedRow = -1, filingRow = -1, boardRow = -1;
+    for (const h of headers) {
+      if (h.hasIndustry) { if (boardRow < 0) boardRow = h.row; }
+      else if (listedRow < 0) listedRow = h.row;
+      else if (filingRow < 0) filingRow = h.row;
+    }
+    if (listedRow >= 0) sections.push({ title: 'fubon_listed', keywordRow: listedRow });
+    if (filingRow >= 0) sections.push({ title: 'fubon_filing', keywordRow: filingRow });
+    if (boardRow >= 0)  sections.push({ title: 'fubon_board',  keywordRow: boardRow });
+    sections.sort((a, b) => a.keywordRow - b.keywordRow);
+    for (let i = 0; i < sections.length; i++) {
+      sections[i].endRow = (i + 1 < sections.length)
+        ? sections[i + 1].keywordRow : rawData.length;
+    }
 
     // 若未偵測到任何區段，嘗試舊邏輯 (向下相容)
     if (sections.length === 0) {
@@ -185,40 +204,41 @@ const DataProcessor = (() => {
         };
 
         if (sec.title === 'fubon_listed') {
-          // A:標的代號 B:發行標的 C:發行期間(年) D:發行金額(億)
-          // E:賣回條件 F:溢價率 G:承銷商 H:TCRI/擔保 I:詢圈/競拍
-          // J:掛牌日 K:轉換價 L:可拆解選擇權日 M:比例 N:備註
+          // C:年期 D:發行量(億) F:轉換溢價率 G:主辦承銷商 H:TCRI/擔保
+          // I:詢圈/競拍 J:掛牌日 L:拆解日 N:備註
+          item.years = parseNumber(row[2]);
           item.issueAmount = parseNumber(row[3]);
+          item.premium = parseNumber(row[5]);
+          item.premiumRate = String(row[5] || '').trim();  // 有時是文字
+          item.underwriter = String(row[6] || '').trim();
           item.guarantee = String(row[7] || '').trim();
           item.bidding = String(row[8] || '').trim();
-          item.premium = parseNumber(row[5]);
-          item.conversionPrice = parseNumber(row[10]);
           item.listingDate = String(row[9] || '').trim();
           item.opDate = String(row[11] || '').trim();
           item.remark = String(row[13] || '').trim();
         } else if (sec.title === 'fubon_filing') {
-          // A:標的代號 B:發行標的 C:發行期間(年) D:發行金額(億)
-          // H:TCRI/擔保 I:詢圈/競拍 F:溢價率
-          // J:送件日 K:生效日 L:備註
+          // C:年期 D:發行量(億) F:(暫定)溢價率 (字串範圍) G:主辦承銷商
+          // H:TCRI/擔保 I:詢圈/競拍 J:送件日 K:預計生效日 L:備註
+          item.years = parseNumber(row[2]);
           item.issueAmount = parseNumber(row[3]);
+          item.premium = parseNumber(row[5]);
+          item.premiumRate = String(row[5] || '').trim();
+          item.underwriter = String(row[6] || '').trim();
           item.guarantee = String(row[7] || '').trim();
           item.bidding = String(row[8] || '').trim();
-          item.premium = parseNumber(row[5]);
-          item.years = parseNumber(row[2]);
           item.filingDate = String(row[9] || '').trim();
           item.effectiveDate = String(row[10] || '').trim();
           item.remark = String(row[11] || '').trim();
         } else if (sec.title === 'fubon_board') {
-          // A:標的代號 B:發行標的 C:發行期間(年) D:發行金額(億)
-          // E:公告日期 G:TCRI/擔保 H:詢圈/競拍 I:產業別
-          // J:資本額(億) K:備註
+          // C:年期 D:發行量(億) E:公告日期 F:主辦承銷商
+          // G:TCRI/擔保 H:詢圈/競拍 I:產業別 K:備註
+          item.years = parseNumber(row[2]);
           item.issueAmount = parseNumber(row[3]);
+          item.announcementDate = String(row[4] || '').trim();
+          item.underwriter = String(row[5] || '').trim();
           item.guarantee = String(row[6] || '').trim();
           item.bidding = String(row[7] || '').trim();
-          item.years = parseNumber(row[2]);
           item.industry = String(row[8] || '').trim();
-          item.capital = parseNumber(row[9]);
-          item.announcementDate = String(row[4] || '').trim();
           item.remark = String(row[10] || '').trim();
         }
 
