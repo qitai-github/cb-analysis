@@ -748,12 +748,26 @@ const App = (() => {
       (stock.cbs || []).filter(c => c.close != null && c.cbCode).map(c => c.cbCode)
     );
 
-    // 依 (stage, cbCode) 分組
-    const groups = new Map();
+    // 每檔 CB 只留「最新階段」一張卡 (listed > effective > board);
+    // 例:同檔同時在三分頁中出現 → 只顯示近期掛牌
+    const PRIORITY = { listed: 0, effective: 1, board: 2 };
+    const topStageOfCB = new Map();
     for (const pm of (stock.primaryMarket || [])) {
       if (!pm || listedCBs.has(pm.cbCode)) continue;
       const stage = PM_STAGE_OF[pm.section];
       if (!stage) continue;
+      const prev = topStageOfCB.get(pm.cbCode);
+      if (prev == null || PRIORITY[stage] < PRIORITY[prev]) {
+        topStageOfCB.set(pm.cbCode, stage);
+      }
+    }
+
+    // 分組 (只保留 cbCode 的 top stage)
+    const groups = new Map();
+    for (const pm of (stock.primaryMarket || [])) {
+      if (!pm || listedCBs.has(pm.cbCode)) continue;
+      const stage = PM_STAGE_OF[pm.section];
+      if (!stage || stage !== topStageOfCB.get(pm.cbCode)) continue;
       const key = stage + '|' + pm.cbCode;
       let g = groups.get(key);
       if (!g) {
