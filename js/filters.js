@@ -51,6 +51,31 @@ const Filters = (() => {
       apply: (stock, val) => !val || stock.firstBarSignal === true
     },
 
+    // 狀態 (VCP / 三線開花)
+    hasStatusFlag: {
+      label: '有 VCP / 三線',
+      type: 'checkbox',
+      group: '狀態篩選',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const f = stock.statusFlags;
+        return !!(f && (f.vcp || f.sanxian));
+      }
+    },
+    recentStatusFlag: {
+      label: '新近 VCP / 三線 (≤3 天)',
+      type: 'checkbox',
+      group: '狀態篩選',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const f = stock.statusFlags;
+        if (!f) return false;
+        const vcp = Number(f.vcp?.streak) || 0;
+        const sx  = Number(f.sanxian?.streak) || 0;
+        return (vcp >= 1 && vcp <= 3) || (sx >= 1 && sx <= 3);
+      }
+    },
+
     // 成交量
     volumeMin: {
       label: '成交量 >=',
