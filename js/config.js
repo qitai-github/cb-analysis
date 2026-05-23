@@ -86,6 +86,7 @@ const STATIC_DATA_URL = 'data/all-data.json';
 // 應用程式設定
 const APP_CONFIG = {
   defaultRecentDays: 20,
+  techAnalysisDays: 60,
   institutionalAccumDays: [1, 3, 5, 10, 20, 60, 120, 360],
   cacheExpiry: 15 * 60 * 1000,
   pageSize: 50,

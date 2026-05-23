@@ -569,7 +569,7 @@ const Charts = (() => {
     if (techPriceChart) { techPriceChart.destroy(); techPriceChart = null; }
 
     const dates = stock.tradingDates || [];
-    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const recentDates = dates.slice(-APP_CONFIG.techAnalysisDays);
     const labels = recentDates.map(d => formatDateLabel(d));
 
     const openData = recentDates.map(d => stock.trading['開盤價']?.[d] ?? null);
@@ -701,7 +701,7 @@ const Charts = (() => {
     }
 
     const key = which + '買賣超';
-    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const recentDates = dates.slice(-APP_CONFIG.techAnalysisDays);
     const labels = recentDates.map(d => formatDateLabel(d));
     const toLots = v => v != null ? Math.round(v / 1000) : null;
 
@@ -825,7 +825,7 @@ const Charts = (() => {
 
     const changeKey = which + '增減';
     const balanceKey = which + '餘額';
-    const recentDates = dates.slice(-APP_CONFIG.defaultRecentDays);
+    const recentDates = dates.slice(-APP_CONFIG.techAnalysisDays);
     const labels = recentDates.map(d => formatDateLabel(d));
     const changeData  = recentDates.map(d => stock.margin[changeKey]?.[d] ?? null);
     const balanceData = recentDates.map(d => stock.margin[balanceKey]?.[d] ?? null);
