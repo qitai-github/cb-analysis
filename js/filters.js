@@ -63,16 +63,19 @@ const Filters = (() => {
       }
     },
     recentStatusFlag: {
-      label: '新近 VCP / 三線 (≤3 天)',
-      type: 'checkbox',
+      label: '新近 VCP / 三線 ≤ N 日',
+      type: 'number',
+      placeholder: '天數...',
       group: '狀態篩選',
       apply: (stock, val) => {
         if (!val) return true;
+        const n = Number(val);
+        if (!(n > 0)) return true;
         const f = stock.statusFlags;
         if (!f) return false;
         const vcp = Number(f.vcp?.streak) || 0;
         const sx  = Number(f.sanxian?.streak) || 0;
-        return (vcp >= 1 && vcp <= 3) || (sx >= 1 && sx <= 3);
+        return (vcp >= 1 && vcp <= n) || (sx >= 1 && sx <= n);
       }
     },
 
