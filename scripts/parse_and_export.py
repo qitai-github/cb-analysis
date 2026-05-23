@@ -329,14 +329,42 @@ def _existing_stock_ids(existing: list, n_cats: int) -> set[str]:
     return out
 
 
+def _primary_market_stock_ids(all_data: dict) -> set[str]:
+    """從初級市場 / 已發行 CB 資料抽出對應 stockCode (cbCode 前 4 碼)。
+
+    來源:
+      fubonPrimary (row[0] = cbCode)
+      yuantaPrimary (row[2] = cbCode)
+      cbasCalendar.events / issuedInfo
+    """
+    codes: set[str] = set()
+
+    def add(cb: Any) -> None:
+        s = str(cb or "").strip()
+        if s.isdigit() and len(s) >= 4:
+            codes.add(s[:4])
+
+    for r in (all_data.get("fubonPrimary") or []):
+        if r:
+            add(r[0] if len(r) > 0 else "")
+    for r in (all_data.get("yuantaPrimary") or []):
+        if r:
+            add(r[2] if len(r) > 2 else "")
+    cal = all_data.get("cbasCalendar") or {}
+    for ev in (cal.get("events") or []):
+        add(ev.get("cbCode"))
+    for cb in (cal.get("issuedInfo") or {}):
+        add(cb)
+    return codes
+
+
 def filter_to_whitelist(parsed: dict, all_data: dict) -> None:
     """對 stockTrading / cbInstitutional 做白名單篩選 (in-place)。
 
-    篩選來源:既有 all-data.json 該 key 內的 stock_id 集合
-              ∪ stockTrading 與 cbInstitutional 兩 key 的聯集
-              (兩者個股集合應相同,聯集是雙保險)
+    篩選來源:
+      - 既有 all-data.json 兩個 key 內的 stock_id 集合
+      - 初級市場 / 已發行 CB 對應的 stockCode (還沒上 CB 的也要追蹤)
     """
-    # 先建總白名單 (兩個 key 的既有 stock_id 聯集)
     whitelist: set[str] = set()
     for ts_key in FILTERED_TIMESERIES_KEYS:
         result = parsed.get(ts_key)
@@ -344,11 +372,18 @@ def filter_to_whitelist(parsed: dict, all_data: dict) -> None:
         n_cats = len(result.timeseries_categories) if result else 3
         whitelist |= _existing_stock_ids(existing or [], n_cats)
 
+    # 初級市場 / CBAS 已發行對應股 (還沒進過 stockTrading 的也要追蹤)
+    pm = _primary_market_stock_ids(all_data)
+    added = pm - whitelist
+    if added:
+        log(f"  初級市場標的: +{len(added)} 檔合併進白名單")
+    whitelist |= pm
+
     if not whitelist:
         log("  ⚠️  既有 all-data.json 無白名單 stock_id,跳過篩選 (首次跑)")
         return
 
-    log(f"  白名單 (CB-linked stocks): {len(whitelist):,} 檔")
+    log(f"  白名單 (CB-linked + 初級市場): {len(whitelist):,} 檔")
 
     for ts_key in FILTERED_TIMESERIES_KEYS:
         result = parsed.get(ts_key)
