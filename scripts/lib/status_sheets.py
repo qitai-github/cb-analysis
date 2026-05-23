@@ -97,7 +97,12 @@ def _is_valid_code(s: str) -> bool:
 
 
 def fetch_one(key: str) -> dict[str, Any]:
-    """抓單一 sheet 並回傳 {date, stocks}。失敗 raise RuntimeError。"""
+    """抓單一 sheet → {date, stocks, sheetsScanned}。失敗 raise RuntimeError。
+
+    掃 xlsx 內所有 YYMMDD 工作表計算每檔的:
+      - streak: 從最新往回連續上榜天數 (今天首上榜=1)
+      - total : 在歷史範圍內累計上榜天數
+    """
     spec = SOURCES[key]
     url = XLSX_URL_TPL.format(sheet_id=spec["sheet_id"])
     r = requests.get(url, timeout=TIMEOUT, allow_redirects=True)
@@ -113,15 +118,30 @@ def fetch_one(key: str) -> dict[str, Any]:
     except Exception as e:
         raise RuntimeError(f"{spec['name']}: 解析 xlsx 失敗: {e}") from e
 
-    latest = _pick_latest_sheet(wb.sheetnames)
-    if not latest:
-        raise RuntimeError(f"{spec['name']}: 無任何 worksheet")
+    # 全部 YYMMDD 工作表,降冪 (最新優先)
+    dated = sorted(
+        (s for s in wb.sheetnames if DATE_RE.match(s)),
+        reverse=True,
+    )
+    if not dated:
+        raise RuntimeError(f"{spec['name']}: 無任何 YYMMDD 工作表")
+    latest = dated[0]
 
-    ws = wb[latest]
+    # 第一遍:掃所有工作表,建出每檔股票的「出現日期集合」
+    appearance: dict[str, set[str]] = {}
+    for tab in dated:
+        for row in wb[tab].iter_rows(values_only=True):
+            if not row:
+                continue
+            code = _stringify(row[0])
+            if not _is_valid_code(code):
+                continue
+            appearance.setdefault(code, set()).add(tab)
+
+    # 第二遍:最新工作表 → 當前明細,加 streak / total
     fields = spec["fields"]
     stocks: dict[str, dict[str, Any]] = {}
-
-    for row in ws.iter_rows(values_only=True):
+    for row in wb[latest].iter_rows(values_only=True):
         if not row:
             continue
         code = _stringify(row[0])
@@ -133,9 +153,18 @@ def fetch_one(key: str) -> dict[str, Any]:
                 val = _stringify(row[col_idx])
                 if val:
                     item[field_name] = val
+        appear_set = appearance.get(code, set())
+        streak = 0
+        for tab in dated:
+            if tab in appear_set:
+                streak += 1
+            else:
+                break
+        item["streak"] = streak
+        item["total"] = len(appear_set)
         stocks[code] = item
 
-    return {"date": latest, "stocks": stocks}
+    return {"date": latest, "stocks": stocks, "sheetsScanned": len(dated)}
 
 
 def fetch_all() -> dict[str, dict[str, Any]]:
@@ -157,10 +186,14 @@ def _smoke() -> int:
     for key in SOURCES:
         try:
             res = fetch_one(key)
-            print(f"[{key}] tab={res['date']}, stocks={len(res['stocks'])}")
-            sample = list(res["stocks"].items())[:3]
-            for code, details in sample:
-                print(f"  {code}: {details}")
+            print(f"[{key}] tab={res['date']} scanned={res['sheetsScanned']} "
+                  f"stocks={len(res['stocks'])}")
+            # streak 最長前 5 名
+            top = sorted(res["stocks"].items(),
+                         key=lambda kv: kv[1].get("streak", 0), reverse=True)[:5]
+            for code, details in top:
+                s, t = details.get("streak"), details.get("total")
+                print(f"  {code}: streak={s} total={t} {details}")
         except Exception as e:
             print(f"[{key}] FAIL: {e}")
             return 1

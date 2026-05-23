@@ -279,7 +279,10 @@ const Table = (() => {
       if (!info) continue;
       const span = document.createElement('span');
       span.className = `badge ${badgeCfg.cls}`;
-      span.textContent = badgeCfg.label;
+      const streak = Number(info.streak) || 0;
+      span.textContent = streak > 0
+        ? `${badgeCfg.label}·${streak}`
+        : badgeCfg.label;
       span.title = buildStatusTooltip(type, info);
       td.appendChild(span);
     }
@@ -287,13 +290,16 @@ const Table = (() => {
 
   function buildStatusTooltip(type, info) {
     const lines = [];
+    const head = type === 'vcp' ? 'VCP' : '三線開花';
+    lines.push(`${head} — ${info.date || ''}`.trim());
+    if (info.streak != null) {
+      lines.push(`連續 ${info.streak} 天 / 累計 ${info.total ?? info.streak} 天`);
+    }
     if (type === 'vcp') {
-      lines.push(`VCP — ${info.date || ''}`.trim());
-      if (info.gain20) lines.push(`近20日漲幅: ${info.gain20}`);
+      if (info.gain20)              lines.push(`近20日漲幅: ${info.gain20}`);
       if (info.marketShort === 'O') lines.push('大盤淨空 ✓');
       if (info.consecShort === 'O') lines.push('連續淨空 ✓');
     } else if (type === 'sanxian') {
-      lines.push(`三線開花 — ${info.date || ''}`.trim());
       if (info.close)   lines.push(`收盤股價: ${info.close}`);
       if (info.high55)  lines.push(`55日內最高: ${info.high55}`);
       if (info.diffPct) lines.push(`差距比: ${info.diffPct}`);

@@ -708,10 +708,15 @@ const App = (() => {
   function buildStatusBadgesHTML(stock) {
     const flags = stock.statusFlags;
     if (!flags) return '';
-    let html = '';
-    if (flags.vcp)     html += '<span class="badge badge-vcp">VCP</span>';
-    if (flags.sanxian) html += '<span class="badge badge-sanxian">三線</span>';
-    return html;
+    const mk = (cls, label, info) => {
+      if (!info) return '';
+      const streak = Number(info.streak) || 0;
+      const text = streak > 0 ? `${label}·${streak}` : label;
+      const tip = `${label} 連續 ${streak} 天 / 累計 ${info.total ?? streak} 天`;
+      return `<span class="badge ${cls}" title="${tip}">${text}</span>`;
+    };
+    return mk('badge-vcp', 'VCP', flags.vcp)
+         + mk('badge-sanxian', '三線', flags.sanxian);
   }
 
   function buildPrimaryMarketHTML(stock) {
