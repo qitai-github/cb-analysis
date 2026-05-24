@@ -450,25 +450,14 @@ const App = (() => {
     renderDetailTitle(stock);
     document.getElementById('detail-price-info').innerHTML = buildPriceInfoHTML(stock);
     document.getElementById('detail-cb-info').innerHTML = buildCBInfoHTML(stock);
-    document.getElementById('detail-inst-info').innerHTML = buildInstInfoHTML(stock);
     document.getElementById('detail-news-info').innerHTML = buildNewsHTML(stock);
 
-    document.getElementById('detail-margin-info').innerHTML = buildMarginInfoHTML(stock);
-
-    // 多 CB 切換: 預設 mainCB, 同時控制 K 線 + 三大法人表
+    // 預設選的 CB (給 CB 技術分析 Modal 用)
     const tabCBs = (stock.cbs || []).filter(cb => cb.cbCode);
-    const defaultCB = stock.mainCB?.cbCode || tabCBs[0]?.cbCode || null;
-    selectedCBTab = defaultCB;
-    renderCBTabStrip(stock, defaultCB);
-    document.getElementById('detail-cb-inst-info').innerHTML =
-      buildCBInstInfoHTML(stock, defaultCB);
-
-    setTimeout(() => {
-      Charts.renderCBPriceChart('detail-cb-price-chart', stock, defaultCB);
-    }, 100);
+    selectedCBTab = stock.mainCB?.cbCode || tabCBs[0]?.cbCode || null;
   }
 
-  // 詳情面板標題:星星 + 代號名稱 + 技術分析按鈕
+  // 詳情面板標題:星星 + 代號名稱 + VCP/三線 狀態徽章
   function renderDetailTitle(stock) {
     const titleEl = document.getElementById('detail-title');
     titleEl.innerHTML = '';
@@ -486,17 +475,16 @@ const App = (() => {
     const label = document.createElement('span');
     label.textContent = `${stock.code} ${stock.name}`;
 
-    const techBtn = document.createElement('button');
-    techBtn.className = 'btn-tech-analysis';
-    techBtn.type = 'button';
-    techBtn.title = '技術分析 (K線 / 法人 / 融資券)';
-    techBtn.textContent = '技術分析';
-    techBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openTechModal();
-    });
+    titleEl.append(star, label);
 
-    titleEl.append(star, label, techBtn);
+    // VCP / 三線 徽章 (stock 層級)
+    const badgesHtml = buildStatusBadgesHTML(stock);
+    if (badgesHtml) {
+      const wrap = document.createElement('span');
+      wrap.className = 'detail-title-badges';
+      wrap.innerHTML = badgesHtml;
+      titleEl.appendChild(wrap);
+    }
   }
 
   // ============================================================
@@ -546,9 +534,10 @@ const App = (() => {
     const idx = filteredData.findIndex(s => s.code === selectedStock.code);
     const canPrev = idx > 0;
     const canNext = idx >= 0 && idx < filteredData.length - 1;
+    const fullLabel = `${selectedStock.code} ${selectedStock.name || ''}`;
     titleEl.innerHTML =
       `<button class="tech-nav-arrow" id="tech-nav-prev" ${canPrev ? '' : 'disabled'} title="上一檔">&#x25C0;</button>` +
-      `<span class="tech-nav-label">${selectedStock.code} ${selectedStock.name}</span>` +
+      `<span class="tech-nav-label" title="${fullLabel}">${fullLabel}</span>` +
       `<button class="tech-nav-arrow" id="tech-nav-next" ${canNext ? '' : 'disabled'} title="下一檔">&#x25B6;</button>`;
     const prev = document.getElementById('tech-nav-prev');
     const next = document.getElementById('tech-nav-next');
@@ -632,62 +621,200 @@ const App = (() => {
     Charts.destroyTech();
   }
 
-  // CB tab 切換 — 同時更新 K 線圖 + 三大法人買賣超表
-  let selectedCBTab = null;
-  function selectCBTab(cbCode) {
-    if (!selectedStock || cbCode === selectedCBTab) return;
-    selectedCBTab = cbCode;
-    Charts.renderCBPriceChart('detail-cb-price-chart', selectedStock, cbCode);
-    document.getElementById('detail-cb-inst-info').innerHTML =
-      buildCBInstInfoHTML(selectedStock, cbCode);
-    document.querySelectorAll('#cb-tab-strip .cb-tab').forEach(b => {
-      b.classList.toggle('active', b.dataset.cbcode === cbCode);
+  // ============================================================
+  // CB 技術分析 Modal
+  // ============================================================
+  let cbTechInstWhich = '外資';
+  let cbTechExtraWhich = 'premium';
+
+  function openCBTechModal() {
+    if (!selectedStock) return;
+    const cbs = (selectedStock.cbs || []).filter(c => c.cbCode);
+    if (cbs.length === 0) {
+      alert('此股無 CB 交易資料');
+      return;
+    }
+    // 預設選的 CB (若沒選過或選的已不存在)
+    if (!selectedCBTab || !cbs.some(c => c.cbCode === selectedCBTab)) {
+      selectedCBTab = selectedStock.mainCB?.cbCode || cbs[0].cbCode;
+    }
+    cbTechInstWhich = '外資';
+    cbTechExtraWhich = 'premium';
+
+    document.getElementById('cbtech-modal').classList.add('show');
+
+    bindTechToggle('cbtech-inst-toggle', (which) => {
+      cbTechInstWhich = which;
+      renderCBTechInst();
     });
+    bindTechToggle('cbtech-extra-toggle', (which) => {
+      cbTechExtraWhich = which;
+      renderCBTechExtra();
+    });
+
+    refreshCBTechModal();
   }
 
-  function renderCBTabStrip(stock, activeCBCode) {
-    const host = document.getElementById('cb-tab-strip');
-    if (!host) return;
-    const cbs = (stock.cbs || []).filter(cb => cb.cbCode);
-    if (cbs.length <= 1) { host.innerHTML = ''; return; }
-    let html = '';
-    for (const cb of cbs) {
-      const cls = cb.cbCode === activeCBCode ? 'cb-tab active' : 'cb-tab';
-      html += `<button class="${cls}" data-cbcode="${cb.cbCode}" `
-            + `onclick="App.selectCBTab('${cb.cbCode}')">`
-            + `${cb.cbCode} ${cb.cbName || ''}</button>`;
+  // 三張 CB 圖共用的日期軸 (從 cb.ohlcv 取最近 N 個交易日)
+  let cbTechSharedDates = [];
+
+  function refreshCBTechModal() {
+    if (!selectedStock) return;
+    renderCBTechModalTitle();
+    renderCBTechStrip();
+    syncTechToggle('cbtech-inst-toggle', cbTechInstWhich);
+    syncTechToggle('cbtech-extra-toggle', cbTechExtraWhich);
+
+    // 先決定共用 X 軸 — 取「CB ohlcv 日期」與「stock 收盤日期」的交集,
+    // 排除掉 CB 資料源夾帶的非交易日 (e.g. 4/18 週六),
+    // 也排除掉 stock 沒抓到的日期 → 確保 3 張圖每個 tick 都對得上資料
+    const cb = (selectedStock.cbs || []).find(c => c.cbCode === selectedCBTab);
+    const ohlcv = cb?.ohlcv || selectedStock.cbOhlcv || [];
+    const stockCloses = selectedStock.trading?.['收盤價'] || {};
+    const cbDateSet = new Set(ohlcv.map(r => r.date));
+    const intersectDates = [];
+    for (const d of Object.keys(stockCloses)) {
+      if (cbDateSet.has(d)) intersectDates.push(d);
     }
-    host.innerHTML = html;
+    intersectDates.sort();
+    cbTechSharedDates = intersectDates.slice(-APP_CONFIG.techAnalysisDays);
+
+    // 等 modal 完成 layout (display:none → flex) 才畫圖,
+    // 雙 rAF + setTimeout 確保 chart-container 已取得實際高度
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+      try {
+        const meta = Charts.renderCBTechPriceChart(
+          'cbtech-price-chart', selectedStock, selectedCBTab, cbTechSharedDates);
+        const priceMetaEl = document.getElementById('cbtech-price-meta');
+        if (priceMetaEl) {
+          priceMetaEl.textContent = meta?.latest
+            ? `收 ${meta.latest.close?.toFixed(2)} · 量 ${meta.latest.volume?.toLocaleString() ?? '-'}`
+            : '';
+        }
+      } catch (err) { console.error('[CBTech] price chart failed:', err); }
+      try { renderCBTechInst(); } catch (err) { console.error('[CBTech] inst chart failed:', err); }
+      try { renderCBTechExtra(); } catch (err) { console.error('[CBTech] extra chart failed:', err); }
+    }, 60)));
   }
+
+  function renderCBTechInst() {
+    const meta = Charts.renderCBTechInstChart(
+      'cbtech-inst-chart', selectedStock, selectedCBTab, cbTechInstWhich, cbTechSharedDates);
+    const el = document.getElementById('cbtech-inst-meta');
+    if (!el) return;
+    if (!meta || meta.latest == null) { el.textContent = ''; return; }
+    const sign = meta.latest > 0 ? '+' : '';
+    const cum = meta.cumulative != null ? meta.cumulative.toLocaleString() : '-';
+    el.innerHTML = `買賣超 <strong class="${cc(meta.latest)}">${sign}${meta.latest.toLocaleString()}張</strong>`
+                 + ` &middot; 累積 <strong>${cum}張</strong>`;
+  }
+
+  function renderCBTechExtra() {
+    const meta = Charts.renderCBTechExtraChart(
+      'cbtech-extra-chart', selectedStock, selectedCBTab, cbTechExtraWhich, cbTechSharedDates);
+    const el = document.getElementById('cbtech-extra-meta');
+    if (!el) return;
+    if (cbTechExtraWhich === 'premium') {
+      const v = meta?.latest;
+      el.innerHTML = v == null
+        ? ''
+        : `當前溢價率 <strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
+    } else {
+      const d = meta?.latest;
+      if (!d || (d.thisWeek == null && d.lastWeek == null)) { el.textContent = ''; return; }
+      const chgSign = (d.change != null && d.change > 0) ? '+' : '';
+      el.innerHTML = `本週 <strong>${d.thisWeek != null ? d.thisWeek.toLocaleString() : '-'}張</strong>`
+                   + (d.change != null
+                      ? ` &middot; 增減 <strong class="${cc(-d.change)}">${chgSign}${d.change.toLocaleString()}</strong>`
+                      : '');
+    }
+  }
+
+  function renderCBTechModalTitle() {
+    const el = document.getElementById('cbtech-modal-title');
+    if (!el || !selectedStock) return;
+    const idx = filteredData.findIndex(s => s.code === selectedStock.code);
+    const canPrev = idx > 0;
+    const canNext = idx >= 0 && idx < filteredData.length - 1;
+    const fullLabel = `${selectedStock.code} ${selectedStock.name || ''}`;
+    el.innerHTML =
+      `<button class="tech-nav-arrow" id="cbtech-nav-prev" ${canPrev ? '' : 'disabled'} title="上一檔">&#x25C0;</button>` +
+      `<span class="tech-nav-label" title="${fullLabel}">${fullLabel}</span>` +
+      `<button class="tech-nav-arrow" id="cbtech-nav-next" ${canNext ? '' : 'disabled'} title="下一檔">&#x25B6;</button>`;
+    document.getElementById('cbtech-nav-prev')?.addEventListener('click', () => navigateCBTechModal(-1));
+    document.getElementById('cbtech-nav-next')?.addEventListener('click', () => navigateCBTechModal(1));
+  }
+
+  function renderCBTechStrip() {
+    const host = document.getElementById('cbtech-cb-strip');
+    if (!host) return;
+    const cbs = (selectedStock.cbs || []).filter(c => c.cbCode);
+    if (cbs.length <= 1) { host.innerHTML = ''; return; }
+    host.innerHTML = cbs.map(cb =>
+      `<button class="cbtech-cb-tab${cb.cbCode === selectedCBTab ? ' active' : ''}" `
+      + `data-cbcode="${cb.cbCode}">${cb.cbCode} ${cb.cbName || ''}</button>`
+    ).join('');
+    if (host.dataset.bound !== '1') {
+      host.dataset.bound = '1';
+      host.addEventListener('click', (e) => {
+        const btn = e.target.closest('.cbtech-cb-tab');
+        if (!btn) return;
+        const code = btn.dataset.cbcode;
+        if (!code || code === selectedCBTab) return;
+        selectedCBTab = code;
+        renderCBTechStrip();
+        refreshCBTechModal();
+      });
+    }
+  }
+
+  function navigateCBTechModal(dir) {
+    if (!selectedStock) return;
+    const idx = filteredData.findIndex(s => s.code === selectedStock.code);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= filteredData.length) return;
+    const newStock = filteredData[newIdx];
+    showDetail(newStock);
+    // 切換股票後重設 CB 選擇
+    const cbs = (newStock.cbs || []).filter(c => c.cbCode);
+    selectedCBTab = newStock.mainCB?.cbCode || cbs[0]?.cbCode || null;
+    refreshCBTechModal();
+  }
+
+  function closeCBTechModal(event) {
+    if (event && event.target && event.target.id !== 'cbtech-modal') return;
+    document.getElementById('cbtech-modal').classList.remove('show');
+    Charts.destroyCBTech();
+  }
+
+  // 目前選的 CB (給 CB 技術分析 Modal 使用)
+  let selectedCBTab = null;
 
   function buildPriceInfoHTML(stock) {
     const cls = (stock.priceChange || 0) > 0 ? 'text-up' : (stock.priceChange || 0) < 0 ? 'text-down' : '';
     const sign = (stock.priceChange || 0) >= 0 ? '+' : '';
 
     return `
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="info-label">收盤價</span>
-          <span class="info-value ${cls}">${stock.latestClose?.toFixed(2) ?? '-'}</span>
+      <div class="cb-card">
+        <div class="info-grid info-grid-sm">
+          <div class="info-item">
+            <span class="info-label">收盤價</span>
+            <span class="info-value ${cls}">${stock.latestClose?.toFixed(2) ?? '-'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">漲跌</span>
+            <span class="info-value ${cls}">${stock.priceChange != null ? sign + stock.priceChange.toFixed(2) : '-'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">漲跌%</span>
+            <span class="info-value ${cls}">${stock.priceChangePercent != null ? sign + stock.priceChangePercent.toFixed(2) + '%' : '-'}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">成交量(張)</span>
+            <span class="info-value">${stock.latestVolume?.toLocaleString() ?? '-'}</span>
+          </div>
         </div>
-        <div class="info-item">
-          <span class="info-label">漲跌</span>
-          <span class="info-value ${cls}">${stock.priceChange != null ? sign + stock.priceChange.toFixed(2) : '-'}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">漲跌%</span>
-          <span class="info-value ${cls}">${stock.priceChangePercent != null ? sign + stock.priceChangePercent.toFixed(2) + '%' : '-'}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">成交量(張)</span>
-          <span class="info-value">${stock.latestVolume?.toLocaleString() ?? '-'}</span>
-        </div>
-        <div class="info-item"><span class="info-label">開盤</span><span class="info-value">${stock.latestOpen?.toFixed(2) ?? '-'}</span></div>
-        <div class="info-item"><span class="info-label">最高</span><span class="info-value">${stock.latestHigh?.toFixed(2) ?? '-'}</span></div>
-        <div class="info-item"><span class="info-label">最低</span><span class="info-value">${stock.latestLow?.toFixed(2) ?? '-'}</span></div>
-        <div class="info-item"><span class="info-label">MA5</span><span class="info-value">${stock.ma5?.toFixed(2) ?? '-'}</span></div>
-        <div class="info-item"><span class="info-label">MA10</span><span class="info-value">${stock.ma10?.toFixed(2) ?? '-'}</span></div>
-        <div class="info-item"><span class="info-label">MA20</span><span class="info-value">${stock.ma20?.toFixed(2) ?? '-'}</span></div>
       </div>`;
   }
 
@@ -736,14 +863,12 @@ const App = (() => {
       const balChg = cb.balChange != null
         ? (cb.balChange > 0 ? '+' : '') + cb.balChange.toLocaleString()
         : null;
-      const statusBadgesHtml = buildStatusBadgesHTML(stock);
 
       html += `
         <div class="cb-card">
           <div class="cb-card-header">
             <span class="cb-code">${cb.cbCode}</span>
             <span class="cb-name">${cb.cbName || ''}</span>
-            ${statusBadgesHtml}
             ${badges}
             ${auctionBtn}
           </div>
@@ -1366,7 +1491,8 @@ const App = (() => {
     init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter,
     showAuctionModal, closeAuctionModal,
     openTechModal, closeTechModal,
-    switchTab, showDetail, selectCBTab
+    openCBTechModal, closeCBTechModal,
+    switchTab, showDetail
   };
 })();
 

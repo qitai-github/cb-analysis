@@ -811,6 +811,13 @@ body {
   user-select: none;
 }
 
+.detail-title-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+
 .detail-close {
   width: 32px;
   height: 32px;
@@ -838,6 +845,17 @@ body {
   margin-bottom: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.detail-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.detail-section-head h3 {
+  margin-bottom: 0;
 }
 
 .chart-container {
@@ -1255,18 +1273,29 @@ body {
   height: 96vh;
 }
 
-/* 技術分析 Modal 標題:◀ 股號股名 ▶ */
-#tech-modal-title {
+/* 技術分析 Modal 標題:◀ 股號 股名 ▶ — 置中、箭頭位置固定 */
+#tech-modal-title,
+#cbtech-modal-title {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 14px;
 }
 
+/* 固定寬度 + 文字置中,讓「股號 股名」整體在固定槽位內水平置中,
+   箭頭位置不會隨股名長度跳動 (280px 容得下「1234 鮮活果汁-KY」) */
 .tech-nav-label {
+  display: inline-block;
+  width: 280px;
   font-size: 20px;
   font-weight: 700;
   color: var(--text);
   letter-spacing: 0.5px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tech-nav-arrow {
@@ -1294,6 +1323,35 @@ body {
 .tech-nav-arrow:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* CB 技術分析 Modal — CB 選擇器 (多檔時用) */
+.cbtech-cb-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.cbtech-cb-strip:empty { display: none; }
+
+.cbtech-cb-tab {
+  background: rgba(30,41,59,0.6);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  padding: 4px 14px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.cbtech-cb-tab:hover { color: var(--text); }
+
+.cbtech-cb-tab.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
 }
 
 .tech-modal-body {

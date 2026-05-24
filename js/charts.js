@@ -8,6 +8,9 @@ const Charts = (() => {
   let techPriceChart = null;
   let techInstChart = null;
   let techMarginChart = null;
+  let cbTechPriceChart = null;
+  let cbTechInstChart = null;
+  let cbTechExtraChart = null;
 
   /**
    * 計算移動平均線陣列
@@ -911,6 +914,414 @@ const Charts = (() => {
     if (techMarginChart) { techMarginChart.destroy(); techMarginChart = null; }
   }
 
+  // ============================================================
+  // CB 技術分析 Modal 圖表
+  // ============================================================
+
+  function _emptyChart_(canvas, msg) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = APP_CONFIG.colors.textMuted;
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(msg, canvas.width / 2, canvas.height / 2);
+  }
+
+  /** CB K 線圖 (Modal 內 — 60 日)
+   *  @param {string[]} [sharedDates] 三張圖共用的日期軸 (YYYYMMDD);
+   *         有給就以此為準,沒給的日期 → null (留空)
+   */
+  function renderCBTechPriceChart(canvasId, stock, cbCode, sharedDates) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return { latest: null, dates: [] };
+    if (cbTechPriceChart) { cbTechPriceChart.destroy(); cbTechPriceChart = null; }
+
+    let ohlcv = null;
+    if (cbCode && stock.cbs) {
+      const cb = stock.cbs.find(c => c.cbCode === cbCode);
+      ohlcv = cb?.ohlcv || null;
+    }
+    if (!ohlcv) ohlcv = stock.cbOhlcv;
+    if (!ohlcv || ohlcv.length === 0) {
+      _emptyChart_(canvas, '無 CB 交易資料');
+      return { latest: null, dates: [] };
+    }
+
+    // 用 sharedDates 為軸 (若無則自取 ohlcv 最後 N 天)
+    const ohlcvMap = new Map(ohlcv.map(r => [r.date, r]));
+    const axisDates = sharedDates && sharedDates.length
+      ? sharedDates
+      : ohlcv.slice(-APP_CONFIG.techAnalysisDays).map(r => r.date);
+    const recent = axisDates.map(d => ohlcvMap.get(d) || { date: d, open: null, high: null, low: null, close: null, volume: null });
+    const labels = axisDates.map(formatDateLabel);
+    const openData = recent.map(r => r.open);
+    const highData = recent.map(r => r.high);
+    const lowData = recent.map(r => r.low);
+    const closeData = recent.map(r => r.close);
+    const volumeData = recent.map(r => r.volume);
+
+    const volumeColors = recent.map(r => r.close >= r.open
+      ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)');
+
+    const ma5 = calcMAArray(closeData, 5);
+    const ma10 = calcMAArray(closeData, 10);
+    const ma20 = calcMAArray(closeData, 20);
+
+    const allPrices = [...highData, ...lowData, ...ma5, ...ma10, ...ma20].filter(v => v != null);
+    const priceMin = allPrices.length ? Math.min(...allPrices) * 0.995 : 0;
+    const priceMax = allPrices.length ? Math.max(...allPrices) * 1.005 : 100;
+
+    const candlestick = {
+      id: 'cbTechCandlestick',
+      afterDatasetsDraw(chart) {
+        const ctx = chart.ctx, xScale = chart.scales.x, yPrice = chart.scales.yPrice;
+        if (!yPrice) return;
+        const barW = Math.max(3, Math.min(12, (chart.chartArea.width / recent.length) * 0.4));
+        ctx.save();
+        for (let i = 0; i < recent.length; i++) {
+          const o = openData[i], h = highData[i], l = lowData[i], c = closeData[i];
+          if (o == null) continue;
+          const x = xScale.getPixelForValue(i);
+          const yO = yPrice.getPixelForValue(o), yH = yPrice.getPixelForValue(h);
+          const yL = yPrice.getPixelForValue(l), yC = yPrice.getPixelForValue(c);
+          const color = c >= o ? APP_CONFIG.colors.up : APP_CONFIG.colors.down;
+          ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1;
+          ctx.moveTo(x, yH); ctx.lineTo(x, yL); ctx.stroke();
+          const top = Math.min(yO, yC), hgt = Math.abs(yO - yC) || 1;
+          ctx.fillStyle = color;
+          ctx.fillRect(x - barW, top, barW * 2, hgt);
+        }
+        ctx.restore();
+      }
+    };
+
+    cbTechPriceChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { type: 'line', label: 'MA5',  data: ma5,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA10', data: ma10, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA20', data: ma20, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'bar',  label: '成交量', data: volumeData, backgroundColor: volumeColors, yAxisID: 'yVolume', order: 3, barPercentage: 0.6 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              afterTitle: (items) => {
+                if (!items.length) return '';
+                const i = items[0].dataIndex;
+                const o = openData[i], h = highData[i], l = lowData[i], c = closeData[i];
+                if (o == null) return '';
+                return `開:${o.toFixed(2)}  高:${h.toFixed(2)}  低:${l.toFixed(2)}  收:${c.toFixed(2)}`;
+              },
+              label: (ctx) => ctx.dataset.label === '成交量'
+                ? `成交量: ${Number(ctx.raw).toLocaleString()} 張`
+                : `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}`
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yPrice: { position: 'left', min: priceMin, max: priceMax, ticks: { color: APP_CONFIG.colors.text }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yVolume: { position: 'right',
+            ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
+            grid: { display: false },
+            max: (Math.max(...volumeData.filter(v => v != null && v > 0)) || 1) * 3
+          }
+        }
+      },
+      plugins: [candlestick]
+    });
+
+    const lastWithData = [...recent].reverse().find(r => r.close != null);
+    return {
+      latest: lastWithData ? { close: lastWithData.close, volume: lastWithData.volume } : null,
+      dates: axisDates
+    };
+  }
+
+  /** CB 三大法人 toggle 圖 (Modal 內) */
+  function renderCBTechInstChart(canvasId, stock, cbCode, which, sharedDates) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return { latest: null, cumulative: null };
+    if (cbTechInstChart) { cbTechInstChart.destroy(); cbTechInstChart = null; }
+
+    let inst = null, dates = [];
+    if (cbCode && stock.cbs) {
+      const cb = stock.cbs.find(c => c.cbCode === cbCode);
+      if (cb?.bondInstData) { inst = cb.bondInstData; dates = cb.bondInstDates || []; }
+    }
+    if (!inst) { inst = stock.cbBondInstitutional; dates = stock.cbBondInstitutionalDates || []; }
+    if (!inst || dates.length === 0) {
+      _emptyChart_(canvas, '無 CB 法人資料');
+      return { latest: null, cumulative: null };
+    }
+
+    const key = which + '買賣超';
+    const recentDates = sharedDates && sharedDates.length
+      ? sharedDates
+      : dates.slice(-APP_CONFIG.techAnalysisDays);
+    const labels = recentDates.map(d => formatDateLabel(d));
+    const toLots = v => v != null ? Math.round(v / 1000) : null;
+
+    // 累積:從整段歷史開頭算起,直到 recentDates 的第一天前
+    const earliestRecent = recentDates[0];
+    let running = 0;
+    for (const d of dates) {
+      if (earliestRecent && d >= earliestRecent) break;
+      const v = toLots(inst[key]?.[d] ?? null);
+      if (v != null) running += v;
+    }
+    const recentValues = recentDates.map(d => toLots(inst[key]?.[d] ?? null));
+    const cumulative = [];
+    let acc = running;
+    for (const v of recentValues) {
+      if (v != null) acc += v;
+      cumulative.push(acc);
+    }
+
+    const lineColorMap = {
+      '外資':   'rgba(34,197,94,1)',
+      '投信':   'rgba(251,146,60,1)',
+      '自營商': 'rgba(168,85,247,1)'
+    };
+    const lineColor = lineColorMap[which] || 'rgba(34,197,94,1)';
+    const barColors = recentValues.map(v => v == null
+      ? 'rgba(148,163,184,0.4)'
+      : (v >= 0 ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.7)'));
+
+    cbTechInstChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { type: 'bar', label: which + '買賣超(張)', data: recentValues, backgroundColor: barColors, borderWidth: 0, yAxisID: 'yBar', order: 3 },
+          { type: 'line', label: '累積持股(張)', data: cumulative, borderColor: lineColor, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yLine', order: 1, tension: 0.15 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          tooltip: { callbacks: { label: (ctx) => {
+            const v = ctx.raw;
+            if (v == null) return `${ctx.dataset.label}: -`;
+            const sign = ctx.dataset.label.includes('買賣超') && v > 0 ? '+' : '';
+            return `${ctx.dataset.label}: ${sign}${Number(v).toLocaleString()} 張`;
+          }}}
+        },
+        scales: {
+          x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yBar: { position: 'left', ticks: { color: APP_CONFIG.colors.text, callback: v => v.toLocaleString() }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          yLine: { position: 'right', ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() }, grid: { display: false } }
+        }
+      }
+    });
+
+    const latest = recentValues.length ? recentValues[recentValues.length - 1] : null;
+    const cumLatest = cumulative.length ? cumulative[cumulative.length - 1] : null;
+    return { latest, cumulative: cumLatest };
+  }
+
+  /**
+   * CB 溢價率 / 流通餘額 切換圖 (Modal 內)
+   *   premium: 用 cb.ohlcv + stock.trading + cb.conversionPrice 算每日溢價率%
+   *   balance: 只有本週/上週 2 個點,畫成 bar 對照
+   * @param {string} which 'premium' | 'balance'
+   */
+  function renderCBTechExtraChart(canvasId, stock, cbCode, which, sharedDates) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return { latest: null };
+    if (cbTechExtraChart) { cbTechExtraChart.destroy(); cbTechExtraChart = null; }
+
+    const cb = (stock.cbs || []).find(c => c.cbCode === cbCode);
+    if (!cb) { _emptyChart_(canvas, '無 CB 資料'); return { latest: null }; }
+
+    if (which === 'premium') {
+      const ohlcv = cb.ohlcv || [];
+      const convPrice = cb.conversionPrice;
+      if (!ohlcv.length || !convPrice) {
+        _emptyChart_(canvas, '無法計算溢價率 (缺 CB 收盤或轉換價)');
+        return { latest: null };
+      }
+      const ohlcvMap = new Map(ohlcv.map(r => [r.date, r]));
+      const axisDates = sharedDates && sharedDates.length
+        ? sharedDates
+        : ohlcv.slice(-APP_CONFIG.techAnalysisDays).map(r => r.date);
+      const labels = axisDates.map(formatDateLabel);
+      const premiums = axisDates.map(d => {
+        const r = ohlcvMap.get(d);
+        const stockClose = stock.trading['收盤價']?.[d];
+        if (!r || r.close == null || stockClose == null) return null;
+        const convValue = (100 / convPrice) * stockClose;
+        if (!(convValue > 0)) return null;
+        return ((r.close - convValue) / convValue) * 100;
+      });
+
+      // 算 Y 軸範圍,左右軸都用同樣 min/max → X 軸寬度與其他兩張圖對齊
+      const validPrems = premiums.filter(v => v != null);
+      let pMin = 0, pMax = 10;
+      if (validPrems.length) {
+        pMin = Math.min(...validPrems);
+        pMax = Math.max(...validPrems);
+        const span = Math.max(pMax - pMin, 1);
+        pMin -= span * 0.1;
+        pMax += span * 0.1;
+      }
+
+      cbTechExtraChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'CB溢價率(%)',
+            data: premiums,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.15)',
+            borderWidth: 1.8,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            tension: 0.15,
+            fill: true,
+            spanGaps: false   /* 假日 / 缺資料 → 線段斷開,不連到下一個點 */
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+            tooltip: { callbacks: { label: (ctx) => {
+              const v = ctx.raw;
+              return v == null ? '-' : `溢價率: ${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+            }}}
+          },
+          scales: {
+            x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+            y: {
+              position: 'left', min: pMin, max: pMax,
+              ticks: { color: APP_CONFIG.colors.text, callback: v => v.toFixed(1) + '%' },
+              grid: { color: 'rgba(71,85,105,0.3)' }
+            },
+            yRight: {
+              position: 'right', min: pMin, max: pMax,
+              ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toFixed(1) + '%' },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+
+      const lastPrem = premiums.filter(v => v != null).slice(-1)[0] ?? null;
+      return { latest: lastPrem };
+    } else { // balance
+      // 資料源只有 本週/上週 2 個週報快照。
+      // 為了「每日一根 bar」,用 cb.ohlcv 的日期軸,
+      // 最近 5 個交易日 = balThisWeek,更早 = balLastWeek,
+      // 再用「複製前一天」(forward-fill) 補滿空缺。
+      const thisWeek = cb.balThisWeek;
+      const lastWeek = cb.balLastWeek;
+      const change = cb.balChange;
+      if (thisWeek == null && lastWeek == null) {
+        _emptyChart_(canvas, '無流通餘額資料');
+        return { latest: null };
+      }
+      const ohlcv = cb.ohlcv || [];
+      const axisDates = sharedDates && sharedDates.length
+        ? sharedDates
+        : ohlcv.slice(-APP_CONFIG.techAnalysisDays).map(r => r.date);
+      if (axisDates.length === 0) {
+        _emptyChart_(canvas, '無 CB 交易日期可對齊');
+        return { latest: { thisWeek, lastWeek, change } };
+      }
+      const labels = axisDates.map(formatDateLabel);
+      const n = axisDates.length;
+      const thisWeekStart = Math.max(0, n - 5);
+      const data = axisDates.map((_, i) =>
+        i >= thisWeekStart ? (thisWeek ?? lastWeek) : (lastWeek ?? thisWeek)
+      );
+      // Forward-fill (從左到右,空缺用前一天)
+      let lastVal = null;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i] == null) data[i] = lastVal;
+        else lastVal = data[i];
+      }
+      const barColors = data.map((_, i) =>
+        i >= thisWeekStart ? 'rgba(59,130,246,0.8)' : 'rgba(148,163,184,0.6)'
+      );
+
+      // 算 Y 軸範圍 → 鏡像給左右兩軸 (X 軸寬度對齊其他兩張圖)
+      const validBals = data.filter(v => v != null);
+      let bMin = 0, bMax = 1000;
+      if (validBals.length) {
+        bMax = Math.max(...validBals);
+        bMin = Math.min(...validBals);
+        const span = Math.max(bMax - bMin, 1);
+        bMin = Math.max(0, bMin - span * 0.15);
+        bMax += span * 0.15;
+      }
+
+      cbTechExtraChart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: '流通餘額(張)',
+            data,
+            backgroundColor: barColors,
+            borderWidth: 0,
+            barPercentage: 0.7
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+            tooltip: { callbacks: {
+              label: (ctx) => {
+                const v = ctx.raw;
+                if (v == null) return '流通餘額: -';
+                const tag = ctx.dataIndex >= thisWeekStart ? '本週' : '上週';
+                return `流通餘額(${tag}): ${Number(v).toLocaleString()} 張`;
+              }
+            }}
+          },
+          scales: {
+            x: {
+              ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 },
+              grid: { color: 'rgba(71,85,105,0.3)' }
+            },
+            y: {
+              position: 'left', min: bMin, max: bMax,
+              ticks: { color: APP_CONFIG.colors.text, callback: v => v.toLocaleString() },
+              grid: { color: 'rgba(71,85,105,0.3)' }
+            },
+            yRight: {
+              position: 'right', min: bMin, max: bMax,
+              ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toLocaleString() },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+      return { latest: { thisWeek, lastWeek, change } };
+    }
+  }
+
+  function destroyCBTech() {
+    if (cbTechPriceChart) { cbTechPriceChart.destroy(); cbTechPriceChart = null; }
+    if (cbTechInstChart)  { cbTechInstChart.destroy();  cbTechInstChart  = null; }
+    if (cbTechExtraChart) { cbTechExtraChart.destroy(); cbTechExtraChart = null; }
+  }
+
   function destroy() {
     if (priceChart) { priceChart.destroy(); priceChart = null; }
     if (instChart) { instChart.destroy(); instChart = null; }
@@ -918,11 +1329,13 @@ const Charts = (() => {
     if (cbInstChart) { cbInstChart.destroy(); cbInstChart = null; }
     if (marginChart) { marginChart.destroy(); marginChart = null; }
     destroyTech();
+    destroyCBTech();
   }
 
   return {
     renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, renderMarginChart,
     renderTechPriceChart, renderTechInstChart, renderTechMarginChart, destroyTech,
+    renderCBTechPriceChart, renderCBTechInstChart, renderCBTechExtraChart, destroyCBTech,
     destroy
   };
 })();

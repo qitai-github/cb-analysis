@@ -53,36 +53,20 @@
 
     <!-- 1. 股價資訊 -->
     <div class="detail-section">
-      <h3>股價資訊</h3>
+      <div class="detail-section-head">
+        <h3>股價資訊</h3>
+        <button class="btn-tech-analysis" type="button" onclick="App.openTechModal()" title="技術分析 (K線 / 法人 / 融資券)">技術分析</button>
+      </div>
       <div id="detail-price-info"></div>
     </div>
 
-    <!-- 3. 個股三大法人 -->
+    <!-- 4. CB 資訊 -->
     <div class="detail-section">
-      <h3>個股三大法人買賣超</h3>
-      <div id="detail-inst-info"></div>
-    </div>
-
-    <!-- 3.5 融資融券 -->
-    <div class="detail-section">
-      <h3>融資融券</h3>
-      <div id="detail-margin-info"></div>
-    </div>
-
-    <!-- 4. CB 資訊 + 5. CB K線 -->
-    <div class="detail-section">
-      <h3>CB 可轉債資訊</h3>
-      <div id="detail-cb-info"></div>
-      <div id="cb-tab-strip" class="cb-tab-strip"></div>
-      <div class="chart-container">
-        <canvas id="detail-cb-price-chart"></canvas>
+      <div class="detail-section-head">
+        <h3>CB 可轉債資訊</h3>
+        <button class="btn-tech-analysis" type="button" onclick="App.openCBTechModal()" title="CB 技術分析">CB 技術分析</button>
       </div>
-    </div>
-
-    <!-- 6. CB 三大法人 -->
-    <div class="detail-section">
-      <h3>CB 三大法人買賣超</h3>
-      <div id="detail-cb-inst-info"></div>
+      <div id="detail-cb-info"></div>
     </div>
 
     <!-- 7. 新聞資訊 -->
@@ -133,6 +117,57 @@
           </div>
           <div class="chart-container tech-chart-container">
             <canvas id="tech-margin-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CB 技術分析 Modal -->
+  <div class="auction-modal" id="cbtech-modal" onclick="App.closeCBTechModal(event)">
+    <div class="auction-modal-content tech-modal-content" onclick="event.stopPropagation()">
+      <div class="auction-modal-header">
+        <div class="auction-modal-title" id="cbtech-modal-title"></div>
+        <button class="detail-close" onclick="App.closeCBTechModal()">&times;</button>
+      </div>
+      <div class="auction-modal-body tech-modal-body">
+        <!-- CB 選擇器 (1 檔以上時顯示) -->
+        <div class="cbtech-cb-strip" id="cbtech-cb-strip"></div>
+
+        <div class="tech-chart-block">
+          <div class="tech-chart-head">
+            <span class="tech-chart-title">CB K 線 / 量能</span>
+            <span class="tech-chart-meta" id="cbtech-price-meta"></span>
+          </div>
+          <div class="chart-container tech-chart-container">
+            <canvas id="cbtech-price-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="tech-chart-block">
+          <div class="tech-chart-head">
+            <div class="tech-toggle" id="cbtech-inst-toggle">
+              <button class="tech-toggle-btn active" data-which="外資">外資</button>
+              <button class="tech-toggle-btn" data-which="投信">投信</button>
+              <button class="tech-toggle-btn" data-which="自營商">自營商</button>
+            </div>
+            <span class="tech-chart-meta" id="cbtech-inst-meta"></span>
+          </div>
+          <div class="chart-container tech-chart-container">
+            <canvas id="cbtech-inst-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="tech-chart-block">
+          <div class="tech-chart-head">
+            <div class="tech-toggle" id="cbtech-extra-toggle">
+              <button class="tech-toggle-btn active" data-which="premium">CB溢價率</button>
+              <button class="tech-toggle-btn" data-which="balance">流通餘額</button>
+            </div>
+            <span class="tech-chart-meta" id="cbtech-extra-meta"></span>
+          </div>
+          <div class="chart-container tech-chart-container">
+            <canvas id="cbtech-extra-chart"></canvas>
           </div>
         </div>
       </div>
