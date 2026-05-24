@@ -1325,30 +1325,68 @@ body {
   cursor: not-allowed;
 }
 
-/* CB 技術分析 Modal — CB 選擇器 (多檔時用) */
-.cbtech-cb-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+/* header 右側的小按鈕 (e.g. 「CB 技術分析」) 與 close 按鈕間距 */
+.btn-header-link {
+  margin-right: 8px;
   flex: 0 0 auto;
 }
 
-.cbtech-cb-strip:empty { display: none; }
+/* ─── 個股 + CB 技術分析 Modal 並排對照模式 ─── */
+.auction-modal.split-mode {
+  background: transparent;
+  padding: 0;
+  pointer-events: none;
+}
 
-.cbtech-cb-tab {
+.auction-modal.split-mode .auction-modal-content {
+  pointer-events: auto;
+  position: fixed;
+  top: 2vh;
+  height: 96vh;
+  width: 49vw;
+  max-width: none;
+  max-height: none;
+}
+
+#tech-modal.split-mode .auction-modal-content {
+  left: 0.5vw;
+}
+
+#cbtech-modal.split-mode .auction-modal-content {
+  right: 0.5vw;
+}
+
+/* CB 技術分析 Modal — 標題列 CB tab (取代舊的 body strip)
+   active 大、其他小,整體在 280px 槽位內水平置中,
+   與個股 modal 的 .tech-nav-label 視覺位置對齊 */
+.cbtech-title-tabs {
+  min-width: 280px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+/* 所有 CB tab 同樣字級/padding,讓 CB modal header 高度 = 個股 modal header 高度
+   active 只用底色+邊框顏色區分,不變字體大小 */
+.cbtech-title-tab {
   background: rgba(30,41,59,0.6);
   border: 1px solid var(--border-light);
   color: var(--text-muted);
-  padding: 4px 14px;
-  font-size: 13px;
+  padding: 6px 14px;
+  font-size: 15px;
+  font-weight: 600;
   border-radius: 4px;
   cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.cbtech-cb-tab:hover { color: var(--text); }
+.cbtech-title-tab:hover { color: var(--text); }
 
-.cbtech-cb-tab.active {
+.cbtech-title-tab.active {
   background: #2563eb;
   border-color: #2563eb;
   color: #fff;

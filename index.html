@@ -55,7 +55,7 @@
     <div class="detail-section">
       <div class="detail-section-head">
         <h3>股價資訊</h3>
-        <button class="btn-tech-analysis" type="button" onclick="App.openTechModal()" title="技術分析 (K線 / 法人 / 融資券)">技術分析</button>
+        <button class="btn-tech-analysis" type="button" onclick="App.openTechModal()" title="個股技術分析 (K線 / 法人 / 融資券)">個股技術分析</button>
       </div>
       <div id="detail-price-info"></div>
     </div>
@@ -81,6 +81,7 @@
     <div class="auction-modal-content tech-modal-content" onclick="event.stopPropagation()">
       <div class="auction-modal-header">
         <div class="auction-modal-title" id="tech-modal-title"></div>
+        <button class="btn-tech-analysis btn-header-link" type="button" onclick="App.openCBTechFromStock()" title="併排顯示 CB 技術分析">CB 技術分析</button>
         <button class="detail-close" onclick="App.closeTechModal()">&times;</button>
       </div>
       <div class="auction-modal-body tech-modal-body">
@@ -128,12 +129,10 @@
     <div class="auction-modal-content tech-modal-content" onclick="event.stopPropagation()">
       <div class="auction-modal-header">
         <div class="auction-modal-title" id="cbtech-modal-title"></div>
+        <button class="btn-tech-analysis btn-header-link" type="button" onclick="App.openTechFromCB()" title="併排顯示個股技術分析">個股技術分析</button>
         <button class="detail-close" onclick="App.closeCBTechModal()">&times;</button>
       </div>
       <div class="auction-modal-body tech-modal-body">
-        <!-- CB 選擇器 (1 檔以上時顯示) -->
-        <div class="cbtech-cb-strip" id="cbtech-cb-strip"></div>
-
         <div class="tech-chart-block">
           <div class="tech-chart-head">
             <span class="tech-chart-title">CB K 線 / 量能</span>

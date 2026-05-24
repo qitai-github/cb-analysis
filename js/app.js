@@ -555,6 +555,12 @@ const App = (() => {
     // 同步更新右側詳情面板 (showDetail 內含 selectedStock 賦值)
     showDetail(newStock);
     refreshTechModalForCurrentStock();
+    // 並排模式下 CB 技術分析也要連動切到同一檔
+    if (document.getElementById('cbtech-modal')?.classList.contains('show')) {
+      const cbs = (newStock.cbs || []).filter(c => c.cbCode);
+      selectedCBTab = newStock.mainCB?.cbCode || cbs[0]?.cbCode || null;
+      refreshCBTechModal();
+    }
   }
 
   function renderTechInst() {
@@ -619,6 +625,32 @@ const App = (() => {
     if (event && event.target && event.target.id !== 'tech-modal') return;
     document.getElementById('tech-modal').classList.remove('show');
     Charts.destroyTech();
+    exitTechSplitMode();
+  }
+
+  // 從個股技術分析 Modal 點「CB 技術分析」→ 兩個 Modal 並排對照
+  function openCBTechFromStock() {
+    enterTechSplitMode();
+    openCBTechModal();
+  }
+
+  // 反方向:從 CB 技術分析 Modal 點「個股技術分析」→ 兩個 Modal 並排對照
+  function openTechFromCB() {
+    enterTechSplitMode();
+    openTechModal();
+  }
+
+  function enterTechSplitMode() {
+    document.getElementById('tech-modal')?.classList.add('split-mode');
+    document.getElementById('cbtech-modal')?.classList.add('split-mode');
+    // chart 容器寬度改變,通知 Chart.js 重新計算
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  }
+
+  function exitTechSplitMode() {
+    document.getElementById('tech-modal')?.classList.remove('split-mode');
+    document.getElementById('cbtech-modal')?.classList.remove('split-mode');
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   }
 
   // ============================================================
@@ -661,7 +693,6 @@ const App = (() => {
   function refreshCBTechModal() {
     if (!selectedStock) return;
     renderCBTechModalTitle();
-    renderCBTechStrip();
     syncTechToggle('cbtech-inst-toggle', cbTechInstWhich);
     syncTechToggle('cbtech-extra-toggle', cbTechExtraWhich);
 
@@ -730,42 +761,48 @@ const App = (() => {
     }
   }
 
+  // CB Modal 標題:◀ [選中CB為主+其他CB為 pill] ▶
+  //   - 無 CB → 顯示 stock code/name
+  //   - 單 CB → 標題就是該 CB
+  //   - 多 CB → tab 形式,active 為標題,其餘為 pill,點擊切換
   function renderCBTechModalTitle() {
     const el = document.getElementById('cbtech-modal-title');
     if (!el || !selectedStock) return;
     const idx = filteredData.findIndex(s => s.code === selectedStock.code);
     const canPrev = idx > 0;
     const canNext = idx >= 0 && idx < filteredData.length - 1;
-    const fullLabel = `${selectedStock.code} ${selectedStock.name || ''}`;
+    const cbs = (selectedStock.cbs || []).filter(c => c.cbCode);
+
+    let midHtml;
+    if (cbs.length === 0) {
+      const fullLabel = `${selectedStock.code} ${selectedStock.name || ''}`;
+      midHtml = `<span class="tech-nav-label" title="${fullLabel}">${fullLabel}</span>`;
+    } else {
+      // CB tabs (active 大、其他 pill 小);整段塞進 .tech-nav-label 同樣 280px 槽位,維持與個股 modal 對齊
+      const pillsHtml = cbs.map(cb => {
+        const active = cb.cbCode === selectedCBTab;
+        const cls = 'cbtech-title-tab' + (active ? ' active' : '');
+        return `<button class="${cls}" data-cbcode="${cb.cbCode}" title="${cb.cbCode} ${cb.cbName || ''}">${cb.cbCode} ${cb.cbName || ''}</button>`;
+      }).join('');
+      midHtml = `<span class="cbtech-title-tabs">${pillsHtml}</span>`;
+    }
+
     el.innerHTML =
       `<button class="tech-nav-arrow" id="cbtech-nav-prev" ${canPrev ? '' : 'disabled'} title="上一檔">&#x25C0;</button>` +
-      `<span class="tech-nav-label" title="${fullLabel}">${fullLabel}</span>` +
+      midHtml +
       `<button class="tech-nav-arrow" id="cbtech-nav-next" ${canNext ? '' : 'disabled'} title="下一檔">&#x25B6;</button>`;
     document.getElementById('cbtech-nav-prev')?.addEventListener('click', () => navigateCBTechModal(-1));
     document.getElementById('cbtech-nav-next')?.addEventListener('click', () => navigateCBTechModal(1));
-  }
 
-  function renderCBTechStrip() {
-    const host = document.getElementById('cbtech-cb-strip');
-    if (!host) return;
-    const cbs = (selectedStock.cbs || []).filter(c => c.cbCode);
-    if (cbs.length <= 1) { host.innerHTML = ''; return; }
-    host.innerHTML = cbs.map(cb =>
-      `<button class="cbtech-cb-tab${cb.cbCode === selectedCBTab ? ' active' : ''}" `
-      + `data-cbcode="${cb.cbCode}">${cb.cbCode} ${cb.cbName || ''}</button>`
-    ).join('');
-    if (host.dataset.bound !== '1') {
-      host.dataset.bound = '1';
-      host.addEventListener('click', (e) => {
-        const btn = e.target.closest('.cbtech-cb-tab');
-        if (!btn) return;
+    // CB tab 點擊 → 切換 selectedCBTab
+    el.querySelectorAll('.cbtech-title-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
         const code = btn.dataset.cbcode;
         if (!code || code === selectedCBTab) return;
         selectedCBTab = code;
-        renderCBTechStrip();
         refreshCBTechModal();
       });
-    }
+    });
   }
 
   function navigateCBTechModal(dir) {
@@ -780,12 +817,17 @@ const App = (() => {
     const cbs = (newStock.cbs || []).filter(c => c.cbCode);
     selectedCBTab = newStock.mainCB?.cbCode || cbs[0]?.cbCode || null;
     refreshCBTechModal();
+    // 並排模式下個股技術分析也要連動切到同一檔
+    if (document.getElementById('tech-modal')?.classList.contains('show')) {
+      refreshTechModalForCurrentStock();
+    }
   }
 
   function closeCBTechModal(event) {
     if (event && event.target && event.target.id !== 'cbtech-modal') return;
     document.getElementById('cbtech-modal').classList.remove('show');
     Charts.destroyCBTech();
+    exitTechSplitMode();
   }
 
   // 目前選的 CB (給 CB 技術分析 Modal 使用)
@@ -1491,7 +1533,7 @@ const App = (() => {
     init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter,
     showAuctionModal, closeAuctionModal,
     openTechModal, closeTechModal,
-    openCBTechModal, closeCBTechModal,
+    openCBTechModal, closeCBTechModal, openCBTechFromStock, openTechFromCB,
     switchTab, showDetail
   };
 })();
