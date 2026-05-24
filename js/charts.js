@@ -1068,7 +1068,8 @@ const Charts = (() => {
       ? sharedDates
       : dates.slice(-APP_CONFIG.techAnalysisDays);
     const labels = recentDates.map(d => formatDateLabel(d));
-    const toLots = v => v != null ? Math.round(v / 1000) : null;
+    // CB 法人資料源單位已是「張」,不需要 /1000 (stock-level 才需要)
+    const toLots = v => v != null ? Math.round(v) : null;
 
     // 累積:從整段歷史開頭算起,直到 recentDates 的第一天前
     const earliestRecent = recentDates[0];
@@ -1257,16 +1258,17 @@ const Charts = (() => {
         i >= thisWeekStart ? 'rgba(59,130,246,0.8)' : 'rgba(148,163,184,0.6)'
       );
 
-      // 算 Y 軸範圍 → 鏡像給左右兩軸 (X 軸寬度對齊其他兩張圖)
+      // Y 軸固定 0 ~ 發行張數 (= cb.actualTotal 百萬 × 10) → 視覺上能看出餘額佔發行的比例
+      // actualTotal 缺值時退回 data 最大值 * 1.1
+      const issueLots = (cb.actualTotal != null && cb.actualTotal > 0)
+        ? cb.actualTotal * 10
+        : null;
       const validBals = data.filter(v => v != null);
-      let bMin = 0, bMax = 1000;
-      if (validBals.length) {
-        bMax = Math.max(...validBals);
-        bMin = Math.min(...validBals);
-        const span = Math.max(bMax - bMin, 1);
-        bMin = Math.max(0, bMin - span * 0.15);
-        bMax += span * 0.15;
-      }
+      const dataMax = validBals.length ? Math.max(...validBals) : 0;
+      const bMin = 0;
+      const bMax = issueLots != null
+        ? Math.max(issueLots, dataMax)
+        : (dataMax > 0 ? dataMax * 1.1 : 1000);
 
       cbTechExtraChart = new Chart(canvas, {
         type: 'bar',
