@@ -1255,6 +1255,47 @@ body {
   height: 96vh;
 }
 
+/* 技術分析 Modal 標題:◀ 股號股名 ▶ */
+#tech-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tech-nav-label {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+
+.tech-nav-arrow {
+  width: 32px;
+  height: 32px;
+  background: rgba(30,41,59,0.6);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.tech-nav-arrow:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.tech-nav-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .tech-modal-body {
   flex: 1 1 auto;
   min-height: 0;

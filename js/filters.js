@@ -214,6 +214,33 @@ const Filters = (() => {
       group: 'CB篩選',
       apply: (stock, val) => !val || (stock.cbHighDays != null && stock.cbHighDays >= val)
     },
+    cbVolumeMin: {
+      label: 'CB成交量 >=',
+      type: 'number',
+      group: 'CB篩選',
+      apply: (stock, val) => !val || (stock.mainCB?.volume != null && stock.mainCB.volume >= val)
+    },
+    cbVolumeRatioMin: {
+      label: 'CB量比(今/5日均) >=',
+      type: 'number',
+      group: 'CB篩選',
+      apply: (stock, val) => {
+        if (!val) return true;
+        const v = stock.mainCB?.volume;
+        const ohlcv = stock.mainCB?.ohlcv;
+        if (v == null || !Array.isArray(ohlcv) || ohlcv.length < 5) return false;
+        // 5日均 = 含今日往前 5 個交易日
+        const last5 = ohlcv.slice(-5);
+        let sum = 0, count = 0;
+        for (const row of last5) {
+          if (row && row.volume != null) { sum += row.volume; count++; }
+        }
+        if (count < 5) return false;
+        const avg = sum / count;
+        if (!(avg > 0)) return false;
+        return (v / avg) >= val;
+      }
+    },
 
     // 可轉債條件篩選
     cbConvValueMin: {

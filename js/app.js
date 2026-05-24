@@ -507,15 +507,11 @@ const App = (() => {
 
   function openTechModal() {
     if (!selectedStock) return;
-    document.getElementById('tech-modal-title').textContent =
-      `${selectedStock.code} ${selectedStock.name} 技術分析`;
     document.getElementById('tech-modal').classList.add('show');
 
     // 重設 toggle 為預設 (外資 / 融資)
     techInstWhich = '外資';
     techMarginWhich = '融資';
-    syncTechToggle('tech-inst-toggle', techInstWhich);
-    syncTechToggle('tech-margin-toggle', techMarginWhich);
 
     // 綁定 toggle (用 dataset.bound 避免重複綁)
     bindTechToggle('tech-inst-toggle', (which) => {
@@ -527,12 +523,49 @@ const App = (() => {
       renderTechMargin();
     });
 
-    // 等 modal 顯示後 canvas 才有寬高,延遲一拍再畫
+    refreshTechModalForCurrentStock();
+  }
+
+  // 重新渲染 Modal (切換股票時用) — 不重設 toggle 狀態
+  function refreshTechModalForCurrentStock() {
+    if (!selectedStock) return;
+    renderTechModalTitle();
+    syncTechToggle('tech-inst-toggle', techInstWhich);
+    syncTechToggle('tech-margin-toggle', techMarginWhich);
     setTimeout(() => {
       Charts.renderTechPriceChart('tech-price-chart', selectedStock);
       renderTechInst();
       renderTechMargin();
     }, 50);
+  }
+
+  // 技術分析 Modal 標題:◀ 股號 股名 ▶ — 串接主畫面 filteredData 前後切換
+  function renderTechModalTitle() {
+    const titleEl = document.getElementById('tech-modal-title');
+    if (!titleEl || !selectedStock) return;
+    const idx = filteredData.findIndex(s => s.code === selectedStock.code);
+    const canPrev = idx > 0;
+    const canNext = idx >= 0 && idx < filteredData.length - 1;
+    titleEl.innerHTML =
+      `<button class="tech-nav-arrow" id="tech-nav-prev" ${canPrev ? '' : 'disabled'} title="上一檔">&#x25C0;</button>` +
+      `<span class="tech-nav-label">${selectedStock.code} ${selectedStock.name}</span>` +
+      `<button class="tech-nav-arrow" id="tech-nav-next" ${canNext ? '' : 'disabled'} title="下一檔">&#x25B6;</button>`;
+    const prev = document.getElementById('tech-nav-prev');
+    const next = document.getElementById('tech-nav-next');
+    if (prev) prev.addEventListener('click', () => navigateTechModal(-1));
+    if (next) next.addEventListener('click', () => navigateTechModal(1));
+  }
+
+  function navigateTechModal(dir) {
+    if (!selectedStock) return;
+    const idx = filteredData.findIndex(s => s.code === selectedStock.code);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= filteredData.length) return;
+    const newStock = filteredData[newIdx];
+    // 同步更新右側詳情面板 (showDetail 內含 selectedStock 賦值)
+    showDetail(newStock);
+    refreshTechModalForCurrentStock();
   }
 
   function renderTechInst() {
