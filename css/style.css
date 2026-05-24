@@ -738,6 +738,7 @@ body {
 .text-neutral { color: var(--neutral) !important; }
 .text-muted { color: var(--text-muted) !important; }
 .text-right { text-align: right !important; }
+.text-center { text-align: center !important; }
 
 /* === 分頁 === */
 .pager {

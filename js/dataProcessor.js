@@ -591,6 +591,10 @@ const DataProcessor = (() => {
         if (!entry) continue;  // 只標示 CB 對應個股
         if (!entry.statusFlags) entry.statusFlags = {};
         entry.statusFlags[type] = { date, ...(details || {}) };
+        // 扁平欄位給 table 排序用 (key = vcpStreak / sanxianStreak)
+        const streak = Number(details?.streak) || 0;
+        if (type === 'vcp') entry.vcpStreak = streak;
+        else if (type === 'sanxian') entry.sanxianStreak = streak;
       }
     }
   }
@@ -826,6 +830,7 @@ const DataProcessor = (() => {
 
       // 線型T & 第一根表態
       const ohlcv = buildOHLCVArray(stock);
+      stock.ohlcv = ohlcv;  // 保留給 K 線圖用 (含「冷門無成交日 → 沿用前一日 close」fallback)
       stock.tPatternDays = calcTPatternDays(ohlcv);
       stock.firstBarSignal = checkFirstBarSignal(ohlcv);
     }

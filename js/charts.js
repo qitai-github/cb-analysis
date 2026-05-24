@@ -565,29 +565,31 @@ const Charts = (() => {
   // 技術分析 Modal 專用圖表
   // ============================================================
 
-  /** Modal K 線:結構同 renderPriceChart,僅換 canvasId + chart 變數 */
+  /** Modal K 線:用 stock.ohlcv (含「冷門無成交日→沿用前一日 close」fallback) */
   function renderTechPriceChart(canvasId, stock) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (techPriceChart) { techPriceChart.destroy(); techPriceChart = null; }
 
-    const dates = stock.tradingDates || [];
-    const recentDates = dates.slice(-APP_CONFIG.techAnalysisDays);
+    const ohlcv = stock.ohlcv || [];
+    if (ohlcv.length === 0) {
+      _emptyChart_(canvas, '無交易資料');
+      return;
+    }
+    const recent = ohlcv.slice(-APP_CONFIG.techAnalysisDays);
+    const recentDates = recent.map(r => r.date);
     const labels = recentDates.map(d => formatDateLabel(d));
 
-    const openData = recentDates.map(d => stock.trading['開盤價']?.[d] ?? null);
-    const highData = recentDates.map(d => stock.trading['最高價']?.[d] ?? null);
-    const lowData = recentDates.map(d => stock.trading['最低價']?.[d] ?? null);
-    const closeData = recentDates.map(d => stock.trading['收盤價']?.[d] ?? null);
-    const volumeData = recentDates.map(d => {
-      const raw = stock.trading['成交股數']?.[d] ?? null;
-      return raw != null ? Math.round(raw / 1000) : null;
-    });
+    const openData = recent.map(r => r.open);
+    const highData = recent.map(r => r.high);
+    const lowData = recent.map(r => r.low);
+    const closeData = recent.map(r => r.close);
+    // ohlcv.volume 已經除過 1000 (張),不需再除
+    const volumeData = recent.map(r => r.volume);
 
-    const volumeColors = recentDates.map((d, i) => {
-      const o = openData[i], c = closeData[i];
-      if (o == null || c == null) return 'rgba(148,163,184,0.4)';
-      return c >= o ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)';
+    const volumeColors = recent.map(r => {
+      if (r.open == null || r.close == null) return 'rgba(148,163,184,0.4)';
+      return r.close >= r.open ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)';
     });
 
     const ma5Data = calcMAArray(closeData, 5);

@@ -9,7 +9,8 @@ const Table = (() => {
     { key: '_star', label: '\u2606', width: '36px', sticky: true, format: 'star', noSort: false },
     { key: 'code', label: '代碼', width: '70px', sticky: true },
     { key: 'name', label: '名稱', width: '100px', sticky: true },
-    { key: '_status', label: '狀態', width: '110px', format: 'status' },
+    { key: 'vcpStreak',     label: 'VCP',  width: '75px', format: 'badge_vcp',     align: 'center' },
+    { key: 'sanxianStreak', label: '三線', width: '75px', format: 'badge_sanxian', align: 'center' },
     { key: 'industryCategory', label: '產業分類', width: '140px', format: 'industry' },
     { key: 'latestClose', label: '收盤價', width: '75px', format: 'price', align: 'right' },
     { key: 'priceChangePercent', label: '漲跌%', width: '70px', format: 'percent_color', align: 'right' },
@@ -52,6 +53,7 @@ const Table = (() => {
       th.style.minWidth = col.width;
       if (col.sticky) th.className = 'sticky-col';
       if (col.align === 'right') th.classList.add('text-right');
+      if (col.align === 'center') th.classList.add('text-center');
       th.dataset.sortKey = col.key;
       th.addEventListener('click', () => handleSort(col.key, containerId));
       if (currentSort.key === col.key) {
@@ -77,6 +79,7 @@ const Table = (() => {
         const td = document.createElement('td');
         if (col.sticky) td.className = 'sticky-col';
         if (col.align === 'right') td.classList.add('text-right');
+        if (col.align === 'center') td.classList.add('text-center');
         const val = getVal(stock, col.key);
         formatCell(td, val, col.format, stock);
         tr.appendChild(td);
@@ -152,6 +155,15 @@ const Table = (() => {
 
     if (format === 'status') {
       renderStatusBadges(td, stock);
+      return;
+    }
+
+    if (format === 'badge_vcp') {
+      renderSingleBadge(td, stock, 'vcp');
+      return;
+    }
+    if (format === 'badge_sanxian') {
+      renderSingleBadge(td, stock, 'sanxian');
       return;
     }
 
@@ -254,10 +266,7 @@ const Table = (() => {
   function getVal(obj, key) {
     if (!key) return null;
     if (key === '_star') return Watchlist.has(obj.code) ? 1 : 0;
-    if (key === '_status') {
-      const f = obj.statusFlags;
-      return f ? Object.keys(f).length : 0;
-    }
+    // vcpStreak / sanxianStreak 是 dataProcessor 寫進去的扁平欄位 (沒值 = null,sort 靠後)
     return key.split('.').reduce((o, k) => o?.[k], obj) ?? null;
   }
 
@@ -288,6 +297,24 @@ const Table = (() => {
     }
   }
 
+  // 拆欄後單格 badge (給 vcpStreak / sanxianStreak 兩個獨立欄位用)
+  function renderSingleBadge(td, stock, type) {
+    const info = stock.statusFlags?.[type];
+    if (!info) {
+      td.textContent = '';
+      td.classList.add('text-muted');
+      return;
+    }
+    td.classList.add('cell-status');
+    const cfg = STATUS_BADGES[type];
+    const span = document.createElement('span');
+    span.className = `badge ${cfg.cls}`;
+    const streak = Number(info.streak) || 0;
+    span.textContent = streak > 0 ? `${cfg.label}·${streak}` : cfg.label;
+    span.title = buildStatusTooltip(type, info);
+    td.appendChild(span);
+  }
+
   function buildStatusTooltip(type, info) {
     const lines = [];
     const head = type === 'vcp' ? 'VCP' : '三線開花';
@@ -308,13 +335,21 @@ const Table = (() => {
   }
 
   function updateInstDays(days) {
-    columns[8].label = `外資${days}日`;
-    columns[8].key = `foreign_${days}d`;
-    columns[9].label = `投信${days}日`;
-    columns[9].key = `investment_${days}d`;
-    columns[10].label = `自營${days}日`;
-    columns[10].key = `dealer_${days}d`;
-    columns[11].key = `totalInst_${days}d`;
+    // 用 label prefix 找,避免日後再加欄位時 index 跑掉
+    for (const col of columns) {
+      if (col.label.startsWith('外資')) {
+        col.label = `外資${days}日`;
+        col.key = `foreign_${days}d`;
+      } else if (col.label.startsWith('投信')) {
+        col.label = `投信${days}日`;
+        col.key = `investment_${days}d`;
+      } else if (col.label.startsWith('自營')) {
+        col.label = `自營${days}日`;
+        col.key = `dealer_${days}d`;
+      } else if (col.label === '法人合計') {
+        col.key = `totalInst_${days}d`;
+      }
+    }
   }
 
   function getCurrentData() { return currentData; }
