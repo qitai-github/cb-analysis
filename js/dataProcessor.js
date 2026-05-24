@@ -428,8 +428,12 @@ const DataProcessor = (() => {
           if (cb.cbCode) seenCBs.add(cb.cbCode);
         }
       }
+      // 過濾舊 5 碼 CB 重複殘留:同一資料源若同時有 81121 (5 碼) + 811210 (6 碼),
+      // 5 碼版通常是 TWSE 早期格式遷移後的空殼,跳過。
+      const sourceCodes = new Set(Object.keys(cbTradingByCode.stocks));
       for (const [cbCode, cbEntry] of Object.entries(cbTradingByCode.stocks)) {
         if (seenCBs.has(cbCode)) continue;
+        if (cbCode.length === 5 && sourceCodes.has(cbCode + '0')) continue;
         const stockCode = extractStockCode(cbCode);
         if (!stockCode) continue;
         const entry = getOrCreate(stockMap, stockCode, '');
