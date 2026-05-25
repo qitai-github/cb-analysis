@@ -831,6 +831,8 @@ const DataProcessor = (() => {
       stock.ma20 = calcMA(stock.trading['收盤價'], tradingDates, 20);
       const rawAvgVol5 = calcMA(stock.trading['成交股數'], tradingDates, 5);
       stock.avgVolume5 = rawAvgVol5 != null ? Math.round(rawAvgVol5 / 1000) : null;
+      const rawAvgVol20 = calcMA(stock.trading['成交股數'], tradingDates, 20);
+      stock.avgVolume20 = rawAvgVol20 != null ? Math.round(rawAvgVol20 / 1000) : null;
 
       // 線型T & 第一根表態
       const ohlcv = buildOHLCVArray(stock);

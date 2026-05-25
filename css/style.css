@@ -438,7 +438,7 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  padding: 10px 12px;
+  padding: 10px 6px;
   text-align: left;
   border-bottom: 2px solid var(--border);
   cursor: pointer;
@@ -454,7 +454,7 @@ body {
 .data-table th.sort-desc::after { content: ' \25BC'; font-size: 9px; }
 
 .data-table td {
-  padding: 8px 12px;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--border-light);
 }
 

@@ -6,23 +6,25 @@ const Table = (() => {
   let onRowClick = null;
 
   const columns = [
-    { key: '_star', label: '\u2606', width: '36px', sticky: true, format: 'star', noSort: false },
-    { key: 'code', label: '代碼', width: '70px', sticky: true },
-    { key: 'name', label: '名稱', width: '100px', sticky: true },
-    { key: 'vcpStreak',     label: 'VCP',  width: '75px', format: 'badge_vcp',     align: 'center' },
-    { key: 'sanxianStreak', label: '三線', width: '75px', format: 'badge_sanxian', align: 'center' },
-    { key: 'industryCategory', label: '產業分類', width: '140px', format: 'industry' },
-    { key: 'latestClose', label: '收盤價', width: '75px', format: 'price', align: 'right' },
-    { key: 'priceChangePercent', label: '漲跌%', width: '70px', format: 'percent_color', align: 'right' },
-    { key: 'latestVolume', label: '成交量(張)', width: '85px', format: 'volume', align: 'right' },
-    { key: 'foreign_1d', label: '外資1日', width: '85px', format: 'inst', align: 'right' },
-    { key: 'investment_1d', label: '投信1日', width: '85px', format: 'inst', align: 'right' },
-    { key: 'dealer_1d', label: '自營1日', width: '85px', format: 'inst', align: 'right' },
-    { key: 'totalInst_1d', label: '法人合計', width: '85px', format: 'inst', align: 'right' },
-    { key: 'latestMarginBalance', label: '融資餘額', width: '90px', format: 'volume', align: 'right' },
-    { key: 'latestMarginChange',  label: '融資增減', width: '90px', format: 'inst',   align: 'right' },
-    { key: 'latestShortBalance',  label: '融券餘額', width: '90px', format: 'volume', align: 'right' },
-    { key: 'latestShortChange',   label: '融券增減', width: '90px', format: 'inst',   align: 'right' }
+    { key: '_star', label: '\u2606', width: '32px', sticky: true, format: 'star', noSort: false },
+    { key: 'code', label: '代碼', width: '60px', sticky: true },
+    { key: 'name', label: '名稱', width: '85px', sticky: true },
+    { key: 'vcpStreak',     label: 'VCP',  width: '60px', format: 'badge_vcp',     align: 'center' },
+    { key: 'sanxianStreak', label: '三線', width: '60px', format: 'badge_sanxian', align: 'center' },
+    { key: 'industryCategory', label: '產業分類', width: '105px', format: 'industry' },
+    { key: 'latestClose', label: '收盤價', width: '65px', format: 'price', align: 'right' },
+    { key: 'priceChangePercent', label: '漲跌%', width: '60px', format: 'percent_color', align: 'right' },
+    { key: 'latestVolume', label: '成交量(張)', width: '75px', format: 'volume', align: 'right' },
+    { key: 'avgVolume5',   label: '5日均量', width: '70px', format: 'volume', align: 'right' },
+    { key: 'avgVolume20',  label: '20日均量', width: '75px', format: 'volume', align: 'right' },
+    { key: 'foreign_1d', label: '外資1日', width: '70px', format: 'inst', align: 'right' },
+    { key: 'investment_1d', label: '投信1日', width: '70px', format: 'inst', align: 'right' },
+    { key: 'dealer_1d', label: '自營1日', width: '70px', format: 'inst', align: 'right' },
+    { key: 'totalInst_1d', label: '法人合計', width: '70px', format: 'inst', align: 'right' },
+    { key: 'latestMarginBalance', label: '融資餘額', width: '75px', format: 'volume', align: 'right' },
+    { key: 'latestMarginChange',  label: '融資增減', width: '75px', format: 'inst',   align: 'right' },
+    { key: 'latestShortBalance',  label: '融券餘額', width: '75px', format: 'volume', align: 'right' },
+    { key: 'latestShortChange',   label: '融券增減', width: '75px', format: 'inst',   align: 'right' }
   ];
 
   function render(containerId, data, options = {}) {
