@@ -45,9 +45,12 @@ UA = (
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
 
-# 註:統一 CBAS 日曆 xlsx 不在這裡抓 —— service account 無 Drive 儲存配額,
-# 無法 create 新檔。改由 parse_and_export.py Phase 4.7 直接打統一公開 API
-# (見 lib/cbas_calendar.py,API 優先)。
+# 統一 CBAS 日曆 xlsx (已發行 + 預計發行):
+#   parse_and_export.py Phase 4.7 主要靠直接打 API 解析 (API-first),
+#   本檔額外順手把 API 抓到的 xlsx 覆蓋到 Drive 留一份備份,
+#   給 cbas_calendar.fetch_latest_pair() (API 失敗 fallback) 使用。
+#   GAS HealthCheck 已先建好今日檔名空殼 (已發行CB資料_YYYYMMDD.xlsx),
+#   這裡只負責 update (覆蓋內容) — SA 沒儲存配額不能 create 但可 update。
 
 MAX_RETRIES = 5
 # 2 / 4 / 8 / 16 / 32s,第 1 次不等
@@ -413,11 +416,39 @@ def main() -> int:
         if i < len(keys) - 1:
             time.sleep(3)
 
+    # ── 附加:統一 CBAS 日曆 xlsx 備份 ────────────────────────────────
+    cbas_folder = folder_map.get("CBAS_CALENDAR")
+    if cbas_folder:
+        print("\n=== 統一 CBAS 日曆 xlsx 備份 ===", flush=True)
+        try:
+            backup_cbas_to_drive(svc, cbas_folder, dstr)
+        except Exception as e:  # noqa: BLE001
+            print(f"⚠️ CBAS 備份失敗 (不擋主流程): {e}",
+                  file=sys.stderr, flush=True)
+    else:
+        print("\nℹ️ DRIVE_FOLDERS 沒設定 CBAS_CALENDAR,跳過 CBAS 備份",
+              flush=True)
+
     if failed:
         print(f"\n❌ 完成但有失敗: {failed}", file=sys.stderr, flush=True)
         return 1
     print("\n🏁 全部完成", flush=True)
     return 0
+
+
+def backup_cbas_to_drive(service, folder_id: str, dstr: str) -> None:
+    """從統一 CBAS API 抓最新兩份 xlsx → 覆蓋到 Drive folder。
+    檔名固定為「已發行CB資料_{dstr}.xlsx」「預計發行CB資料_{dstr}.xlsx」,
+    GAS HealthCheck 已先建好空殼,這裡只 update 內容。"""
+    # 重用 lib/cbas_calendar 已寫好的 API 下載邏輯
+    from lib import cbas_calendar
+    _, issued_blob, planned_blob = cbas_calendar.fetch_from_api()
+    XLSX_MIME = ("application/vnd.openxmlformats-officedocument"
+                 ".spreadsheetml.sheet")
+    upload(service, folder_id,
+           f"已發行CB資料_{dstr}.xlsx", issued_blob, mime=XLSX_MIME)
+    upload(service, folder_id,
+           f"預計發行CB資料_{dstr}.xlsx", planned_blob, mime=XLSX_MIME)
 
 
 if __name__ == "__main__":
