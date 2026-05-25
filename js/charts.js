@@ -12,10 +12,17 @@ const Charts = (() => {
   // 6 個:tech-foreign-chart / tech-invest-chart / tech-dealer-chart
   //      tech-bias-chart   / tech-margin-chart / tech-short-chart
   const techSubCharts = new Map();
-  function _setTechSub(canvasId, chart) {
+  // 取乾淨 canvas:銷毀舊 chart 並 unregister,確保 new Chart() 不會撞「Canvas is already in use」
+  function _claimTechSubCanvas(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
     const old = techSubCharts.get(canvasId);
-    if (old) old.destroy();
-    techSubCharts.set(canvasId, chart);
+    if (old) { old.destroy(); techSubCharts.delete(canvasId); }
+    return canvas;
+  }
+  function _setTechSub(canvasId, chart) {
+    if (chart) techSubCharts.set(canvasId, chart);
+    else techSubCharts.delete(canvasId);
   }
   function _destroyTechSubs() {
     for (const c of techSubCharts.values()) c.destroy();
@@ -24,10 +31,16 @@ const Charts = (() => {
 
   // CB 技術分析 modal sub-charts 也用 Map (key = canvasId)
   const cbTechSubCharts = new Map();
-  function _setCBTechSub(canvasId, chart) {
+  function _claimCBTechSubCanvas(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
     const old = cbTechSubCharts.get(canvasId);
-    if (old) old.destroy();
-    cbTechSubCharts.set(canvasId, chart);
+    if (old) { old.destroy(); cbTechSubCharts.delete(canvasId); }
+    return canvas;
+  }
+  function _setCBTechSub(canvasId, chart) {
+    if (chart) cbTechSubCharts.set(canvasId, chart);
+    else cbTechSubCharts.delete(canvasId);
   }
   function _destroyCBTechSubs() {
     for (const c of cbTechSubCharts.values()) c.destroy();
@@ -721,13 +734,12 @@ const Charts = (() => {
    * @returns {{latest:number|null, cumulative:number|null}}
    */
   function renderTechInstChart(canvasId, stock, which) {
-    const canvas = document.getElementById(canvasId);
+    const canvas = _claimTechSubCanvas(canvasId);
     if (!canvas) return { latest: null, cumulative: null };
 
     const dates = stock.institutionalDates || [];
     if (!stock.institutional || dates.length === 0) {
       _emptyChart_(canvas, '無法人買賣超資料');
-      _setTechSub(canvasId, null);
       return { latest: null, cumulative: null };
     }
 
@@ -840,13 +852,12 @@ const Charts = (() => {
    * @returns {{latestChange:number|null, latestBalance:number|null}}
    */
   function renderTechMarginChart(canvasId, stock, which) {
-    const canvas = document.getElementById(canvasId);
+    const canvas = _claimTechSubCanvas(canvasId);
     if (!canvas) return { latestChange: null, latestBalance: null };
 
     const dates = stock.marginDates || [];
     if (!stock.margin || dates.length === 0) {
       _emptyChart_(canvas, '無融資融券資料');
-      _setTechSub(canvasId, null);
       return { latestChange: null, latestBalance: null };
     }
 
@@ -938,13 +949,12 @@ const Charts = (() => {
    *   BIAS(N) = (today close - MA(N)) / MA(N) × 100%
    */
   function renderTechBiasChart(canvasId, stock) {
-    const canvas = document.getElementById(canvasId);
+    const canvas = _claimTechSubCanvas(canvasId);
     if (!canvas) return { bias5: null, bias10: null, bias20: null };
 
     const ohlcv = stock.ohlcv || [];
     if (ohlcv.length === 0) {
       _emptyChart_(canvas, '無交易資料');
-      _setTechSub(canvasId, null);
       return { bias5: null, bias10: null, bias20: null };
     }
     const recent = ohlcv.slice(-APP_CONFIG.techAnalysisDays);
@@ -1123,7 +1133,7 @@ const Charts = (() => {
 
   /** CB 三大法人 toggle 圖 (Modal 內) */
   function renderCBTechInstChart(canvasId, stock, cbCode, which, sharedDates) {
-    const canvas = document.getElementById(canvasId);
+    const canvas = _claimCBTechSubCanvas(canvasId);
     if (!canvas) return { latest: null, cumulative: null };
 
     let inst = null, dates = [];
@@ -1213,7 +1223,7 @@ const Charts = (() => {
    * @param {string} which 'premium' | 'balance'
    */
   function renderCBTechExtraChart(canvasId, stock, cbCode, which, sharedDates) {
-    const canvas = document.getElementById(canvasId);
+    const canvas = _claimCBTechSubCanvas(canvasId);
     if (!canvas) return { latest: null };
 
     const cb = (stock.cbs || []).find(c => c.cbCode === cbCode);
