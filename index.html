@@ -84,40 +84,96 @@
         <button class="btn-tech-analysis btn-header-link" type="button" onclick="App.openCBTechFromStock()" title="併排顯示 CB 技術分析">CB 技術分析</button>
         <button class="detail-close" onclick="App.closeTechModal()">&times;</button>
       </div>
-      <div class="auction-modal-body tech-modal-body">
-        <div class="tech-chart-block">
+      <div class="auction-modal-body tech-modal-body tech-modal-body-v2">
+        <!-- 第一欄: K 線 / 量能 -->
+        <div class="tech-section-kline">
           <div class="tech-chart-head">
             <span class="tech-chart-title">K 線 / 量能</span>
+            <span class="tech-legend">
+              <span class="legend-chip" style="--c:#f59e0b">MA5</span>
+              <span class="legend-chip" style="--c:#3b82f6">MA10</span>
+              <span class="legend-chip" style="--c:#a855f7">MA20</span>
+              <span class="legend-chip" style="--c:rgba(34,197,94,0.7)">成交量</span>
+            </span>
           </div>
-          <div class="chart-container tech-chart-container tech-chart-tall">
+          <div class="chart-container tech-chart-container">
             <canvas id="tech-price-chart"></canvas>
           </div>
         </div>
 
-        <div class="tech-chart-block">
-          <div class="tech-chart-head">
-            <div class="tech-toggle" id="tech-inst-toggle">
-              <button class="tech-toggle-btn active" data-which="外資">外資</button>
-              <button class="tech-toggle-btn" data-which="投信">投信</button>
-              <button class="tech-toggle-btn" data-which="自營商">自營商</button>
-            </div>
-            <span class="tech-chart-meta" id="tech-inst-meta"></span>
+        <!-- 第二欄: 2 個檔案夾 tab -->
+        <div class="tech-section-tabs">
+          <div class="tech-folder-tabs">
+            <button class="tech-folder-tab active" data-folder="inst">法人買賣</button>
+            <button class="tech-folder-tab" data-folder="margin">資券</button>
           </div>
-          <div class="chart-container tech-chart-container">
-            <canvas id="tech-inst-chart"></canvas>
-          </div>
-        </div>
 
-        <div class="tech-chart-block">
-          <div class="tech-chart-head">
-            <div class="tech-toggle" id="tech-margin-toggle">
-              <button class="tech-toggle-btn active" data-which="融資">融資</button>
-              <button class="tech-toggle-btn" data-which="融券">融券</button>
+          <!-- Panel A: 法人買賣 (外資 / 投信 / 自營商) -->
+          <div class="tech-folder-panel" data-panel="inst">
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">外資</span>
+                <span class="tech-chart-meta" id="tech-foreign-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-foreign-chart"></canvas>
+              </div>
             </div>
-            <span class="tech-chart-meta" id="tech-margin-meta"></span>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">投信</span>
+                <span class="tech-chart-meta" id="tech-invest-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-invest-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">自營商</span>
+                <span class="tech-chart-meta" id="tech-dealer-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-dealer-chart"></canvas>
+              </div>
+            </div>
           </div>
-          <div class="chart-container tech-chart-container">
-            <canvas id="tech-margin-chart"></canvas>
+
+          <!-- Panel B: 資券 (乖離率 / 融資 / 融券) -->
+          <div class="tech-folder-panel hidden" data-panel="margin">
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">乖離率
+                  <span class="tech-legend">
+                    <span class="legend-chip" style="--c:#f59e0b">5</span>
+                    <span class="legend-chip" style="--c:#3b82f6">10</span>
+                    <span class="legend-chip" style="--c:#a855f7">20</span>
+                  </span>
+                </span>
+                <span class="tech-chart-meta" id="tech-bias-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-bias-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">融資</span>
+                <span class="tech-chart-meta" id="tech-margin-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-margin-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">融券</span>
+                <span class="tech-chart-meta" id="tech-short-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-short-chart"></canvas>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -132,10 +188,17 @@
         <button class="btn-tech-analysis btn-header-link" type="button" onclick="App.openTechFromCB()" title="併排顯示個股技術分析">個股技術分析</button>
         <button class="detail-close" onclick="App.closeCBTechModal()">&times;</button>
       </div>
-      <div class="auction-modal-body tech-modal-body">
-        <div class="tech-chart-block">
+      <div class="auction-modal-body tech-modal-body tech-modal-body-v2">
+        <!-- 第一欄: CB K 線 -->
+        <div class="tech-section-kline">
           <div class="tech-chart-head">
             <span class="tech-chart-title">CB K 線 / 量能</span>
+            <span class="tech-legend">
+              <span class="legend-chip" style="--c:#f59e0b">MA5</span>
+              <span class="legend-chip" style="--c:#3b82f6">MA10</span>
+              <span class="legend-chip" style="--c:#a855f7">MA20</span>
+              <span class="legend-chip" style="--c:rgba(34,197,94,0.7)">成交量</span>
+            </span>
             <span class="tech-chart-meta" id="cbtech-price-meta"></span>
           </div>
           <div class="chart-container tech-chart-container">
@@ -143,30 +206,70 @@
           </div>
         </div>
 
-        <div class="tech-chart-block">
-          <div class="tech-chart-head">
-            <div class="tech-toggle" id="cbtech-inst-toggle">
-              <button class="tech-toggle-btn active" data-which="外資">外資</button>
-              <button class="tech-toggle-btn" data-which="投信">投信</button>
-              <button class="tech-toggle-btn" data-which="自營商">自營商</button>
-            </div>
-            <span class="tech-chart-meta" id="cbtech-inst-meta"></span>
+        <!-- 第二欄: 2 個檔案夾 tab -->
+        <div class="tech-section-tabs">
+          <div class="tech-folder-tabs">
+            <button class="tech-folder-tab active" data-folder="inst">法人買賣</button>
+            <button class="tech-folder-tab" data-folder="extra">溢價/餘額</button>
           </div>
-          <div class="chart-container tech-chart-container">
-            <canvas id="cbtech-inst-chart"></canvas>
-          </div>
-        </div>
 
-        <div class="tech-chart-block">
-          <div class="tech-chart-head">
-            <div class="tech-toggle" id="cbtech-extra-toggle">
-              <button class="tech-toggle-btn active" data-which="premium">CB溢價率</button>
-              <button class="tech-toggle-btn" data-which="balance">流通餘額</button>
+          <!-- Panel A: CB 法人買賣 -->
+          <div class="tech-folder-panel" data-panel="inst">
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">外資</span>
+                <span class="tech-chart-meta" id="cbtech-foreign-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="cbtech-foreign-chart"></canvas>
+              </div>
             </div>
-            <span class="tech-chart-meta" id="cbtech-extra-meta"></span>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">投信</span>
+                <span class="tech-chart-meta" id="cbtech-invest-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="cbtech-invest-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">自營商</span>
+                <span class="tech-chart-meta" id="cbtech-dealer-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="cbtech-dealer-chart"></canvas>
+              </div>
+            </div>
           </div>
-          <div class="chart-container tech-chart-container">
-            <canvas id="cbtech-extra-chart"></canvas>
+
+          <!-- Panel B: 溢價 / 餘額 -->
+          <div class="tech-folder-panel hidden" data-panel="extra">
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">CB 溢價率</span>
+                <span class="tech-chart-meta" id="cbtech-premium-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="cbtech-premium-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">流通餘額</span>
+                <span class="tech-chart-meta" id="cbtech-balance-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="cbtech-balance-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">(保留)</span>
+              </div>
+              <div class="chart-container tech-chart-container"></div>
+            </div>
           </div>
         </div>
       </div>

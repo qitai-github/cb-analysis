@@ -6,11 +6,42 @@ const Charts = (() => {
   let cbInstChart = null;
   let marginChart = null;
   let techPriceChart = null;
-  let techInstChart = null;
-  let techMarginChart = null;
   let cbTechPriceChart = null;
-  let cbTechInstChart = null;
-  let cbTechExtraChart = null;
+
+  // 技術分析 modal sub-charts 統一用 Map 管理 (key = canvasId)
+  // 6 個:tech-foreign-chart / tech-invest-chart / tech-dealer-chart
+  //      tech-bias-chart   / tech-margin-chart / tech-short-chart
+  const techSubCharts = new Map();
+  function _setTechSub(canvasId, chart) {
+    const old = techSubCharts.get(canvasId);
+    if (old) old.destroy();
+    techSubCharts.set(canvasId, chart);
+  }
+  function _destroyTechSubs() {
+    for (const c of techSubCharts.values()) c.destroy();
+    techSubCharts.clear();
+  }
+
+  // CB 技術分析 modal sub-charts 也用 Map (key = canvasId)
+  const cbTechSubCharts = new Map();
+  function _setCBTechSub(canvasId, chart) {
+    const old = cbTechSubCharts.get(canvasId);
+    if (old) old.destroy();
+    cbTechSubCharts.set(canvasId, chart);
+  }
+  function _destroyCBTechSubs() {
+    for (const c of cbTechSubCharts.values()) c.destroy();
+    cbTechSubCharts.clear();
+  }
+
+  function _emptyChart_(canvas, msg) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = APP_CONFIG.colors.textMuted;
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(msg, canvas.width / 2, canvas.height / 2);
+  }
 
   /**
    * 計算移動平均線陣列
@@ -124,7 +155,7 @@ const Charts = (() => {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               afterTitle: (items) => {
@@ -340,7 +371,7 @@ const Charts = (() => {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               afterTitle: (items) => {
@@ -413,7 +444,7 @@ const Charts = (() => {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString()} 張`
@@ -524,7 +555,7 @@ const Charts = (() => {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               label: (ctx) => {
@@ -650,7 +681,7 @@ const Charts = (() => {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               afterTitle: (items) => {
@@ -692,16 +723,11 @@ const Charts = (() => {
   function renderTechInstChart(canvasId, stock, which) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return { latest: null, cumulative: null };
-    if (techInstChart) { techInstChart.destroy(); techInstChart = null; }
 
     const dates = stock.institutionalDates || [];
     if (!stock.institutional || dates.length === 0) {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = APP_CONFIG.colors.textMuted;
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('無法人買賣超資料', canvas.width / 2, canvas.height / 2);
+      _emptyChart_(canvas, '無法人買賣超資料');
+      _setTechSub(canvasId, null);
       return { latest: null, cumulative: null };
     }
 
@@ -735,7 +761,7 @@ const Charts = (() => {
       ? 'rgba(148,163,184,0.4)'
       : (v >= 0 ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.7)'));
 
-    techInstChart = new Chart(canvas, {
+    const chart = new Chart(canvas, {
       type: 'bar',
       data: {
         labels,
@@ -769,7 +795,7 @@ const Charts = (() => {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               label: (ctx) => {
@@ -799,6 +825,7 @@ const Charts = (() => {
         }
       }
     });
+    _setTechSub(canvasId, chart);
 
     const latest = recentValues.length ? recentValues[recentValues.length - 1] : null;
     const cumLatest = cumulative.length ? cumulative[cumulative.length - 1] : null;
@@ -806,25 +833,20 @@ const Charts = (() => {
   }
 
   /**
-   * Modal 融資/融券圖
-   *   bar  = 融資增減 / 融券增減 (張)
-   *   line = 融資餘額 / 融券餘額 (張)
+   * Modal 融資 / 融券 圖 (二選一,各一張)
+   *   bar  = 增減 (張)
+   *   line = 餘額 (張)
    * @param {string} which '融資' | '融券'
    * @returns {{latestChange:number|null, latestBalance:number|null}}
    */
   function renderTechMarginChart(canvasId, stock, which) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return { latestChange: null, latestBalance: null };
-    if (techMarginChart) { techMarginChart.destroy(); techMarginChart = null; }
 
     const dates = stock.marginDates || [];
     if (!stock.margin || dates.length === 0) {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = APP_CONFIG.colors.textMuted;
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('無融資融券資料', canvas.width / 2, canvas.height / 2);
+      _emptyChart_(canvas, '無融資融券資料');
+      _setTechSub(canvasId, null);
       return { latestChange: null, latestBalance: null };
     }
 
@@ -840,7 +862,7 @@ const Charts = (() => {
       ? 'rgba(148,163,184,0.4)'
       : (v >= 0 ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.7)'));
 
-    techMarginChart = new Chart(canvas, {
+    const chart = new Chart(canvas, {
       type: 'bar',
       data: {
         labels,
@@ -874,7 +896,7 @@ const Charts = (() => {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               label: (ctx) => {
@@ -904,30 +926,81 @@ const Charts = (() => {
         }
       }
     });
+    _setTechSub(canvasId, chart);
 
     const latestChange = changeData.length ? changeData[changeData.length - 1] : null;
     const latestBalance = balanceData.length ? balanceData[balanceData.length - 1] : null;
     return { latestChange, latestBalance };
   }
 
+  /**
+   * 乖離率 (BIAS) 圖 — 同圖 3 條線:5/10/20 日
+   *   BIAS(N) = (today close - MA(N)) / MA(N) × 100%
+   */
+  function renderTechBiasChart(canvasId, stock) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return { bias5: null, bias10: null, bias20: null };
+
+    const ohlcv = stock.ohlcv || [];
+    if (ohlcv.length === 0) {
+      _emptyChart_(canvas, '無交易資料');
+      _setTechSub(canvasId, null);
+      return { bias5: null, bias10: null, bias20: null };
+    }
+    const recent = ohlcv.slice(-APP_CONFIG.techAnalysisDays);
+    const labels = recent.map(r => formatDateLabel(r.date));
+    const closes = recent.map(r => r.close);
+    const ma5 = calcMAArray(closes, 5);
+    const ma10 = calcMAArray(closes, 10);
+    const ma20 = calcMAArray(closes, 20);
+    const bias = (c, m) => (c != null && m != null && m > 0) ? ((c - m) / m * 100) : null;
+    const bias5  = closes.map((c, i) => bias(c, ma5[i]));
+    const bias10 = closes.map((c, i) => bias(c, ma10[i]));
+    const bias20 = closes.map((c, i) => bias(c, ma20[i]));
+
+    const chart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'BIAS5',  data: bias5,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.4, pointRadius: 0, pointHoverRadius: 3, tension: 0.15, spanGaps: false },
+          { label: 'BIAS10', data: bias10, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.4, pointRadius: 0, pointHoverRadius: 3, tension: 0.15, spanGaps: false },
+          { label: 'BIAS20', data: bias20, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.4, pointRadius: 0, pointHoverRadius: 3, tension: 0.15, spanGaps: false }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label: (ctx) => {
+              const v = ctx.raw;
+              return v == null ? `${ctx.dataset.label}: -`
+                              : `${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+            }
+          }}
+        },
+        scales: {
+          x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+          y: { position: 'left', ticks: { color: APP_CONFIG.colors.text, callback: v => v.toFixed(1) + '%' }, grid: { color: 'rgba(71,85,105,0.3)' } }
+        }
+      }
+    });
+    _setTechSub(canvasId, chart);
+
+    const last = (a) => a.slice().reverse().find(v => v != null) ?? null;
+    return { bias5: last(bias5), bias10: last(bias10), bias20: last(bias20) };
+  }
+
   function destroyTech() {
     if (techPriceChart)  { techPriceChart.destroy();  techPriceChart = null; }
-    if (techInstChart)   { techInstChart.destroy();   techInstChart = null; }
-    if (techMarginChart) { techMarginChart.destroy(); techMarginChart = null; }
+    _destroyTechSubs();
   }
 
   // ============================================================
   // CB 技術分析 Modal 圖表
   // ============================================================
-
-  function _emptyChart_(canvas, msg) {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = APP_CONFIG.colors.textMuted;
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(msg, canvas.width / 2, canvas.height / 2);
-  }
 
   /** CB K 線圖 (Modal 內 — 60 日)
    *  @param {string[]} [sharedDates] 三張圖共用的日期軸 (YYYYMMDD);
@@ -1012,7 +1085,7 @@ const Charts = (() => {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: {
             callbacks: {
               afterTitle: (items) => {
@@ -1052,7 +1125,6 @@ const Charts = (() => {
   function renderCBTechInstChart(canvasId, stock, cbCode, which, sharedDates) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return { latest: null, cumulative: null };
-    if (cbTechInstChart) { cbTechInstChart.destroy(); cbTechInstChart = null; }
 
     let inst = null, dates = [];
     if (cbCode && stock.cbs) {
@@ -1099,7 +1171,7 @@ const Charts = (() => {
       ? 'rgba(148,163,184,0.4)'
       : (v >= 0 ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.7)'));
 
-    cbTechInstChart = new Chart(canvas, {
+    const chart = new Chart(canvas, {
       type: 'bar',
       data: {
         labels,
@@ -1112,7 +1184,7 @@ const Charts = (() => {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+          legend: { display: false },
           tooltip: { callbacks: { label: (ctx) => {
             const v = ctx.raw;
             if (v == null) return `${ctx.dataset.label}: -`;
@@ -1127,6 +1199,7 @@ const Charts = (() => {
         }
       }
     });
+    _setCBTechSub(canvasId, chart);
 
     const latest = recentValues.length ? recentValues[recentValues.length - 1] : null;
     const cumLatest = cumulative.length ? cumulative[cumulative.length - 1] : null;
@@ -1134,15 +1207,14 @@ const Charts = (() => {
   }
 
   /**
-   * CB 溢價率 / 流通餘額 切換圖 (Modal 內)
+   * CB 溢價率 / 流通餘額 圖 (各自一張 canvas)
    *   premium: 用 cb.ohlcv + stock.trading + cb.conversionPrice 算每日溢價率%
-   *   balance: 只有本週/上週 2 個點,畫成 bar 對照
+   *   balance: 只有本週/上週,用 ohlcv 日期軸 forward-fill 出每日 bar
    * @param {string} which 'premium' | 'balance'
    */
   function renderCBTechExtraChart(canvasId, stock, cbCode, which, sharedDates) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return { latest: null };
-    if (cbTechExtraChart) { cbTechExtraChart.destroy(); cbTechExtraChart = null; }
 
     const cb = (stock.cbs || []).find(c => c.cbCode === cbCode);
     if (!cb) { _emptyChart_(canvas, '無 CB 資料'); return { latest: null }; }
@@ -1179,7 +1251,7 @@ const Charts = (() => {
         pMax += span * 0.1;
       }
 
-      cbTechExtraChart = new Chart(canvas, {
+      const chart = new Chart(canvas, {
         type: 'line',
         data: {
           labels,
@@ -1200,7 +1272,7 @@ const Charts = (() => {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+            legend: { display: false },
             tooltip: { callbacks: { label: (ctx) => {
               const v = ctx.raw;
               return v == null ? '-' : `溢價率: ${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
@@ -1221,6 +1293,7 @@ const Charts = (() => {
           }
         }
       });
+      _setCBTechSub(canvasId, chart);
 
       const lastPrem = premiums.filter(v => v != null).slice(-1)[0] ?? null;
       return { latest: lastPrem };
@@ -1272,7 +1345,7 @@ const Charts = (() => {
         ? Math.max(issueLots, dataMax)
         : (dataMax > 0 ? dataMax * 1.1 : 1000);
 
-      cbTechExtraChart = new Chart(canvas, {
+      const chart = new Chart(canvas, {
         type: 'bar',
         data: {
           labels,
@@ -1288,7 +1361,7 @@ const Charts = (() => {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { labels: { color: APP_CONFIG.colors.text, font: { size: 11 } } },
+            legend: { display: false },
             tooltip: { callbacks: {
               label: (ctx) => {
                 const v = ctx.raw;
@@ -1316,14 +1389,14 @@ const Charts = (() => {
           }
         }
       });
+      _setCBTechSub(canvasId, chart);
       return { latest: { thisWeek, lastWeek, change } };
     }
   }
 
   function destroyCBTech() {
     if (cbTechPriceChart) { cbTechPriceChart.destroy(); cbTechPriceChart = null; }
-    if (cbTechInstChart)  { cbTechInstChart.destroy();  cbTechInstChart  = null; }
-    if (cbTechExtraChart) { cbTechExtraChart.destroy(); cbTechExtraChart = null; }
+    _destroyCBTechSubs();
   }
 
   function destroy() {
@@ -1338,7 +1411,8 @@ const Charts = (() => {
 
   return {
     renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, renderMarginChart,
-    renderTechPriceChart, renderTechInstChart, renderTechMarginChart, destroyTech,
+    renderTechPriceChart, renderTechInstChart, renderTechMarginChart, renderTechBiasChart,
+    destroyTech,
     renderCBTechPriceChart, renderCBTechInstChart, renderCBTechExtraChart, destroyCBTech,
     destroy
   };

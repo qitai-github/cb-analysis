@@ -1490,6 +1490,132 @@ body {
   .tech-chart-head { font-size: 11px; }
 }
 
+/* ─── v2 個股 modal:K 線(上) + 檔案夾 tab(下,3 sub-charts) ─── */
+.tech-modal-body-v2 {
+  gap: 10px;
+}
+
+.tech-section-kline {
+  flex: 0.54 1 0;   /* K 線 : 下半 = 35% : 65% */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(15,23,42,0.5);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+
+.tech-section-tabs {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tech-folder-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0;
+  align-items: flex-end;
+  height: 22px;
+}
+
+.tech-folder-tab {
+  background: rgba(30,41,59,0.4);
+  border: 1px solid var(--border-light);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  padding: 3px 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  bottom: -1px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tech-folder-tab + .tech-folder-tab {
+  margin-left: -1px;
+}
+
+.tech-folder-tab:hover { color: var(--text); }
+
+.tech-folder-tab.active {
+  background: rgba(15,23,42,0.6);
+  color: var(--text);
+  border-bottom: 1px solid rgba(15,23,42,0.6);
+  z-index: 2;
+}
+
+.tech-folder-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: rgba(15,23,42,0.6);
+  border: 1px solid var(--border-light);
+  border-radius: 0 6px 6px 6px;
+  padding: 8px 8px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tech-folder-panel.hidden { display: none; }
+
+.tech-chart-sub {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0,0,0,0.18);
+  border-radius: 4px;
+  padding: 2px 6px 4px 6px;
+}
+
+.tech-sub-head {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+  padding: 2px 0;
+}
+
+.tech-sub-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+/* 自訂 legend (chart.js 內建 legend 太佔垂直空間,改放在標題列同高處) */
+.tech-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 12px;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.legend-chip::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  background: var(--c, #888);
+  border-radius: 1px;
+}
+
 /* === ETF 7-欄佈局 === */
 .etf-columns-wrapper {
   display: grid;

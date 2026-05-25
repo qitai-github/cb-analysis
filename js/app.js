@@ -488,43 +488,89 @@ const App = (() => {
   }
 
   // ============================================================
-  // 技術分析 Modal
+  // 技術分析 Modal (v2: K線 + 2 folder tabs × 3 sub-charts)
   // ============================================================
-  let techInstWhich = '外資';
-  let techMarginWhich = '融資';
+  let techActiveFolder = 'inst';  // 'inst' | 'margin'
 
   function openTechModal() {
     if (!selectedStock) return;
     document.getElementById('tech-modal').classList.add('show');
-
-    // 重設 toggle 為預設 (外資 / 融資)
-    techInstWhich = '外資';
-    techMarginWhich = '融資';
-
-    // 綁定 toggle (用 dataset.bound 避免重複綁)
-    bindTechToggle('tech-inst-toggle', (which) => {
-      techInstWhich = which;
-      renderTechInst();
-    });
-    bindTechToggle('tech-margin-toggle', (which) => {
-      techMarginWhich = which;
-      renderTechMargin();
-    });
-
+    bindTechFolderTabs();
     refreshTechModalForCurrentStock();
   }
 
-  // 重新渲染 Modal (切換股票時用) — 不重設 toggle 狀態
+  function bindTechFolderTabs() {
+    const host = document.querySelector('#tech-modal .tech-folder-tabs');
+    if (!host || host.dataset.bound === '1') return;
+    host.dataset.bound = '1';
+    host.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tech-folder-tab');
+      if (!btn) return;
+      const which = btn.dataset.folder;
+      if (!which || which === techActiveFolder) return;
+      techActiveFolder = which;
+      syncTechFolderTab();
+    });
+  }
+
+  function syncTechFolderTab() {
+    document.querySelectorAll('#tech-modal .tech-folder-tab').forEach(b =>
+      b.classList.toggle('active', b.dataset.folder === techActiveFolder));
+    document.querySelectorAll('#tech-modal .tech-folder-panel').forEach(p =>
+      p.classList.toggle('hidden', p.dataset.panel !== techActiveFolder));
+    // 切換 tab 後通知 Chart.js 重算大小 (因 panel 從 hidden → visible)
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  }
+
   function refreshTechModalForCurrentStock() {
     if (!selectedStock) return;
     renderTechModalTitle();
-    syncTechToggle('tech-inst-toggle', techInstWhich);
-    syncTechToggle('tech-margin-toggle', techMarginWhich);
-    setTimeout(() => {
+    syncTechFolderTab();
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
       Charts.renderTechPriceChart('tech-price-chart', selectedStock);
-      renderTechInst();
-      renderTechMargin();
-    }, 50);
+      // 法人 tab
+      renderTechInstSub('tech-foreign-chart', '外資',   'tech-foreign-meta');
+      renderTechInstSub('tech-invest-chart',  '投信',   'tech-invest-meta');
+      renderTechInstSub('tech-dealer-chart',  '自營商', 'tech-dealer-meta');
+      // 資券 tab
+      renderTechBias();
+      renderTechMarginSub('tech-margin-chart', '融資', 'tech-margin-meta');
+      renderTechMarginSub('tech-short-chart',  '融券', 'tech-short-meta');
+    }, 60)));
+  }
+
+  function renderTechInstSub(canvasId, which, metaId) {
+    const meta = Charts.renderTechInstChart(canvasId, selectedStock, which);
+    const el = document.getElementById(metaId);
+    if (!el) return;
+    if (!meta || meta.latest == null) { el.textContent = ''; return; }
+    const sign = meta.latest > 0 ? '+' : '';
+    const cum = meta.cumulative != null ? meta.cumulative.toLocaleString() : '-';
+    el.innerHTML = `買賣超 <strong class="${cc(meta.latest)}">${sign}${meta.latest.toLocaleString()}張</strong>`
+                 + ` &middot; 累積 <strong>${cum}張</strong>`;
+  }
+
+  function renderTechMarginSub(canvasId, which, metaId) {
+    const meta = Charts.renderTechMarginChart(canvasId, selectedStock, which);
+    const el = document.getElementById(metaId);
+    if (!el) return;
+    if (!meta || (meta.latestChange == null && meta.latestBalance == null)) {
+      el.textContent = ''; return;
+    }
+    const c = meta.latestChange, b = meta.latestBalance;
+    const sign = (c != null && c > 0) ? '+' : '';
+    const chgHtml = c != null ? `<strong class="${cc(c)}">${sign}${c.toLocaleString()}張</strong>` : '-';
+    const balHtml = b != null ? `<strong>${b.toLocaleString()}張</strong>` : '-';
+    el.innerHTML = `${which}增減 ${chgHtml} &middot; ${which}餘額 ${balHtml}`;
+  }
+
+  function renderTechBias() {
+    const meta = Charts.renderTechBiasChart('tech-bias-chart', selectedStock);
+    const el = document.getElementById('tech-bias-meta');
+    if (!el) return;
+    if (!meta) { el.textContent = ''; return; }
+    const fmt = (v) => v == null ? '-' : `<strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
+    el.innerHTML = `5日 ${fmt(meta.bias5)} &middot; 10日 ${fmt(meta.bias10)} &middot; 20日 ${fmt(meta.bias20)}`;
   }
 
   // 技術分析 Modal 標題:◀ 股號 股名 ▶ — 串接主畫面 filteredData 前後切換
@@ -560,42 +606,6 @@ const App = (() => {
       const cbs = (newStock.cbs || []).filter(c => c.cbCode);
       selectedCBTab = newStock.mainCB?.cbCode || cbs[0]?.cbCode || null;
       refreshCBTechModal();
-    }
-  }
-
-  function renderTechInst() {
-    const meta = Charts.renderTechInstChart('tech-inst-chart', selectedStock, techInstWhich);
-    const metaEl = document.getElementById('tech-inst-meta');
-    if (metaEl) {
-      if (!meta || meta.latest == null) {
-        metaEl.textContent = '';
-      } else {
-        const sign = meta.latest > 0 ? '+' : '';
-        const cum = meta.cumulative != null ? meta.cumulative.toLocaleString() : '-';
-        metaEl.innerHTML =
-          `買賣超 <strong class="${cc(meta.latest)}">${sign}${meta.latest.toLocaleString()}張</strong>` +
-          ` &middot; 累積 <strong>${cum}張</strong>`;
-      }
-    }
-  }
-
-  function renderTechMargin() {
-    const meta = Charts.renderTechMarginChart('tech-margin-chart', selectedStock, techMarginWhich);
-    const metaEl = document.getElementById('tech-margin-meta');
-    if (metaEl) {
-      if (!meta || (meta.latestChange == null && meta.latestBalance == null)) {
-        metaEl.textContent = '';
-      } else {
-        const c = meta.latestChange;
-        const b = meta.latestBalance;
-        const sign = (c != null && c > 0) ? '+' : '';
-        const chgHtml = c != null
-          ? `<strong class="${cc(c)}">${sign}${c.toLocaleString()}張</strong>`
-          : '-';
-        const balHtml = b != null ? `<strong>${b.toLocaleString()}張</strong>` : '-';
-        metaEl.innerHTML =
-          `${techMarginWhich}增減 ${chgHtml} &middot; ${techMarginWhich}餘額 ${balHtml}`;
-      }
     }
   }
 
@@ -654,10 +664,9 @@ const App = (() => {
   }
 
   // ============================================================
-  // CB 技術分析 Modal
+  // CB 技術分析 Modal (v2: K線 + 2 folder tabs × 3 sub-charts)
   // ============================================================
-  let cbTechInstWhich = '外資';
-  let cbTechExtraWhich = 'premium';
+  let cbTechActiveFolder = 'inst';  // 'inst' | 'extra'
 
   function openCBTechModal() {
     if (!selectedStock) return;
@@ -666,25 +675,35 @@ const App = (() => {
       alert('此股無 CB 交易資料');
       return;
     }
-    // 預設選的 CB (若沒選過或選的已不存在)
     if (!selectedCBTab || !cbs.some(c => c.cbCode === selectedCBTab)) {
       selectedCBTab = selectedStock.mainCB?.cbCode || cbs[0].cbCode;
     }
-    cbTechInstWhich = '外資';
-    cbTechExtraWhich = 'premium';
 
     document.getElementById('cbtech-modal').classList.add('show');
-
-    bindTechToggle('cbtech-inst-toggle', (which) => {
-      cbTechInstWhich = which;
-      renderCBTechInst();
-    });
-    bindTechToggle('cbtech-extra-toggle', (which) => {
-      cbTechExtraWhich = which;
-      renderCBTechExtra();
-    });
-
+    bindCBTechFolderTabs();
     refreshCBTechModal();
+  }
+
+  function bindCBTechFolderTabs() {
+    const host = document.querySelector('#cbtech-modal .tech-folder-tabs');
+    if (!host || host.dataset.bound === '1') return;
+    host.dataset.bound = '1';
+    host.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tech-folder-tab');
+      if (!btn) return;
+      const which = btn.dataset.folder;
+      if (!which || which === cbTechActiveFolder) return;
+      cbTechActiveFolder = which;
+      syncCBTechFolderTab();
+    });
+  }
+
+  function syncCBTechFolderTab() {
+    document.querySelectorAll('#cbtech-modal .tech-folder-tab').forEach(b =>
+      b.classList.toggle('active', b.dataset.folder === cbTechActiveFolder));
+    document.querySelectorAll('#cbtech-modal .tech-folder-panel').forEach(p =>
+      p.classList.toggle('hidden', p.dataset.panel !== cbTechActiveFolder));
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   }
 
   // 三張 CB 圖共用的日期軸 (從 cb.ohlcv 取最近 N 個交易日)
@@ -693,12 +712,9 @@ const App = (() => {
   function refreshCBTechModal() {
     if (!selectedStock) return;
     renderCBTechModalTitle();
-    syncTechToggle('cbtech-inst-toggle', cbTechInstWhich);
-    syncTechToggle('cbtech-extra-toggle', cbTechExtraWhich);
+    syncCBTechFolderTab();
 
-    // 先決定共用 X 軸 — 取「CB ohlcv 日期」與「stock 收盤日期」的交集,
-    // 排除掉 CB 資料源夾帶的非交易日 (e.g. 4/18 週六),
-    // 也排除掉 stock 沒抓到的日期 → 確保 3 張圖每個 tick 都對得上資料
+    // 共用 X 軸 (CB ohlcv 日期 ∩ stock 收盤日期)
     const cb = (selectedStock.cbs || []).find(c => c.cbCode === selectedCBTab);
     const ohlcv = cb?.ohlcv || selectedStock.cbOhlcv || [];
     const stockCloses = selectedStock.trading?.['收盤價'] || {};
@@ -710,8 +726,6 @@ const App = (() => {
     intersectDates.sort();
     cbTechSharedDates = intersectDates.slice(-APP_CONFIG.techAnalysisDays);
 
-    // 等 modal 完成 layout (display:none → flex) 才畫圖,
-    // 雙 rAF + setTimeout 確保 chart-container 已取得實際高度
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
       try {
         const meta = Charts.renderCBTechPriceChart(
@@ -723,15 +737,22 @@ const App = (() => {
             : '';
         }
       } catch (err) { console.error('[CBTech] price chart failed:', err); }
-      try { renderCBTechInst(); } catch (err) { console.error('[CBTech] inst chart failed:', err); }
-      try { renderCBTechExtra(); } catch (err) { console.error('[CBTech] extra chart failed:', err); }
+
+      // 法人 tab — 3 個 sub-charts
+      renderCBTechInstSub('cbtech-foreign-chart', '外資',   'cbtech-foreign-meta');
+      renderCBTechInstSub('cbtech-invest-chart',  '投信',   'cbtech-invest-meta');
+      renderCBTechInstSub('cbtech-dealer-chart',  '自營商', 'cbtech-dealer-meta');
+
+      // 溢價/餘額 tab — 2 個 sub-charts (第 3 格保留)
+      renderCBTechPremium();
+      renderCBTechBalance();
     }, 60)));
   }
 
-  function renderCBTechInst() {
+  function renderCBTechInstSub(canvasId, which, metaId) {
     const meta = Charts.renderCBTechInstChart(
-      'cbtech-inst-chart', selectedStock, selectedCBTab, cbTechInstWhich, cbTechSharedDates);
-    const el = document.getElementById('cbtech-inst-meta');
+      canvasId, selectedStock, selectedCBTab, which, cbTechSharedDates);
+    const el = document.getElementById(metaId);
     if (!el) return;
     if (!meta || meta.latest == null) { el.textContent = ''; return; }
     const sign = meta.latest > 0 ? '+' : '';
@@ -740,25 +761,29 @@ const App = (() => {
                  + ` &middot; 累積 <strong>${cum}張</strong>`;
   }
 
-  function renderCBTechExtra() {
+  function renderCBTechPremium() {
     const meta = Charts.renderCBTechExtraChart(
-      'cbtech-extra-chart', selectedStock, selectedCBTab, cbTechExtraWhich, cbTechSharedDates);
-    const el = document.getElementById('cbtech-extra-meta');
+      'cbtech-premium-chart', selectedStock, selectedCBTab, 'premium', cbTechSharedDates);
+    const el = document.getElementById('cbtech-premium-meta');
     if (!el) return;
-    if (cbTechExtraWhich === 'premium') {
-      const v = meta?.latest;
-      el.innerHTML = v == null
-        ? ''
-        : `當前溢價率 <strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
-    } else {
-      const d = meta?.latest;
-      if (!d || (d.thisWeek == null && d.lastWeek == null)) { el.textContent = ''; return; }
-      const chgSign = (d.change != null && d.change > 0) ? '+' : '';
-      el.innerHTML = `本週 <strong>${d.thisWeek != null ? d.thisWeek.toLocaleString() : '-'}張</strong>`
-                   + (d.change != null
-                      ? ` &middot; 增減 <strong class="${cc(-d.change)}">${chgSign}${d.change.toLocaleString()}</strong>`
-                      : '');
-    }
+    const v = meta?.latest;
+    el.innerHTML = v == null
+      ? ''
+      : `當前溢價率 <strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
+  }
+
+  function renderCBTechBalance() {
+    const meta = Charts.renderCBTechExtraChart(
+      'cbtech-balance-chart', selectedStock, selectedCBTab, 'balance', cbTechSharedDates);
+    const el = document.getElementById('cbtech-balance-meta');
+    if (!el) return;
+    const d = meta?.latest;
+    if (!d || (d.thisWeek == null && d.lastWeek == null)) { el.textContent = ''; return; }
+    const chgSign = (d.change != null && d.change > 0) ? '+' : '';
+    el.innerHTML = `本週 <strong>${d.thisWeek != null ? d.thisWeek.toLocaleString() : '-'}張</strong>`
+                 + (d.change != null
+                    ? ` &middot; 增減 <strong class="${cc(-d.change)}">${chgSign}${d.change.toLocaleString()}</strong>`
+                    : '');
   }
 
   // CB Modal 標題:◀ [選中CB為主+其他CB為 pill] ▶
