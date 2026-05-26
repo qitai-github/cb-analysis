@@ -655,6 +655,63 @@ body {
   .cal-nav-title { font-size: 16px; }
 }
 
+/* === CB 開標統計表 (日曆側欄下方) === */
+.cal-auction-list {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+
+.cal-auction-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  table-layout: fixed;   /* 固定欄寬讓數字欄一定夠寬,長 CB 名擠就截掉 */
+}
+
+/* 4 個固定寬欄位 + 1 個彈性欄 (CB 名稱) */
+.cal-auction-table th:nth-child(1),
+.cal-auction-table td:nth-child(1) { width: 42px; }   /* 開標日 MM/DD */
+.cal-auction-table th:nth-child(3),
+.cal-auction-table td:nth-child(3),
+.cal-auction-table th:nth-child(4),
+.cal-auction-table td:nth-child(4) { width: 46px; }   /* 最低 / 平均 */
+.cal-auction-table th:nth-child(5),
+.cal-auction-table td:nth-child(5) { width: 50px; }   /* 競拍張 */
+
+.cal-auction-table th {
+  text-align: left;
+  color: var(--text-dim);
+  font-weight: 600;
+  padding: 3px 3px;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+.cal-auction-table th.text-right,
+.cal-auction-table td.text-right { text-align: right; }
+
+.cal-auction-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.cal-auction-row:hover { background: var(--bg-hover); }
+
+.cal-auction-row td {
+  padding: 3px 3px;
+  border-bottom: 1px solid rgba(71,85,105,0.2);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;   /* 只截 CB 名,數字欄因 width 夠不會被截 */
+}
+
+.cal-auction-code {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
 /* === 狀態徽章 (VCP / 三線開花) === */
 /* 不改 td 的 padding,讓徽章走 inline-block 行內流,row height 自動對齊其他列 */
 .cell-status {

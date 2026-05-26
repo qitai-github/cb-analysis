@@ -1379,6 +1379,12 @@ const App = (() => {
       `${cb.cbCode} ${cb.cbName} 開標統計表`;
 
     const f = (label, val) => `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val ?? '-'}</span></div>`;
+    // 投標期間 "YYYY/MM/DD~YYYY/MM/DD" 太長,在 ~ 後斷成 2 行
+    const fmtPeriod = (v) => {
+      if (!v) return v;
+      const m = String(v).match(/^(.+?~)(.+)$/);
+      return m ? `${m[1]}<br>${m[2]}` : String(v);
+    };
 
     let html = '<div class="info-grid info-grid-sm">' +
       f('發行公司', a['發行公司']) +
@@ -1386,7 +1392,7 @@ const App = (() => {
       f('發行性質', a['發行性質']) +
       f('承銷股數', a['承銷股數']) +
       f('競拍股數', a['競拍股數']) +
-      f('投標期間', a['投標期間']) +
+      f('投標期間', fmtPeriod(a['投標期間'])) +
       f('最低承銷價格', a['最低承銷價格']) +
       f('競拍方式', info.auctionType) +
       f('最低得標價', info.minWin) +
@@ -1459,6 +1465,8 @@ const App = (() => {
       SheetsAPI.saveToStorage(rawResults);
       updateDateDisplay();
       applyCurrentFilters();
+      // 若使用者停在 CB 日曆 tab,順手重畫一次帶入新 events + auction
+      if (currentTab === 'calendar') initCalendarView();
       console.log('[silentRefresh] 背景更新完成');
     } catch (err) {
       console.warn('[silentRefresh] 背景更新失敗:', err);
@@ -1507,7 +1515,11 @@ const App = (() => {
 
   function initCalendarView() {
     if (!calendarLoaded) {
-      Calendar.setData(rawCalendar, { onEventClick: openCBFromCalendar });
+      Calendar.setData(rawCalendar, {
+        onEventClick: openCBFromCalendar,
+        onAuctionClick: openAuctionFromCalendar
+      });
+      Calendar.setAuctionList(_collectAuctionList());
       calendarLoaded = true;
     }
     Calendar.renderLegend('filter-panel');
@@ -1520,6 +1532,34 @@ const App = (() => {
     }
   }
 
+  /** 蒐集所有 CB 的 auction 摘要 (給 CB 日曆側欄表格用) */
+  function _collectAuctionList() {
+    const out = [];
+    if (!stockMap) return out;
+    const _toNum = v => {
+      if (v == null) return null;
+      const n = Number(String(v).replace(/[,，]/g, ''));
+      return isFinite(n) ? n : null;
+    };
+    for (const [stockCode, stock] of stockMap) {
+      for (const cb of (stock.cbs || [])) {
+        if (!cb.auction) continue;
+        const info = cb.auction.pdf?.info || {};
+        out.push({
+          stockCode,
+          cbCode: cb.cbCode,
+          cbName: cb.cbName || '',
+          openDate: info.openDate || '',
+          minWin: _toNum(info.minWin),
+          avgWin: _toNum(info.avgWin),
+          shares:  _toNum(cb.auction['競拍股數'])
+        });
+      }
+    }
+    out.sort((a, b) => String(b.openDate).localeCompare(String(a.openDate)));
+    return out;
+  }
+
   /** 日曆事件點擊 → 切回 CB 分析並開該股詳情 */
   function openCBFromCalendar(cbCode) {
     if (!cbCode) return;
@@ -1528,6 +1568,15 @@ const App = (() => {
     const stock = stockMap ? stockMap.get(stockCode) : null;
     if (!stock) return;
     switchTab('cb').then(() => showDetail(stock));
+  }
+
+  /** 日曆 auction 列點擊 → 設好 selectedStock 再開既有 auction modal */
+  function openAuctionFromCalendar(stockCode, cbCode) {
+    if (!stockCode || !cbCode) return;
+    const stock = stockMap ? stockMap.get(stockCode) : null;
+    if (!stock) return;
+    selectedStock = stock;  // showAuctionModal 依賴這個
+    showAuctionModal(cbCode);
   }
 
   async function initETFView() {

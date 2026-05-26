@@ -6,6 +6,8 @@ const Calendar = (() => {
   let viewMonth = 0;          // 0-11
   let containerId = 'main-table';
   let onEventClick = null;
+  let onAuctionClick = null;
+  let auctionList = [];       // [{stockCode, cbCode, cbName, openDate, avgWin}]
 
   // 事件型別設定 (key 對齊 cbas_calendar.py)
   const EVENT_TYPES = [
@@ -27,11 +29,16 @@ const Calendar = (() => {
   function setData(cbasCalendar, options = {}) {
     data = cbasCalendar || { events: [] };
     if (options.onEventClick) onEventClick = options.onEventClick;
+    if (options.onAuctionClick) onAuctionClick = options.onAuctionClick;
     buildIndex();
     // 預設顯示當月
     const now = new Date();
     viewYear = now.getFullYear();
     viewMonth = now.getMonth();
+  }
+
+  function setAuctionList(list) {
+    auctionList = Array.isArray(list) ? list : [];
   }
 
   function hasData() {
@@ -172,7 +179,48 @@ const Calendar = (() => {
       html += `<div class="cal-legend-meta">資料日期：${pretty}</div>`;
     }
     html += '</div>';
+
+    // CB 開標統計表 — 列出有 auction PDF 的 CB,點 row 開 auction modal
+    if (auctionList.length > 0) {
+      html += '<div class="cal-auction-list"><h3 class="cal-legend-title">CB 開標統計表</h3>';
+      html += '<table class="cal-auction-table"><thead><tr>'
+            + '<th>開標日</th>'
+            + '<th>CB名稱</th>'
+            + '<th class="text-right">最低</th>'
+            + '<th class="text-right">平均</th>'
+            + '<th class="text-right">競拍張</th>'
+            + '</tr></thead><tbody>';
+      const fmtPrice = v => v != null ? Number(v).toFixed(2) : '-';
+      const fmtShares = v => v != null ? Number(v).toLocaleString() : '-';
+      for (const a of auctionList) {
+        html += `<tr class="cal-auction-row" `
+              + `onclick="Calendar.clickAuction('${a.stockCode}', '${a.cbCode}')" `
+              + `title="${a.cbCode} ${a.cbName || ''}">`
+              + `<td>${_fmtOpenDate(a.openDate)}</td>`
+              + `<td>${a.cbName || ''}</td>`
+              + `<td class="text-right">${fmtPrice(a.minWin)}</td>`
+              + `<td class="text-right">${fmtPrice(a.avgWin)}</td>`
+              + `<td class="text-right">${fmtShares(a.shares)}</td>`
+              + `</tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
     panel.innerHTML = html;
+  }
+
+  function _fmtOpenDate(d) {
+    if (!d) return '-';
+    const s = String(d).trim();
+    // 接受 YYYY-MM-DD / YYYY/MM/DD / YYYYMMDD,只回傳 MM/DD (年份省)
+    let m, dd;
+    if (/^\d{8}$/.test(s)) { m = s.slice(4,6); dd = s.slice(6,8); }
+    else {
+      const parts = s.split(/[-/]/);
+      if (parts.length === 3) { m = parts[1].padStart(2,'0'); dd = parts[2].padStart(2,'0'); }
+      else return s;
+    }
+    return `${m}/${dd}`;
   }
 
   function toggleType(key, on) {
@@ -185,11 +233,15 @@ const Calendar = (() => {
     if (typeof onEventClick === 'function') onEventClick(cbCode);
   }
 
+  function clickAuction(stockCode, cbCode) {
+    if (typeof onAuctionClick === 'function') onAuctionClick(stockCode, cbCode);
+  }
+
   return {
-    setData, render, renderLegend, hasData,
+    setData, setAuctionList, render, renderLegend, hasData,
     prev: () => shiftMonth(-1),
     next: () => shiftMonth(1),
     today: gotoToday,
-    toggleType, clickEvent
+    toggleType, clickEvent, clickAuction
   };
 })();
