@@ -1162,13 +1162,59 @@ const App = (() => {
       // CBAS 排前面;前端 pickField 從第一個 items 開始找非空值
       grp.items.sort((a, b) =>
         (PM_SOURCE_RANK[a.section] ?? 99) - (PM_SOURCE_RANK[b.section] ?? 99));
-      html += renderPMCard(grp);
+      html += renderPMCard(grp, stock);
     }
     html += '</div>';
     return html;
   }
 
-  function renderPMCard(grp) {
+  /** 從 polling 字串 (例: "5/25-5/27競拍" / "5/27") 抽出截標日 → "YYYYMMDD"。
+   *  年份用 latestDataDate 推斷 (跨年情境少見,先簡化處理)。 */
+  function _parsePollingEndDate(polling) {
+    if (!polling) return null;
+    const matches = [...String(polling).matchAll(/(\d{1,2})\/(\d{1,2})/g)];
+    if (matches.length === 0) return null;
+    const last = matches[matches.length - 1];
+    const m = String(last[1]).padStart(2, '0');
+    const d = String(last[2]).padStart(2, '0');
+    const year = latestDataDate && latestDataDate.length >= 4
+      ? latestDataDate.substring(0, 4)
+      : String(new Date().getFullYear());
+    return year + m + d;
+  }
+
+  /** 截標日的前一交易日 (週末倒推到週五),回 "YYYYMMDD"。
+   *  不考慮國定假日 — 假日撞到的話 MA5 會晚 1 天才浮出,可接受。 */
+  function _expectedPrevTradingDay(endYmd) {
+    const y = +endYmd.slice(0, 4), m = +endYmd.slice(4, 6) - 1, dd = +endYmd.slice(6, 8);
+    const d = new Date(y, m, dd);
+    d.setDate(d.getDate() - 1);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  /** 取截標日「前」5 個交易日的 MA5 (收盤價平均)。
+   *  必須先確認資料涵蓋到截標日的前一交易日 — 否則拿出來的會是更舊的 5 天 → 失真。
+   *  e.g. 5/28 截標,但 stock.tradingDates 最新只到 5/26 (5/27 收盤資料還沒進),
+   *  就該回 null,不要顯示估價。 */
+  function _ma5BeforeDate(stock, endDateYmd) {
+    const dates = stock?.tradingDates || [];
+    const closes = stock?.trading?.['收盤價'];
+    if (!dates.length || !closes) return null;
+    const eligible = dates.filter(d => d < endDateYmd);
+    if (eligible.length < 5) return null;
+    const need = _expectedPrevTradingDay(endDateYmd);
+    if (eligible[eligible.length - 1] < need) return null;
+    const last5 = eligible.slice(-5);
+    let sum = 0, count = 0;
+    for (const d of last5) {
+      const v = closes[d];
+      if (v != null) { sum += v; count++; }
+    }
+    return count === 5 ? sum / 5 : null;
+  }
+
+  function renderPMCard(grp, stock) {
     // 跨來源取第一個非空值 (items 已排好序:統一 > 元大 > 富邦)
     const pick = (...fields) => {
       for (const it of grp.items) {
@@ -1242,6 +1288,9 @@ const App = (() => {
       ? `<button class="btn-auction" onclick="App.showAuctionModal('${grp.cbCode}')">CB開標統計表</button>`
       : '';
 
+    // 得標預估價:截標日前 5 交易日 MA5 / 轉換價 × 100 × {1.20,1.25,1.30,1.35}
+    const estimateHtml = _buildEstimateHtml(stock, convPrice, polling);
+
     return `<div class="cb-card">
       <div class="cb-card-header">
         <span class="cb-code">${grp.cbCode}</span>
@@ -1250,6 +1299,30 @@ const App = (() => {
         ${auctionBtn}
       </div>
       <div class="info-grid info-grid-sm">${body}</div>
+      ${estimateHtml}
+    </div>`;
+  }
+
+  function _buildEstimateHtml(stock, convPrice, polling) {
+    const convNum = Number(convPrice);
+    if (!stock || !(convNum > 0) || !polling) return '';
+    const endDate = _parsePollingEndDate(polling);
+    if (!endDate) return '';
+    const ma5 = _ma5BeforeDate(stock, endDate);
+    if (ma5 == null) return '';
+    const ratio = ma5 / convNum * 100;
+    const fmtD = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+    const e = m => (ratio * m).toFixed(2);
+    return `<div class="pm-estimate">
+      <div class="pm-estimate-title">得標預估價
+        <span class="pm-estimate-meta">截標 ${fmtD(endDate)} · 前5日MA5 ${ma5.toFixed(2)} / 轉換價 ${convNum}</span>
+      </div>
+      <div class="pm-estimate-grid">
+        <div><span class="pm-estimate-k">×1.20</span><span class="pm-estimate-v">${e(1.20)}</span></div>
+        <div><span class="pm-estimate-k">×1.25</span><span class="pm-estimate-v">${e(1.25)}</span></div>
+        <div><span class="pm-estimate-k">×1.30</span><span class="pm-estimate-v">${e(1.30)}</span></div>
+        <div><span class="pm-estimate-k">×1.35</span><span class="pm-estimate-v">${e(1.35)}</span></div>
+      </div>
     </div>`;
   }
 
