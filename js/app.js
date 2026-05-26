@@ -9,6 +9,20 @@ const App = (() => {
   let calendarLoaded = false;
   let rawCBIssuance = null; // 保留 CB 發行資訊供 ETF 交叉比對
   let rawCalendar = null;   // 保留 CBAS 日曆事件供日曆頁使用
+  // twsa 競拍資料 — 給 PM 卡片按鈕 / CB 日曆統計表用。
+  // 為了讓「CB 已開標但還沒掛牌」的檔(例: 47491 掛牌前)也能顯示開標資訊,
+  // 不依賴 stock.cbs 是否已建立 → 直接以 cbCode 為 key 的全域 map 查詢。
+  let auctionByCbCode = new Map();
+
+  function _buildAuctionByCbCode(twsa) {
+    const m = new Map();
+    if (!twsa || !Array.isArray(twsa.auction)) return m;
+    for (const it of twsa.auction) {
+      const code = it?.pdf?.stockId;
+      if (code) m.set(String(code), it);
+    }
+    return m;
+  }
 
   async function init() {
     showLoading(true);
@@ -22,6 +36,7 @@ const App = (() => {
       latestDataDate = result.latestDataDate;
       rawCBIssuance = cached.data.cbIssuance || null;
       rawCalendar = cached.data.cbasCalendar || null;
+      auctionByCbCode = _buildAuctionByCbCode(cached.data.twsaAuction);
       updateDateDisplay();
       showLoading(false);
       buildFilterPanel();
@@ -44,6 +59,7 @@ const App = (() => {
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
       rawCalendar = rawResults.cbasCalendar || null;
+      auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
 
       // 顯示更新日期
       updateDateDisplay();
@@ -1221,11 +1237,17 @@ const App = (() => {
         f('詢圈/競拍', polling) + f('公告日', announcementDate);
     }
 
+    // 有 twsa 競拍 PDF → 即使還沒掛牌也讓使用者點開開標統計表
+    const auctionBtn = auctionByCbCode.has(grp.cbCode)
+      ? `<button class="btn-auction" onclick="App.showAuctionModal('${grp.cbCode}')">CB開標統計表</button>`
+      : '';
+
     return `<div class="cb-card">
       <div class="cb-card-header">
         <span class="cb-code">${grp.cbCode}</span>
         <span class="cb-name">${grp.cbName}</span>
         <span class="cb-type">${PM_STAGE_LABEL[grp.stage]}</span>
+        ${auctionBtn}
       </div>
       <div class="info-grid info-grid-sm">${body}</div>
     </div>`;
@@ -1366,17 +1388,26 @@ const App = (() => {
   }
 
   function showAuctionModal(cbCode) {
-    if (!selectedStock || !selectedStock.cbs) return;
-    const cb = selectedStock.cbs.find(c => String(c.cbCode) === String(cbCode));
-    if (!cb || !cb.auction) return;
+    // 一般情境:selectedStock.cbs 有對應 cb → 直接用 cb.auction (含 cbName)
+    // 例外情境:CB 已開標但尚未掛牌 (例: 47491 → 還沒進 stock.cbs),
+    //          fallback 到全域 auctionByCbCode,顯示用 pdf.stockName。
+    let a = null, cbName = '';
+    if (selectedStock?.cbs) {
+      const cb = selectedStock.cbs.find(c => String(c.cbCode) === String(cbCode));
+      if (cb?.auction) { a = cb.auction; cbName = cb.cbName || ''; }
+    }
+    if (!a) {
+      a = auctionByCbCode.get(String(cbCode));
+      if (a) cbName = a.pdf?.stockName || '';
+    }
+    if (!a) return;
 
-    const a = cb.auction;
     const pdf = a.pdf || {};
     const info = pdf.info || {};
     const priceRows = pdf.priceRows || [];
 
     document.getElementById('auction-modal-title').textContent =
-      `${cb.cbCode} ${cb.cbName} 開標統計表`;
+      `${cbCode} ${cbName} 開標統計表`;
 
     const f = (label, val) => `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val ?? '-'}</span></div>`;
     // 投標期間 "YYYY/MM/DD~YYYY/MM/DD" 太長,在 ~ 後斷成 2 行
@@ -1460,6 +1491,7 @@ const App = (() => {
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
       rawCalendar = rawResults.cbasCalendar || null;
+      auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
       etfLoaded = false; // 重新載入 ETF CB 交叉比對
       calendarLoaded = false;
       SheetsAPI.saveToStorage(rawResults);
@@ -1532,29 +1564,28 @@ const App = (() => {
     }
   }
 
-  /** 蒐集所有 CB 的 auction 摘要 (給 CB 日曆側欄表格用) */
+  /** 蒐集所有 CB 的 auction 摘要 (給 CB 日曆側欄表格用)
+   *  直接迭代 auctionByCbCode,不依賴 stockMap → 即使 CB 還沒掛牌
+   *  (cbDailyTrading/Report 都還沒收錄) 也能列出。 */
   function _collectAuctionList() {
     const out = [];
-    if (!stockMap) return out;
     const _toNum = v => {
       if (v == null) return null;
       const n = Number(String(v).replace(/[,，]/g, ''));
       return isFinite(n) ? n : null;
     };
-    for (const [stockCode, stock] of stockMap) {
-      for (const cb of (stock.cbs || [])) {
-        if (!cb.auction) continue;
-        const info = cb.auction.pdf?.info || {};
-        out.push({
-          stockCode,
-          cbCode: cb.cbCode,
-          cbName: cb.cbName || '',
-          openDate: info.openDate || '',
-          minWin: _toNum(info.minWin),
-          avgWin: _toNum(info.avgWin),
-          shares:  _toNum(cb.auction['競拍股數'])
-        });
-      }
+    for (const [cbCode, item] of auctionByCbCode) {
+      const stockCode = String(cbCode).length >= 5 ? String(cbCode).substring(0, 4) : String(cbCode);
+      const info = item.pdf?.info || {};
+      out.push({
+        stockCode,
+        cbCode,
+        cbName: item.pdf?.stockName || '',
+        openDate: info.openDate || '',
+        minWin: _toNum(info.minWin),
+        avgWin: _toNum(info.avgWin),
+        shares:  _toNum(item['競拍股數'])
+      });
     }
     out.sort((a, b) => String(b.openDate).localeCompare(String(a.openDate)));
     return out;
@@ -1570,12 +1601,13 @@ const App = (() => {
     switchTab('cb').then(() => showDetail(stock));
   }
 
-  /** 日曆 auction 列點擊 → 設好 selectedStock 再開既有 auction modal */
+  /** 日曆 auction 列點擊 → 設好 selectedStock 再開既有 auction modal
+   *  (若 CB 尚未掛牌、stockMap 找不到對應股,selectedStock 留 null,
+   *   showAuctionModal 會走 auctionByCbCode fallback) */
   function openAuctionFromCalendar(stockCode, cbCode) {
-    if (!stockCode || !cbCode) return;
-    const stock = stockMap ? stockMap.get(stockCode) : null;
-    if (!stock) return;
-    selectedStock = stock;  // showAuctionModal 依賴這個
+    if (!cbCode) return;
+    const stock = (stockCode && stockMap) ? stockMap.get(stockCode) : null;
+    selectedStock = stock || null;
     showAuctionModal(cbCode);
   }
 
