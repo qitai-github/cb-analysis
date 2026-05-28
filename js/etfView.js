@@ -170,7 +170,6 @@ const ETFView = (() => {
       row.style.cssText = 'font-size:11px;padding:3px 0;border-bottom:1px solid var(--border-dim);';
 
       const isChecked = selectedETFs.has(code);
-      const atMax = selectedETFs.size >= MAX_DISPLAY && !isChecked;
 
       let changeText = '';
       if (changes.added || changes.removed || changes.increased || changes.decreased) {
@@ -184,7 +183,7 @@ const ETFView = (() => {
 
       row.innerHTML = `<div style="display:flex;align-items:center;gap:4px">
         <input type="checkbox" class="etf-select-cb" data-etf="${code}"
-          ${isChecked ? 'checked' : ''} ${atMax ? 'disabled' : ''}
+          ${isChecked ? 'checked' : ''}
           style="margin:0;cursor:pointer">
         <span style="color:var(--accent);font-weight:600">${code}</span>
         <span style="color:var(--text-muted);margin-left:auto">${etf.holdingCount}檔 | $${etf.navPerUnit?.toFixed(2) || '-'}</span>
@@ -195,23 +194,22 @@ const ETFView = (() => {
     }
 
     // 綁定 checkbox 事件
+    // 滿 MAX_DISPLAY 檔時再勾新的 → 自動把最早勾選那檔取消顯示 (FIFO)
+    // Set 在 JS 中保留插入順序,values().next() 拿到的就是最舊那檔
     overviewContent.addEventListener('change', (e) => {
       if (!e.target.classList.contains('etf-select-cb')) return;
       const etfCode = e.target.dataset.etf;
       if (e.target.checked) {
-        if (selectedETFs.size < MAX_DISPLAY) {
-          selectedETFs.add(etfCode);
-        } else {
-          e.target.checked = false;
-          return;
+        if (selectedETFs.size >= MAX_DISPLAY) {
+          const oldest = selectedETFs.values().next().value;
+          selectedETFs.delete(oldest);
+          const oldestCb = overviewContent.querySelector(`.etf-select-cb[data-etf="${oldest}"]`);
+          if (oldestCb) oldestCb.checked = false;
         }
+        selectedETFs.add(etfCode);
       } else {
         selectedETFs.delete(etfCode);
       }
-      // 更新其他 checkbox 的 disabled 狀態
-      overviewContent.querySelectorAll('.etf-select-cb').forEach(cb => {
-        cb.disabled = selectedETFs.size >= MAX_DISPLAY && !cb.checked;
-      });
       applyAndRender();
     });
 
