@@ -977,6 +977,23 @@ const DataProcessor = (() => {
         cb.amount = todayClose && todayVolume
           ? Math.round(todayClose * todayVolume * 1000)
           : null;
+        // CB 主表 (可轉債分頁) 用的衍生欄位
+        cb.priceChangePercent = prevClose ? ((todayClose - prevClose) / prevClose) * 100 : null;
+        cb.avgVolume5  = calcMA(volMap, dates, 5);
+        cb.avgVolume20 = calcMA(volMap, dates, 20);
+        if (cb.conversionPrice && stock.latestClose) {
+          const cv = (100 / cb.conversionPrice) * stock.latestClose;
+          cb.premiumRate = ((todayClose - cv) / cv) * 100;
+        }
+      }
+    }
+
+    // === CB 可轉債分頁用的反向關聯 (cb → 正股 industryCategory / 名稱) ===
+    if (stock.cbs && stock.cbs.length > 0) {
+      for (const cb of stock.cbs) {
+        cb.industryCategory = stock.industryCategory;
+        cb.stockRef = stock;          // row click 開 detail panel 時取出
+        cb.stockName = stock.name;
       }
     }
 

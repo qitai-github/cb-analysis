@@ -405,10 +405,53 @@ body {
 }
 
 /* === 表格 === */
+.table-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+/* 資料夾式分頁:active tab 底部「黏」在表身上,看起來像同一張資料夾 */
+.table-folder-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.table-folder-tab {
+  background: rgba(30,41,59,0.4);
+  border: 1px solid var(--border-light);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 6px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  bottom: -1px;     /* 蓋過表身的 top border 1px */
+  transition: background 0.15s, color 0.15s;
+}
+.table-folder-tab + .table-folder-tab { margin-left: -1px; }
+.table-folder-tab:hover { color: var(--text); }
+.table-folder-tab.active {
+  background: var(--bg-card);
+  color: var(--text);
+  border-bottom: 1px solid var(--bg-card);  /* 與表身背景合一 */
+  z-index: 2;
+}
+
 .table-stats {
   font-size: 13px;
   color: var(--text-muted);
-  padding: 4px 0;
+  padding-bottom: 4px;
+}
+
+/* 配合 folder tab — 表身上邊角去圓,讓「資料夾本體」與 active tab 連續 */
+.table-folder-panel {
+  border-top-left-radius: 0;
 }
 
 .table-wrapper {

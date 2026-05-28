@@ -4,9 +4,12 @@ const Table = (() => {
   let currentSort = { key: 'code', asc: true };
   let currentPage = 0;
   let onRowClick = null;
+  let currentTab = 'stock';   // 'stock' | 'cb'
+  let currentContainerId = 'main-table';
 
-  const columns = [
-    { key: '_star', label: '\u2606', width: '32px', sticky: true, format: 'star', noSort: false },
+  // 「個股」分頁:每一列 = 一檔個股
+  const STOCK_COLUMNS = [
+    { key: '_star', label: '☆', width: '32px', sticky: true, format: 'star', noSort: false },
     { key: 'code', label: '代碼', width: '60px', sticky: true },
     { key: 'name', label: '名稱', width: '85px', sticky: true },
     { key: 'vcpStreak',     label: 'VCP',  width: '60px', format: 'badge_vcp',     align: 'center' },
@@ -27,20 +30,76 @@ const Table = (() => {
     { key: 'latestShortChange',   label: '融券增減', width: '75px', format: 'inst',   align: 'right' }
   ];
 
+  // 「可轉債」分頁:每一列 = 一檔 CB (從所有個股的 stock.cbs 攤平)
+  const CB_COLUMNS = [
+    { key: 'cbCode', label: 'CB代號', width: '70px', sticky: true },
+    { key: 'cbName', label: 'CB名稱', width: '95px', sticky: true },
+    { key: 'industryCategory', label: '產業分類', width: '105px', format: 'industry' },
+    { key: 'close', label: 'CB收盤價', width: '75px', format: 'price', align: 'right' },
+    { key: 'priceChangePercent', label: '漲跌%', width: '65px', format: 'percent_color', align: 'right' },
+    { key: 'volume', label: '成交量(張)', width: '75px', format: 'volume', align: 'right' },
+    { key: 'avgVolume5',  label: '5日均量', width: '70px', format: 'volume', align: 'right' },
+    { key: 'avgVolume20', label: '20日均量', width: '75px', format: 'volume', align: 'right' },
+    { key: 'conversionPrice', label: '轉換價', width: '70px', format: 'price', align: 'right' },
+    { key: 'premiumRate',  label: 'CB溢價率', width: '80px', format: 'percent_color', align: 'right' },
+    { key: 'balThisWeek',  label: '流通餘額(張)', width: '95px', format: 'volume', align: 'right' },
+    { key: 'balChange',    label: '餘額增減', width: '75px', format: 'inst',   align: 'right' },
+    { key: 'nearestPutDate', label: '最近賣回日', width: '95px', format: 'date_roc' }
+  ];
+
+  function activeColumns() {
+    return currentTab === 'cb' ? CB_COLUMNS : STOCK_COLUMNS;
+  }
+
+  // 給外部讀 (updateInstDays) — 只動股票欄位
+  const columns = STOCK_COLUMNS;
+
+  /** CB 分頁:把所有個股的 stock.cbs 攤平成 cb 列表,套上目前的 sort */
+  function flattenCBs(stocks) {
+    const list = [];
+    for (const stock of stocks) {
+      for (const cb of (stock.cbs || [])) {
+        if (cb && cb.cbCode) list.push(cb);
+      }
+    }
+    return Filters.sortResults(list, currentSort.key, currentSort.asc);
+  }
+
   function render(containerId, data, options = {}) {
     currentData = data;
+    currentContainerId = containerId;
     if (options.onRowClick) onRowClick = options.onRowClick;
 
     const container = document.getElementById(containerId);
     container.innerHTML = '';
 
+    // === CB 分頁攤平,股票分頁保持原樣 ===
+    const cols = activeColumns();
+    const rows = currentTab === 'cb' ? flattenCBs(data) : data;
+
+    // === 工具列:左邊 folder-tab,右邊 共 N 檔標的 ===
+    const toolbar = document.createElement('div');
+    toolbar.className = 'table-toolbar';
+
+    const tabs = document.createElement('div');
+    tabs.className = 'table-folder-tabs';
+    for (const t of [{ k: 'stock', label: '個股' }, { k: 'cb', label: '可轉債' }]) {
+      const btn = document.createElement('button');
+      btn.className = 'table-folder-tab' + (currentTab === t.k ? ' active' : '');
+      btn.textContent = t.label;
+      btn.addEventListener('click', () => switchInnerTab(t.k));
+      tabs.appendChild(btn);
+    }
+
     const stats = document.createElement('div');
     stats.className = 'table-stats';
-    stats.textContent = `共 ${data.length} 檔標的`;
-    container.appendChild(stats);
+    stats.textContent = `共 ${rows.length} 檔${currentTab === 'cb' ? '可轉債' : '標的'}`;
+
+    toolbar.append(tabs, stats);
+    container.appendChild(toolbar);
 
     const wrapper = document.createElement('div');
-    wrapper.className = 'table-wrapper';
+    wrapper.className = 'table-wrapper table-folder-panel';
 
     const table = document.createElement('table');
     table.className = 'data-table';
@@ -48,7 +107,7 @@ const Table = (() => {
     // 表頭
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
-    for (const col of columns) {
+    for (const col of cols) {
       const th = document.createElement('th');
       th.textContent = col.label;
       th.style.width = col.width;
@@ -70,20 +129,24 @@ const Table = (() => {
     const tbody = document.createElement('tbody');
     const pageSize = APP_CONFIG.pageSize;
     const start = currentPage * pageSize;
-    const end = Math.min(start + pageSize, data.length);
+    const end = Math.min(start + pageSize, rows.length);
 
     for (let i = start; i < end; i++) {
-      const stock = data[i];
+      const item = rows[i];
       const tr = document.createElement('tr');
-      tr.addEventListener('click', () => { if (onRowClick) onRowClick(stock); });
+      tr.addEventListener('click', () => {
+        if (!onRowClick) return;
+        // CB 列 click → 開正股 detail panel (cb.stockRef 由 dataProcessor 寫入)
+        onRowClick(item.stockRef || item);
+      });
 
-      for (const col of columns) {
+      for (const col of cols) {
         const td = document.createElement('td');
         if (col.sticky) td.className = 'sticky-col';
         if (col.align === 'right') td.classList.add('text-right');
         if (col.align === 'center') td.classList.add('text-center');
-        const val = getVal(stock, col.key);
-        formatCell(td, val, col.format, stock);
+        const val = getVal(item, col.key);
+        formatCell(td, val, col.format, item);
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
@@ -92,9 +155,22 @@ const Table = (() => {
     wrapper.appendChild(table);
     container.appendChild(wrapper);
 
-    if (data.length > pageSize) {
-      container.appendChild(createPager(data.length, pageSize, containerId));
+    if (rows.length > pageSize) {
+      container.appendChild(createPager(rows.length, pageSize, containerId));
     }
+  }
+
+  function switchInnerTab(tab) {
+    if (tab === currentTab) return;
+    currentTab = tab;
+    // 切換後 sort key 可能不在新欄位 → 重置
+    const validKeys = new Set(activeColumns().map(c => c.key));
+    if (!validKeys.has(currentSort.key)) {
+      currentSort = { key: tab === 'cb' ? 'cbCode' : 'code', asc: true };
+      currentData = Filters.sortResults(currentData, currentSort.key, true);
+    }
+    currentPage = 0;
+    render(currentContainerId, currentData);
   }
 
   function handleSort(key, containerId) {
@@ -104,7 +180,10 @@ const Table = (() => {
       currentSort = { key, asc: true };
     }
     currentPage = 0;
-    currentData = Filters.sortResults(currentData, key, currentSort.asc);
+    // 股票分頁直接 sort stock 陣列;CB 分頁的 sort 由 flattenCBs 在 render 時套用
+    if (currentTab !== 'cb') {
+      currentData = Filters.sortResults(currentData, key, currentSort.asc);
+    }
     render(containerId, currentData);
   }
 
@@ -131,41 +210,41 @@ const Table = (() => {
     };
 
     btnGroup.append(
-      mkBtn('\u29EA', () => { currentPage = 0; render(containerId, currentData); }, currentPage === 0),
-      mkBtn('\u25C2', () => { currentPage--; render(containerId, currentData); }, currentPage === 0),
-      mkBtn('\u25B8', () => { currentPage++; render(containerId, currentData); }, currentPage >= totalPages - 1),
-      mkBtn('\u29EB', () => { currentPage = totalPages - 1; render(containerId, currentData); }, currentPage >= totalPages - 1)
+      mkBtn('⧪', () => { currentPage = 0; render(containerId, currentData); }, currentPage === 0),
+      mkBtn('◂', () => { currentPage--; render(containerId, currentData); }, currentPage === 0),
+      mkBtn('▸', () => { currentPage++; render(containerId, currentData); }, currentPage >= totalPages - 1),
+      mkBtn('⧫', () => { currentPage = totalPages - 1; render(containerId, currentData); }, currentPage >= totalPages - 1)
     );
     pager.appendChild(btnGroup);
     return pager;
   }
 
-  function formatCell(td, val, format, stock) {
+  function formatCell(td, val, format, item) {
     if (format === 'star') {
-      const starred = Watchlist.has(stock.code);
-      td.textContent = starred ? '\u2605' : '\u2606';
+      const starred = Watchlist.has(item.code);
+      td.textContent = starred ? '★' : '☆';
       td.style.cursor = 'pointer';
       td.style.fontSize = '16px';
       td.style.textAlign = 'center';
       td.style.color = starred ? '#f59e0b' : 'var(--text-dim)';
       td.addEventListener('click', (e) => {
         e.stopPropagation();
-        showStarMenu(td, stock.code);
+        showStarMenu(td, item.code);
       });
       return;
     }
 
     if (format === 'status') {
-      renderStatusBadges(td, stock);
+      renderStatusBadges(td, item);
       return;
     }
 
     if (format === 'badge_vcp') {
-      renderSingleBadge(td, stock, 'vcp');
+      renderSingleBadge(td, item, 'vcp');
       return;
     }
     if (format === 'badge_sanxian') {
-      renderSingleBadge(td, stock, 'sanxian');
+      renderSingleBadge(td, item, 'sanxian');
       return;
     }
 
@@ -207,6 +286,9 @@ const Table = (() => {
         td.title = String(val);
         td.classList.add('cell-industry');
         break;
+      case 'date_roc':
+        td.textContent = fmtRocDate(String(val));
+        break;
       default:
         td.textContent = String(val);
     }
@@ -217,9 +299,21 @@ const Table = (() => {
     return sign + Math.abs(v).toLocaleString();
   }
 
+  function fmtRocDate(s) {
+    if (!s) return '-';
+    // 接受 "114/05/25" (民國) / "2028-05-25" (西元) / "2028/05/25" 等格式
+    const m = s.match(/^(\d{2,4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) {
+      const yy = parseInt(m[1], 10);
+      const year = yy < 200 ? yy + 1911 : yy;
+      return `${year}/${m[2].padStart(2,'0')}/${m[3].padStart(2,'0')}`;
+    }
+    return s;
+  }
+
   function updateStarCell(td, code) {
     const starred = Watchlist.has(code);
-    td.textContent = starred ? '\u2605' : '\u2606';
+    td.textContent = starred ? '★' : '☆';
     td.style.color = starred ? '#f59e0b' : 'var(--text-dim)';
   }
 
@@ -268,7 +362,6 @@ const Table = (() => {
   function getVal(obj, key) {
     if (!key) return null;
     if (key === '_star') return Watchlist.has(obj.code) ? 1 : 0;
-    // vcpStreak / sanxianStreak 是 dataProcessor 寫進去的扁平欄位 (沒值 = null,sort 靠後)
     return key.split('.').reduce((o, k) => o?.[k], obj) ?? null;
   }
 
@@ -299,7 +392,6 @@ const Table = (() => {
     }
   }
 
-  // 拆欄後單格 badge (給 vcpStreak / sanxianStreak 兩個獨立欄位用)
   function renderSingleBadge(td, stock, type) {
     const info = stock.statusFlags?.[type];
     if (!info) {
@@ -337,8 +429,7 @@ const Table = (() => {
   }
 
   function updateInstDays(days) {
-    // 用 label prefix 找,避免日後再加欄位時 index 跑掉
-    for (const col of columns) {
+    for (const col of STOCK_COLUMNS) {
       if (col.label.startsWith('外資')) {
         col.label = `外資${days}日`;
         col.key = `foreign_${days}d`;
