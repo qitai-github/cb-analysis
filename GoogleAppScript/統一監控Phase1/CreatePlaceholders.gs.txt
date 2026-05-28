@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * 每日預建 8 個 CSV 空檔到 Drive (給 SA fetch-stocks 覆蓋用)
+ * 每日預建 10 個空檔到 Drive (8 csv + 2 xlsx,給 SA fetch-stocks 覆蓋用)
  * ============================================================
  * 為什麼:
  *   Service Account 沒自己的 Drive storage quota,只能「覆蓋既存檔」
@@ -31,10 +31,12 @@ function runDailyCreatePlaceholders() {
   }
 }
 
-/** 主邏輯:8 個資料夾各建一個今日空 CSV (已存在則跳過) */
+/** 主邏輯:各資料夾建一個今日空檔 (已存在則跳過) */
 function createTodayPlaceholders() {
   const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMdd');
   Logger.log("=== createTodayPlaceholders " + today + " ===");
+
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
   // 檔名格式對應 fetch_stocks.py SOURCE_RULES (Python 預期的格式)
   const items = [
@@ -45,7 +47,9 @@ function createTodayPlaceholders() {
     { folderId: CFG.DRIVE.CB_PRICE,         name: `RSta0113.${today}-C.csv` },
     { folderId: CFG.DRIVE.CB_INST,          name: `ThreePrimaryCB_${today}.csv` },
     { folderId: CFG.DRIVE.MARGIN_TWSE,      name: `MI_MARGN_STOCK_${today}.csv` },
-    { folderId: CFG.DRIVE.MARGIN_TPEX,      name: `RSTA3106_${today}.csv` }
+    { folderId: CFG.DRIVE.MARGIN_TPEX,      name: `RSTA3106_${today}.csv` },
+    { folderId: CFG.DRIVE.CB_ISSUE_LIST,    name: `預計發行CB資料_${today}.xlsx`, mime: XLSX_MIME },
+    { folderId: CFG.DRIVE.CB_ISSUE_LIST,    name: `已發行CB資料_${today}.xlsx`,   mime: XLSX_MIME }
   ];
 
   let created = 0, skipped = 0, failed = 0;
@@ -57,7 +61,7 @@ function createTodayPlaceholders() {
         skipped++;
         return;
       }
-      folder.createFile(t.name, '', 'text/csv');
+      folder.createFile(t.name, '', t.mime || 'text/csv');
       Logger.log("  ✅ created: " + t.name);
       created++;
     } catch (e) {
