@@ -589,7 +589,7 @@ const App = (() => {
     el.innerHTML = `5日 ${fmt(meta.bias5)} &middot; 10日 ${fmt(meta.bias10)} &middot; 20日 ${fmt(meta.bias20)}`;
   }
 
-  // 技術分析 Modal 標題:◀ 股號 股名 ▶ — 串接主畫面 filteredData 前後切換
+  // 技術分析 Modal 標題:◀ ☆ 股號 股名 ▶ — 串接主畫面 filteredData 前後切換
   function renderTechModalTitle() {
     const titleEl = document.getElementById('tech-modal-title');
     if (!titleEl || !selectedStock) return;
@@ -597,14 +597,27 @@ const App = (() => {
     const canPrev = idx > 0;
     const canNext = idx >= 0 && idx < filteredData.length - 1;
     const fullLabel = `${selectedStock.code} ${selectedStock.name || ''}`;
+    const starred = Watchlist.has(selectedStock.code);
+    const starChar = starred ? '★' : '☆';
+    const starColor = starred ? '#f59e0b' : 'var(--text-dim)';
     titleEl.innerHTML =
       `<button class="tech-nav-arrow" id="tech-nav-prev" ${canPrev ? '' : 'disabled'} title="上一檔">&#x25C0;</button>` +
-      `<span class="tech-nav-label" title="${fullLabel}">${fullLabel}</span>` +
+      `<span class="tech-nav-center">` +
+        `<button class="tech-nav-star" id="tech-nav-star" title="加入清單" style="color:${starColor}">${starChar}</button>` +
+        `<span class="tech-nav-label" title="${fullLabel}">${fullLabel}</span>` +
+      `</span>` +
       `<button class="tech-nav-arrow" id="tech-nav-next" ${canNext ? '' : 'disabled'} title="下一檔">&#x25B6;</button>`;
     const prev = document.getElementById('tech-nav-prev');
     const next = document.getElementById('tech-nav-next');
+    const star = document.getElementById('tech-nav-star');
     if (prev) prev.addEventListener('click', () => navigateTechModal(-1));
     if (next) next.addEventListener('click', () => navigateTechModal(1));
+    if (star) star.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // 重用 Table.showStarMenu — 內部會以 star.getBoundingClientRect() 對位、
+      // 勾選變更後直接更新 star.textContent 跟顏色 (跟主表 td 同邏輯)
+      Table.showStarMenu(star, selectedStock.code);
+    });
   }
 
   function navigateTechModal(dir) {

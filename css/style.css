@@ -529,7 +529,8 @@ body {
 /* === 星號清單選單 === */
 .star-menu {
   position: fixed;
-  z-index: 200;
+  /* 要高於 auction-modal (2000) — 不然在技術分析 modal 裡點 ☆ 會被擋掉看不到 */
+  z-index: 3000;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1422,20 +1423,63 @@ body {
   gap: 14px;
 }
 
-/* 固定寬度 + 文字置中,讓「股號 股名」整體在固定槽位內水平置中,
-   箭頭位置不會隨股名長度跳動 (280px 容得下「1234 鮮活果汁-KY」) */
+/* 個股技術分析:標題改成「橫跨整列」絕對定位,讓中線對應整個 header (不是
+   只剩下 CB 按鈕/× 的左側剩餘空間)。右側按鈕仍走原本 flex 排版,
+   pointer-events 反白讓中間區除了子元素本身外都能透過去 */
+#tech-modal .auction-modal-header {
+  position: relative;
+  justify-content: flex-end;  /* title 已絕對定位脫離 flow,讓剩下 CB按鈕 / × 靠右 */
+}
+#tech-modal-title {
+  flex: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+#tech-modal-title > * { pointer-events: auto; }
+
+/* ☆ + 股號股名 包成同一個 fixed-width 槽位,內容水平置中。
+   320px 容得下「☆ 1234 鮮活果汁-KY」,箭頭位置不會隨股名長度跳動,
+   星號則永遠緊貼著股號(8px gap) */
+.tech-nav-center {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 320px;
+}
+
 .tech-nav-label {
-  display: inline-block;
-  width: 280px;
   font-size: 20px;
   font-weight: 700;
   color: var(--text);
   letter-spacing: 0.5px;
-  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ☆ 加入清單按鈕 — 跟主表 star cell 同套互動,
+   勾後 textContent 變 ★、顏色 #f59e0b */
+.tech-nav-star {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: color 0.15s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tech-nav-star:hover { transform: scale(1.15); }
 
 .tech-nav-arrow {
   width: 32px;
