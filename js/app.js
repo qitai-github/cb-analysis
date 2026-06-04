@@ -182,7 +182,7 @@ const App = (() => {
     btnExport.addEventListener('click', () => ExportCSV.exportFiltered(filteredData));
 
     const btnImport = document.createElement('button');
-    btnImport.textContent = '匯入 CSV 追蹤';
+    btnImport.textContent = '匯入 CSV';
     btnImport.className = 'btn btn-secondary';
     btnImport.addEventListener('click', () => {
       const input = document.createElement('input');
@@ -508,10 +508,43 @@ const App = (() => {
   // ============================================================
   let techActiveFolder = 'inst';  // 'inst' | 'margin'
 
+  // === 額度勾選(統一/富邦/元大)— 個股 / CB 技術分析 modal 共用,
+  //     用 localStorage 持久化,任一個 modal 改了另一個自動同步
+  const QUOTA_STORAGE_KEY = 'tech_modal_quota_state';
+  function getQuotaState() {
+    try { return JSON.parse(localStorage.getItem(QUOTA_STORAGE_KEY)) || {}; }
+    catch { return {}; }
+  }
+  function setQuotaValue(key, checked) {
+    const state = getQuotaState();
+    state[key] = !!checked;
+    localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(state));
+    syncQuotaUI();
+  }
+  function syncQuotaUI() {
+    const state = getQuotaState();
+    for (const cb of document.querySelectorAll('.tech-quota-group input[type="checkbox"]')) {
+      cb.checked = !!state[cb.dataset.quota];
+    }
+  }
+  function bindQuotaGroup(groupId) {
+    const el = document.getElementById(groupId);
+    if (!el || el.dataset.bound === '1') return;
+    el.dataset.bound = '1';
+    el.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t.matches('input[type="checkbox"]') && t.dataset.quota) {
+        setQuotaValue(t.dataset.quota, t.checked);
+      }
+    });
+  }
+
   function openTechModal() {
     if (!selectedStock) return;
     document.getElementById('tech-modal').classList.add('show');
     bindTechFolderTabs();
+    bindQuotaGroup('tech-quota-group-stock');
+    syncQuotaUI();
     refreshTechModalForCurrentStock();
   }
 
@@ -710,6 +743,8 @@ const App = (() => {
 
     document.getElementById('cbtech-modal').classList.add('show');
     bindCBTechFolderTabs();
+    bindQuotaGroup('tech-quota-group-cb');
+    syncQuotaUI();
     refreshCBTechModal();
   }
 

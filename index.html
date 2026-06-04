@@ -80,6 +80,11 @@
   <div class="auction-modal" id="tech-modal" onclick="App.closeTechModal(event)">
     <div class="auction-modal-content tech-modal-content" onclick="event.stopPropagation()">
       <div class="auction-modal-header">
+        <div class="tech-quota-group" id="tech-quota-group-stock">
+          <label><input type="checkbox" data-quota="unified"><span>統一額度</span></label>
+          <label><input type="checkbox" data-quota="fubon"><span>富邦額度</span></label>
+          <label><input type="checkbox" data-quota="yuanta"><span>元大額度</span></label>
+        </div>
         <div class="auction-modal-title" id="tech-modal-title"></div>
         <button class="btn-tech-analysis btn-header-link" type="button" onclick="App.openCBTechFromStock()" title="併排顯示 CB 技術分析">CB 技術分析</button>
         <button class="detail-close" onclick="App.closeTechModal()">&times;</button>
@@ -184,6 +189,11 @@
   <div class="auction-modal" id="cbtech-modal" onclick="App.closeCBTechModal(event)">
     <div class="auction-modal-content tech-modal-content" onclick="event.stopPropagation()">
       <div class="auction-modal-header">
+        <div class="tech-quota-group" id="tech-quota-group-cb">
+          <label><input type="checkbox" data-quota="unified"><span>統一額度</span></label>
+          <label><input type="checkbox" data-quota="fubon"><span>富邦額度</span></label>
+          <label><input type="checkbox" data-quota="yuanta"><span>元大額度</span></label>
+        </div>
         <div class="auction-modal-title" id="cbtech-modal-title"></div>
         <button class="btn-tech-analysis btn-header-link" type="button" onclick="App.openTechFromCB()" title="併排顯示個股技術分析">個股技術分析</button>
         <button class="detail-close" onclick="App.closeCBTechModal()">&times;</button>

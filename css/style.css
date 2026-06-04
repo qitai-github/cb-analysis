@@ -1362,7 +1362,37 @@ body {
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-light);
+  position: relative;  /* 給 .tech-quota-group / #tech-modal-title 絕對定位用 */
 }
+
+/* 額度勾選組(左上角)— 個股 / CB 技術分析 modal 共用
+   absolute 定位避免擾動既有 flex 排版,z-index 蓋過絕對定位的標題 */
+.tech-quota-group {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  z-index: 3;
+}
+.tech-quota-group label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.2;
+}
+.tech-quota-group input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.tech-quota-group label:hover { color: var(--text); }
 
 .auction-modal-title {
   font-size: 15px;
@@ -1427,7 +1457,6 @@ body {
    只剩下 CB 按鈕/× 的左側剩餘空間)。右側按鈕仍走原本 flex 排版,
    pointer-events 反白讓中間區除了子元素本身外都能透過去 */
 #tech-modal .auction-modal-header {
-  position: relative;
   justify-content: flex-end;  /* title 已絕對定位脫離 flow,讓剩下 CB按鈕 / × 靠右 */
 }
 #tech-modal-title {
