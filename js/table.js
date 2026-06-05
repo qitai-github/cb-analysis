@@ -312,7 +312,7 @@ const Table = (() => {
   }
 
   function updateStarCell(td, code) {
-    const starred = Watchlist.has(code);
+    const starred = Watchlist.has(code) || PublicWatchlist.has(code);
     td.textContent = starred ? '★' : '☆';
     td.style.color = starred ? '#f59e0b' : 'var(--text-dim)';
   }
@@ -343,6 +343,33 @@ const Table = (() => {
       menu.appendChild(row);
     }
 
+// 分隔線
+const divider = document.createElement('div');
+divider.className = 'star-menu-divider';
+menu.appendChild(divider);
+
+// 公用清單
+const pubRow = document.createElement('label');
+pubRow.className = 'star-menu-item star-menu-item--public';
+const pubCb = document.createElement('input');
+pubCb.type = 'checkbox';
+pubCb.checked = PublicWatchlist.has(code);
+pubCb.addEventListener('change', async () => {
+  pubCb.disabled = true;
+  if (pubCb.checked) await PublicWatchlist.add(code);
+  else await PublicWatchlist.remove(code);
+  pubCb.disabled = false;
+  updateStarCell(td, code);
+});
+const pubSpan = document.createElement('span');
+pubSpan.textContent = '公用清單';
+const pubBadge = document.createElement('span');
+pubBadge.className = 'star-menu-public-badge';
+pubBadge.textContent = '共用';
+pubRow.append(pubCb, pubSpan, pubBadge);
+menu.appendChild(pubRow);
+
+    
     // 用 fixed 定位，避免被 table-wrapper overflow 裁切
     const rect = td.getBoundingClientRect();
     menu.style.left = rect.left + 'px';
