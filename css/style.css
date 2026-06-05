@@ -558,6 +558,26 @@ body {
   accent-color: var(--accent);
 }
 
+.star-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.star-menu-item--public {
+  color: var(--accent);
+}
+
+.star-menu-public-badge {
+  margin-left: auto;
+  font-size: 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  opacity: 0.8;
+}
+
 .cell-industry {
   font-size: 11px;
   color: var(--text-muted);
