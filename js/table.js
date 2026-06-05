@@ -362,7 +362,7 @@ pubCb.addEventListener('change', async () => {
   updateStarCell(td, code);
 });
 const pubSpan = document.createElement('span');
-pubSpan.textContent = '公用清單';
+pubSpan.textContent = '🌟新天團';
 const pubBadge = document.createElement('span');
 pubBadge.className = 'star-menu-public-badge';
 pubBadge.textContent = '共用';
