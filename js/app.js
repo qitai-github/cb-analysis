@@ -401,6 +401,16 @@ const App = (() => {
 
     function renderListItems() {
       listContainer.innerHTML = '';
+      // 公用清單（第一項，不可刪除）
+      const pubRow = document.createElement('div');
+      pubRow.className = 'wl-list-item';
+      const pubLabel = document.createElement('span');
+      pubLabel.className = 'wl-list-name';
+      pubLabel.style.color = 'var(--accent)';
+      pubLabel.textContent = `公用清單 🌐 (${PublicWatchlist.getAll().length})`;
+      pubRow.appendChild(pubLabel);
+      listContainer.appendChild(pubRow);
+      // 個人清單
       for (const name of Watchlist.getListNames()) {
         const row = document.createElement('div');
         row.className = 'wl-list-item';
