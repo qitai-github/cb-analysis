@@ -345,6 +345,10 @@ const App = (() => {
     optAny.value = '__all__';
     optAny.textContent = '所有追蹤';
     select.appendChild(optAny);
+    const optPublic = document.createElement('option');
+    optPublic.value = '__public__';
+    optPublic.textContent = '公用清單 🌐';
+    select.appendChild(optPublic);
     for (const name of Watchlist.getListNames()) {
       const opt = document.createElement('option');
       opt.value = name;
