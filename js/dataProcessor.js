@@ -9,7 +9,8 @@ const DataProcessor = (() => {
     if (!rawData || rawData.length < 2) return { dates: [], stocks: {} };
 
     const headerRow = rawData[0];
-    const dates = headerRow.slice(3).map(d => String(d).trim()).filter(d => d);
+    // colDates 保留 header 原順序給 row column 索引用
+    const colDates = headerRow.slice(3).map(d => String(d).trim()).filter(d => d);
 
     const stocks = {};
     let currentCode = '';
@@ -32,13 +33,17 @@ const DataProcessor = (() => {
       }
 
       const values = {};
-      for (let j = 0; j < dates.length && j + 3 < row.length; j++) {
+      for (let j = 0; j < colDates.length && j + 3 < row.length; j++) {
         const val = parseNumber(row[j + 3]);
-        if (val !== null) values[dates[j]] = val;
+        if (val !== null) values[colDates[j]] = val;
       }
       stocks[currentCode].data[category] = values;
     }
 
+    // 回傳的 dates 排序 → 修補 pipeline timeseries_merge 是 append 而非
+    // chronological insert 的 bug (補抓 0604 後 0604 跑到 0605 之後)。
+    // values 是 dict keyed by date 字串,不在意順序。
+    const dates = [...colDates].sort();
     return { dates, stocks };
   }
 
