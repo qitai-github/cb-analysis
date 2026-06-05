@@ -347,7 +347,7 @@ const App = (() => {
     select.appendChild(optAny);
     const optPublic = document.createElement('option');
     optPublic.value = '__public__';
-    optPublic.textContent = '公用清單 🌐';
+    optPublic.textContent = '🌟新天團';
     select.appendChild(optPublic);
     for (const name of Watchlist.getListNames()) {
       const opt = document.createElement('option');
