@@ -20,6 +20,7 @@ const Filters = (() => {
       apply: (stock, val) => {
         if (!val) return true;
         if (val === '__all__') return Watchlist.isInAnyList(stock.code);
+        if (val === '__public__') return PublicWatchlist.has(stock.code);
         return Watchlist.isInList(stock.code, val);
       }
     },
