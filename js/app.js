@@ -407,7 +407,7 @@ const App = (() => {
       const pubLabel = document.createElement('span');
       pubLabel.className = 'wl-list-name';
       pubLabel.style.color = 'var(--accent)';
-      pubLabel.textContent = `公用清單 🌐 (${PublicWatchlist.getAll().length})`;
+      pubLabel.textContent = `🌟新天團 (${PublicWatchlist.getAll().length})`;
       pubRow.appendChild(pubLabel);
       listContainer.appendChild(pubRow);
       // 個人清單
