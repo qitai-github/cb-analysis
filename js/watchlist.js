@@ -21,10 +21,12 @@ const Watchlist = (() => {
     } catch {
       data = { lists: {}, order: [] };
     }
-    // 確保至少有一個預設清單
-    if (data.order.length === 0) {
-      data.lists['預設'] = [];
-      data.order = ['預設'];
+    // 自動清掉空的「預設」清單 (前提:有其他自訂清單,不會把首次載入的使用者搞成 0 清單)
+    if (data.lists['預設']
+        && data.lists['預設'].length === 0
+        && data.order.length > 1) {
+      delete data.lists['預設'];
+      data.order = data.order.filter(n => n !== '預設');
       save();
     }
   }
@@ -68,11 +70,6 @@ const Watchlist = (() => {
     delete data.lists[name];
     data.order = data.order.filter(n => n !== name);
     if (activeList === name) activeList = '';
-    // 確保至少保留一個清單
-    if (data.order.length === 0) {
-      data.lists['預設'] = [];
-      data.order = ['預設'];
-    }
     save();
     return true;
   }
