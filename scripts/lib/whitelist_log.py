@@ -4,12 +4,13 @@
 Sheet 必須先把 SA email 加為「編輯者」否則 update 會 403。
 
 Sheet 格式 (worksheet "Stock"):
-  日期         | 標的數 | 完整清單(逗號分隔)
-  2026-06-05  | 360   | 1101,1102,...
-  2026-06-04  | 359   | 1101,1102,...
+  A=日期 | B=標的數 | C/D/E/.../ = 標的代號 (每檔一欄,排序)
+
+例:
+  2026-06-11 | 358 | 1101 | 1256 | 1295 | ... | 8996
 
 行為:
-  - 同一天再跑 → update 該列 (用日期當 key)
+  - 同一天再跑 → 先 clear 該列再寫 (避免昨日比較長的尾巴殘留)
   - 新的一天 → append 一列
 """
 
@@ -22,7 +23,6 @@ from typing import Iterable, Optional
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-# drive scope 已涵蓋多數情境,但為了寫 sheet 顯式加 spreadsheets
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
@@ -30,7 +30,7 @@ SCOPES = [
 
 DEFAULT_SHEET_ID = "1Ia3noTeXnZFl2N6D-z5itUlqyAYHkYAtLl-ESFUn7bc"
 DEFAULT_WORKSHEET = "Stock"
-HEADER = ["日期", "標的數", "完整清單"]
+HEADER = ["日期", "標的數", "標的清單"]
 
 _service = None
 
@@ -50,26 +50,43 @@ def _svc():
     return _service
 
 
-def _get_all_rows(sheet_id: str, worksheet: str) -> list[list[str]]:
-    """讀整個 worksheet,回 2D list (含 header)。"""
-    rng = f"'{worksheet}'!A:C"
+def _col_letter(n: int) -> str:
+    """1→A, 26→Z, 27→AA, 358→MT。給「個別一檔一欄」寫入用。"""
+    s = ""
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        s = chr(ord("A") + r) + s
+    return s
+
+
+def _get_dates_column(sheet_id: str, worksheet: str) -> list[str]:
+    """只讀 A 欄 (日期) 用來找匹配 row。回傳 list (含 header)。"""
+    rng = f"'{worksheet}'!A:A"
     resp = _svc().spreadsheets().values().get(
         spreadsheetId=sheet_id, range=rng,
         valueRenderOption="FORMATTED_VALUE"
     ).execute()
-    return resp.get("values", [])
+    vals = resp.get("values", [])
+    return [(r[0] if r else "") for r in vals]
 
 
 def _ensure_header(sheet_id: str, worksheet: str,
-                   rows: list[list[str]]) -> None:
-    """若 worksheet 是空的,寫入 header。"""
-    if rows:
+                   dates_col: list[str]) -> None:
+    if dates_col:
         return
     rng = f"'{worksheet}'!A1:C1"
     _svc().spreadsheets().values().update(
         spreadsheetId=sheet_id, range=rng,
         valueInputOption="USER_ENTERED",
         body={"values": [HEADER]},
+    ).execute()
+
+
+def _clear_row(sheet_id: str, worksheet: str, row_idx: int) -> None:
+    """清掉整列 (避免上次寫得比較長的尾巴殘留)。"""
+    rng = f"'{worksheet}'!A{row_idx}:ZZ{row_idx}"
+    _svc().spreadsheets().values().clear(
+        spreadsheetId=sheet_id, range=rng, body={},
     ).execute()
 
 
@@ -88,22 +105,26 @@ def write_daily(trade_date: str, codes: Iterable[str], *,
         d = f"{d[:4]}-{d[4:6]}-{d[6:]}"
 
     code_list = sorted({str(c).strip() for c in codes if str(c).strip()})
-    row_data = [d, len(code_list), ",".join(code_list)]
+    # 每檔一欄: 日期 / 標的數 / 1101 / 1256 / ...
+    row_data: list = [d, len(code_list), *code_list]
+    end_col = _col_letter(len(row_data))
 
-    rows = _get_all_rows(sheet_id, worksheet)
-    _ensure_header(sheet_id, worksheet, rows)
-    if not rows:
-        rows = [HEADER]
+    dates_col = _get_dates_column(sheet_id, worksheet)
+    _ensure_header(sheet_id, worksheet, dates_col)
+    if not dates_col:
+        dates_col = [HEADER[0]]  # 表示已有 header 但無資料
 
-    # 找該日期是否已存在 (跳過 header row)
-    target_row_idx = None  # 1-based 列號 (Sheet 規格)
-    for i, r in enumerate(rows[1:], start=2):
-        if r and str(r[0]).strip() == d:
+    # 找該日期 (跳過 header)
+    target_row_idx = None
+    for i, v in enumerate(dates_col[1:], start=2):
+        if str(v).strip() == d:
             target_row_idx = i
             break
 
     if target_row_idx is not None:
-        rng = f"'{worksheet}'!A{target_row_idx}:C{target_row_idx}"
+        # 先清整列再寫,避免之前較長的尾巴殘留
+        _clear_row(sheet_id, worksheet, target_row_idx)
+        rng = f"'{worksheet}'!A{target_row_idx}:{end_col}{target_row_idx}"
         _svc().spreadsheets().values().update(
             spreadsheetId=sheet_id, range=rng,
             valueInputOption="USER_ENTERED",
@@ -112,15 +133,14 @@ def write_daily(trade_date: str, codes: Iterable[str], *,
         return {"mode": "update", "row": target_row_idx,
                 "count": len(code_list)}
 
-    # append 新列
-    rng = f"'{worksheet}'!A:C"
+    # append 新列 — sheets API 自動找下一空列從 A 開始
+    rng = f"'{worksheet}'!A:A"
     resp = _svc().spreadsheets().values().append(
         spreadsheetId=sheet_id, range=rng,
         valueInputOption="USER_ENTERED",
         insertDataOption="INSERT_ROWS",
         body={"values": [row_data]},
     ).execute()
-    # updates.updatedRange 形如 'Stock'!A361:C361
     upd = resp.get("updates", {}).get("updatedRange", "")
     return {"mode": "append", "row": upd,
             "count": len(code_list)}
