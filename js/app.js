@@ -487,6 +487,31 @@ const App = (() => {
     selectedCBTab = stock.mainCB?.cbCode || tabCBs[0]?.cbCode || null;
   }
 
+  // === 投資重點一頁式儀表板 (iframe 內嵌於 Modal;對方已開放 frame-ancestors) ===
+  // 代號自動接當前股票:.../companies/<code>/
+  function investDashboardURL(code) {
+    return `${INVEST_DASHBOARD_BASE}${encodeURIComponent(code)}/`;
+  }
+
+  // 點「投資儀表板」→ 彈出 Modal,內嵌當前股票的一頁式儀表板
+  function openInvestModal() {
+    if (!selectedStock) return;
+    const url = investDashboardURL(selectedStock.code);
+    document.getElementById('invest-modal-title').textContent =
+      `${selectedStock.code} ${selectedStock.name} · 簡易報告`;
+    document.getElementById('invest-modal-body').innerHTML =
+      `<iframe class="invest-frame" title="投資重點一頁式儀表板" loading="lazy" ` +
+      `referrerpolicy="no-referrer-when-downgrade" src="${url}"></iframe>`;
+    document.getElementById('invest-modal').classList.add('show');
+  }
+
+  function closeInvestModal(event) {
+    // 只有點背景遮罩 (#invest-modal 本身) 才關閉
+    if (event && event.target && event.target.id !== 'invest-modal') return;
+    document.getElementById('invest-modal').classList.remove('show');
+    document.getElementById('invest-modal-body').innerHTML = '';  // 卸載 iframe
+  }
+
   // 詳情面板標題:星星 + 代號名稱 + VCP/三線 狀態徽章
   function renderDetailTitle(stock) {
     const titleEl = document.getElementById('detail-title');
@@ -1665,6 +1690,7 @@ const App = (() => {
     // 更新 tab 按鈕樣式
     document.getElementById('tab-cb').classList.toggle('active', tab === 'cb');
     document.getElementById('tab-etf').classList.toggle('active', tab === 'etf');
+    document.getElementById('tab-vcp').classList.toggle('active', tab === 'vcp');
     document.getElementById('tab-calendar').classList.toggle('active', tab === 'calendar');
 
     // 關閉 detail panel
@@ -1675,8 +1701,34 @@ const App = (() => {
       applyCurrentFilters();
     } else if (tab === 'etf') {
       await initETFView();
+    } else if (tab === 'vcp') {
+      await initVCPView();
     } else if (tab === 'calendar') {
       initCalendarView();
+    }
+  }
+
+  let vcpLoaded = false;
+  async function initVCPView() {
+    const statusEl = document.getElementById('header-status');
+    try {
+      if (!vcpLoaded) {
+        if (statusEl) statusEl.textContent = '載入 VCP 掃描結果...';
+        await VCPView.loadData();
+        vcpLoaded = true;
+      }
+      const st = VCPView.getStats();
+      if (statusEl) {
+        statusEl.textContent = `VCP 選股 | 資料日 ${st.asOf} | 通過 ${st.passed} 檔`;
+        statusEl.style.color = '';
+      }
+      VCPView.buildFilterPanel('filter-panel');
+      VCPView.renderColumns('main-table');
+    } catch (err) {
+      console.error('[VCP] 載入失敗', err);
+      const mt = document.getElementById('main-table');
+      if (mt) mt.innerHTML = '<div style="padding:24px;color:#94a3b8">VCP 資料尚未產生 (data/vcp.json)。請先執行 scripts/vcp_scanner.py。</div>';
+      if (statusEl) statusEl.textContent = 'VCP 資料未就緒';
     }
   }
 
@@ -1775,7 +1827,8 @@ const App = (() => {
     showAuctionModal, closeAuctionModal,
     openTechModal, closeTechModal,
     openCBTechModal, closeCBTechModal, openCBTechFromStock, openTechFromCB,
-    switchTab, showDetail
+    switchTab, showDetail,
+    openInvestModal, closeInvestModal
   };
 })();
 

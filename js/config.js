@@ -1,3 +1,7 @@
+// 投資重點一頁式儀表板（外部站台,iframe 內嵌 / 連結用）
+// 換股票時不用改這裡,程式會自動接上當前股票代號 → .../companies/<code>/
+const INVEST_DASHBOARD_BASE = 'https://investing.0099914.xyz/companies/';
+
 // Supabase 設定（公用追蹤清單）
 const SUPABASE_URL = 'https://rfdsmmrhesysqsqmwbnu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJmZHNtbXJoZXN5c3FzcW13Ym51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjI1OTMsImV4cCI6MjA5MjY5ODU5M30.X-9D4Um5LnXHmYW14WPBI4WThfVlicJpMWelEmqM6_I';
