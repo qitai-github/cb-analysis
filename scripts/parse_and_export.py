@@ -358,8 +358,9 @@ def _primary_market_stock_ids(all_data: dict) -> set[str]:
     return codes
 
 
-def filter_to_whitelist(parsed: dict, all_data: dict) -> None:
+def filter_to_whitelist(parsed: dict, all_data: dict) -> set[str]:
     """對 stockTrading / cbInstitutional 做白名單篩選 (in-place)。
+    回傳本次計算出的 whitelist (給 log_whitelist 用)。
 
     篩選來源:
       - 既有 all-data.json 兩個 key 內的 stock_id 集合
@@ -381,7 +382,7 @@ def filter_to_whitelist(parsed: dict, all_data: dict) -> None:
 
     if not whitelist:
         log("  ⚠️  既有 all-data.json 無白名單 stock_id,跳過篩選 (首次跑)")
-        return
+        return whitelist
 
     log(f"  白名單 (CB-linked + 初級市場): {len(whitelist):,} 檔")
 
@@ -402,6 +403,8 @@ def filter_to_whitelist(parsed: dict, all_data: dict) -> None:
         }
         log(f"  ↳ {ts_key}: 個股 {before_dv:,} → {len(result.daily_values):,}, "
             f"DB rows {before_db:,} → {len(result.db_rows):,}")
+
+    return whitelist
 
 
 # ── Phase 3: 合併 4 個 timeseries 進 all-data.json ─────────────────────
@@ -620,7 +623,7 @@ def main(argv=None) -> int:
         else:
             log(f"  ⚠️  {DATA_JSON} 不存在,從零建")
             all_data = {}
-        filter_to_whitelist(parsed, all_data)
+        whitelist = filter_to_whitelist(parsed, all_data)
 
         # Phase 2: DB upsert
         if args.skip_db:
@@ -664,6 +667,22 @@ def main(argv=None) -> int:
             log("[Phase 4.7] 抓 統一 CBAS 日曆 xlsx → cbasCalendar")
             summary["cbas_calendar"] = fetch_cbas_calendar(
                 trade_date, all_data, record_db=record_db)
+
+        # Phase 4.8: 把當日白名單聯集寫到 Google Sheet (留歷史軌跡)
+        if args.skip_sheet:
+            log("[Phase 4.8] --skip-sheet,白名單寫 Sheet 跳過")
+        else:
+            log(f"[Phase 4.8] 白名單寫 Sheet ({len(whitelist):,} 檔)")
+            try:
+                from lib import whitelist_log
+                res = whitelist_log.write_daily(trade_date, whitelist)
+                log(f"  ✓ {res['mode']} → {res['row']} "
+                    f"({res['count']:,} 檔)")
+                summary["whitelist_log"] = {"status": "ok", **res}
+            except Exception as e:  # noqa: BLE001
+                log(f"  ⚠️  白名單寫 Sheet 失敗 (不擋主流程): {e}")
+                summary["whitelist_log"] = {"status": "fail",
+                                            "error": str(e)}
 
         # Phase 5: 寫回 JSON
         if args.skip_json:
