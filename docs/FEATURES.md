@@ -305,7 +305,7 @@ _meta                pipeline 時間戳
 | Script | 用途 |
 |---|---|
 | `scripts/backfill_day.py` | 補抓特定股某日 (更新現有 cell,不新增 row) |
-| `scripts/backfill_primary_market.py` | 補抓「從沒抓過」的初級市場標的整段歷史 |
+| `scripts/backfill_primary_market.py` | 補抓初級市場標的:沒列的整段 append;有列但「歷史幾乎全 0」的新進股(`forward_only_stocks`)自動就地 refill |
 | `scripts/backfill_margin.py` | 融資融券歷史回填 |
 | `scripts/backfill_source.py` | 補抓某天某來源 raw CSV |
 
