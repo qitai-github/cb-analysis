@@ -190,6 +190,13 @@ def format_pipeline_summary(s: dict[str, Any]) -> str:
                 f"*CBAS日曆:* ✅ `{cc.get('reportDate','?')}` "
                 f"{cc.get('events',0):,} 事件"
             )
+            if cc.get("yuantaDate"):
+                lines.append(
+                    f"  ↳ 元大核對 `{cc['yuantaDate']}` "
+                    f"補充{cc.get('yuantaSupplied',0)} "
+                    f"不符{cc.get('yuantaMismatch',0)} "
+                    f"僅元大{cc.get('yuantaOnly',0)}"
+                )
         else:
             lines.append(f"*CBAS日曆:* ❌ {cc.get('error','unknown')}")
         lines.append("")

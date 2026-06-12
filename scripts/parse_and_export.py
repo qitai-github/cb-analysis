@@ -52,7 +52,7 @@ try:
 except ImportError:
     pass  # 沒裝 python-dotenv 也能跑,前提是 env 已外部設好
 
-from lib import cbas_calendar, drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge, yuanta_report  # noqa: E402
+from lib import cbas_calendar, drive, sheets, status_sheets, supabase_client, telegram, timeseries_merge, yuanta_issuance, yuanta_report  # noqa: E402
 from parsers import cb_inst, cb_price, margin_trading, stock_inst, stock_price  # noqa: E402
 
 # 直接爬網頁的 fallback (當 Drive 沒檔時用,例如當日 TWSE T86 16:00 才公布,
@@ -486,11 +486,31 @@ def fetch_cbas_calendar(trade_date: str, all_data: dict, *,
         result = cbas_calendar.fetch_and_parse(folder_id)
         n = len(result.get("events") or [])
         log(f"     ✓ reportDate={result.get('reportDate')}, events={n:,}")
+
+        # 元大「發行案件」核對 + 補充 (統一為主,元大補缺漏並標記差異)。
+        # 失敗不擋日曆主流程。
+        cc: dict = {}
+        try:
+            yfolder = (os.environ.get("YUANTA_ISSUANCE_FOLDER_ID")
+                       or yuanta_issuance.DEFAULT_FOLDER_ID)
+            ydata = yuanta_issuance.fetch_and_parse(yfolder)
+            cc = yuanta_issuance.crosscheck_and_merge(result, ydata)
+            n = len(result.get("events") or [])  # 補充後重算
+            log(f"     ✓ 元大核對 {cc.get('reportDate')}: 一致{cc['consistent']} "
+                f"補充{cc['supplied']} 不符{len(cc['mismatches'])} "
+                f"僅元大{len(cc['onlyYuanta'])} → events={n:,}")
+        except Exception as e:  # noqa: BLE001
+            log(f"     ⚠️  元大發行案件核對失敗 (不擋日曆): {e}")
+
         all_data["cbasCalendar"] = result
         _record(trade_date, "cbasCalendar", "fetch", "ok",
                 count=n, enabled=record_db)
         return {"status": "ok", "reportDate": result.get("reportDate"),
-                "events": n}
+                "events": n,
+                "yuantaDate": cc.get("reportDate"),
+                "yuantaSupplied": cc.get("supplied"),
+                "yuantaMismatch": len(cc.get("mismatches") or []),
+                "yuantaOnly": len(cc.get("onlyYuanta") or [])}
     except Exception as e:  # noqa: BLE001
         log(f"     ✗ {e}")
         _record(trade_date, "cbasCalendar", "fetch", "fail",

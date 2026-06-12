@@ -155,6 +155,11 @@
   - 按開標日新到舊排序
   - 點 row 開啟既有 auction modal
   - 背景 silentRefresh 完成後自動 re-render
+- **資料來源**: 統一 CBAS (`lib/cbas_calendar.py`) 為主來源,**元大「發行案件」(`lib/yuanta_issuance.py`) 補充 + 核對**
+  - 元大每天更新,常比統一更早收錄新案並補上掛牌/拆解日
+  - 統一缺的 (cbCode,type) 事件用元大補進去 (每筆標 `source:'yuanta'`),統一已有則保留統一、不覆蓋
+  - 核對摘要寫在 `cbasCalendar.yuantaCrosscheck` ({consistent, supplied, mismatches[], onlyYuanta[]}),並推送到 Telegram (`↳ 元大核對 補充N 不符N 僅元大N`)
+  - 來源檔:Drive `CB發行案件-元大` folder,檔名 `CB發行案件彙整-元大債券{民國YYYMMDD}.xlsx`,挑日期最大那份
 
 ---
 
@@ -217,7 +222,7 @@ stockIndustry        台股公司主檔 (產業)
 cbIssuance           CB 發行資訊
 yuantaReport         元大選擇權 (basicInfo, 競拍, 流通餘額...)
 stockStatus          VCP / 三線開花
-cbasCalendar         CBAS 日曆 (events, issuedInfo, plannedPrimary)
+cbasCalendar         CBAS 日曆 (events, issuedInfo, plannedPrimary, yuantaCrosscheck)
 _meta                pipeline 時間戳
 ```
 
