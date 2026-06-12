@@ -11,3 +11,8 @@
 # Python
 __pycache__/
 *.pyc
+
+# VCP 全市場 OHLCV 本地快取 (由 build_universe.py 產生, 勿 commit)
+scripts/cache/
+# VCP Excel 輸出
+scripts/output/

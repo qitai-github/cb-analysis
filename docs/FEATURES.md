@@ -172,8 +172,36 @@
 
 ## 6. VCP 選股 tab ([js/vcpView.js](../js/vcpView.js))
 
-- 從 `data/vcp.json` (`scripts/vcp_scanner.py` 產生) 載入
-- 個股 / 可轉價 兩個子 tab
+全台股 (上市+上櫃 ~1990 檔**個股**, 排除 ETF/權證) 的 VCP (Volatility Contraction
+Pattern) 掃描。資料來源 `data/vcp.json` (由 `scripts/vcp_scanner.py` 產生)。
+
+- **screener 表格**: ☆ / 代號 / 名稱 / 市 / 等級 / 狀態 / 分數 / 收盤 / Pivot / 距% / 波數 / 收斂深度 / 量縮
+- **三級 tier** (一次掃描同時判定, 前端即時切換): 嚴格(高點帶寬≤3%) / 標準(≤4%) / 寬鬆(≤6%)
+- **狀態 stage**: 突破(剛站上壓力線+帶量) / 待突破(貼壓力線下方) / 已突破(延伸) / 觀察
+- 點列開 **K 線收斂圖 modal**: K棒+MA+量, 疊「壓力線(Pivot)金線」+「收斂區塊」+ 收斂明細表
+
+### 6.1 偵測模型 (壓力線觸碰)
+
+1. 盤中高低點 ZigZag (≥8% 反轉) 找轉折峰/谷
+2. 由高往低找壓力線: 被觸碰 ≥2 次、首末橫跨 ≥20 日、最後觸碰在近 30 交易日內
+3. 每次觸頂 = 一波收斂; 低點取兩次觸頂間最低 (自動忽略未觸頂雜峰)
+4. 條件: 高點群等高(帶寬) + 低點逐步墊高 + 深度遞減 (量縮僅計分不過濾)
+5. 趨勢前提: Minervini 趨勢樣板 (收盤>MA50>MA150>MA200、距52週高≤25%…)
+
+### 6.2 資料 pipeline (本機手動, 使用者要求時才跑)
+
+```
+Drive 上市/上櫃每日交易明細 CSV
+  │ scripts/build_universe.py   抓 Drive → 本機快取 scripts/cache/universe/ (64MB, 不上傳)
+  ▼  (增量: 只補快取沒有的交易日)
+全市場 OHLCV 快取 (本機)
+  │ scripts/vcp_scanner.py      讀快取 → 偵測 → data/vcp.json (+ scripts/output Excel)
+  ▼
+data/vcp.json  ──commit + push──▶ GitHub repo ──▶ 線上網站讀取
+```
+
+- ⚠️ 全市場歷史**只在 Drive 原始 CSV** (all-data.json / Supabase 都被 CB 白名單砍過)
+- 快取與 Excel 在 `.gitignore`, **不上傳**; 上線只 commit `data/vcp.json`
 
 ---
 
