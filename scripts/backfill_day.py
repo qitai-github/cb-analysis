@@ -36,9 +36,9 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-# 重用 primary 腳本的 .env / SOURCES / 路徑常數
+# 重用 primary 腳本的 .env / SOURCES / 路徑常數 + update_cell
 from backfill_primary_market import (  # noqa: E402
-    DATA_JSON, REPO_ROOT, SOURCES, _load_env  # _load_env 已在 import 時 run
+    DATA_JSON, REPO_ROOT, SOURCES, update_cell, _load_env  # _load_env 已在 import 時 run
 )
 from lib import drive  # noqa: E402
 import fetch_stocks  # noqa: E402
@@ -46,28 +46,6 @@ import fetch_stocks  # noqa: E402
 
 def log(msg: str) -> None:
     print(msg, flush=True)
-
-
-def update_cell(arr: list[list[Any]], sid: str, cat: str,
-                date_col: int, value: Any) -> bool:
-    """找 (sid, cat) 那一列,把 date_col 那格更新為 value。回 True/False。"""
-    cur_code = ""
-    for r in arr[1:]:
-        if not r or len(r) < 3:
-            continue
-        c = str(r[0]).strip()
-        if c:
-            cur_code = c
-        if cur_code != sid:
-            continue
-        if str(r[2]).strip() != cat:
-            continue
-        # 對到了
-        while len(r) <= date_col:
-            r.append("")
-        r[date_col] = value
-        return True
-    return False
 
 
 def backfill_day_one_key(all_data: dict, ts_key: str,

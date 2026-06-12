@@ -134,6 +134,61 @@ def primary_market_stocks(all_data: dict) -> set[str]:
     return codes
 
 
+# 最早有效日落在「最後 N 個交易日」內 → 視為只有近期資料的新進股 (歷史幾乎全 0)
+RECENT_FORWARD_WINDOW = 40
+
+
+def update_cell(arr: list[list[Any]], sid: str, cat: str,
+                date_col: int, value: Any) -> bool:
+    """找 (sid, cat) 那一列 (含空白代號的延續列),把 date_col 那格更新。回 True/False。"""
+    cur_code = ""
+    for r in arr[1:]:
+        if not r or len(r) < 3:
+            continue
+        c = str(r[0]).strip()
+        if c:
+            cur_code = c
+        if cur_code != sid or str(r[2]).strip() != cat:
+            continue
+        while len(r) <= date_col:
+            r.append("")
+        r[date_col] = value
+        return True
+    return False
+
+
+def forward_only_stocks(all_data: dict, target_stocks: set[str]) -> set[str]:
+    """有 stockTrading 列、但收盤價只有最後 ~N 天有值的股。
+
+    這種「日常 pipeline 加入後才有資料、之前全 0」的新進標的,existing_stocks
+    會誤判為已存在而漏補,改由就地更新補回。已有完整歷史的股最早有效日在開頭,
+    不會被誤抓;真正近期才上市的也只是補不到舊資料、無害。
+    """
+    arr = all_data.get("stockTrading") or []
+    if len(arr) < 2:
+        return set()
+    hdr = [str(x) for x in arr[0]]
+    date_cols = [i for i, x in enumerate(hdr) if x.isdigit() and len(x) == 8]
+    if not date_cols:
+        return set()
+    cutoff = len(date_cols) - RECENT_FORWARD_WINDOW
+    out: set[str] = set()
+    cur_code = ""
+    for r in arr[1:]:
+        c = str(r[0]).strip()
+        if c:
+            cur_code = c
+        if str(r[2]).strip() != "收盤價" or cur_code not in target_stocks:
+            continue
+        first_valid = next(
+            (k for k, ci in enumerate(date_cols)
+             if (r[ci] if ci < len(r) else "") not in (None, "", "-", "0", 0)),
+            None)
+        if first_valid is not None and first_valid >= cutoff:
+            out.add(cur_code)
+    return out
+
+
 def existing_stocks(all_data: dict, key: str, n_cats: int) -> set[str]:
     arr = all_data.get(key) or []
     if len(arr) < 2:
@@ -157,17 +212,24 @@ def header_dates(all_data: dict, key: str) -> list[str]:
 
 # ── 主邏輯 ────────────────────────────────────────────────────────────
 def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
-                     recent: int | None) -> int:
-    """回補單一 timeseries key。回傳新增的 rows 數。"""
+                     recent: int | None,
+                     refill_stocks: set[str] = frozenset()) -> int:
+    """回補單一 timeseries key。回傳異動的列/格數。
+
+    missing  (完全沒列)        → append 整段新列
+    to_update (有列但歷史殘缺) → 就地更新 cell,不新增列 (避免重複列)
+    """
     sources = SOURCES[ts_key]
     parser_categories = sources[0]["parser"].CATEGORIES
     n_cats = len(parser_categories)
 
-    # 算出 missing = target_stocks \ existing
     existing = existing_stocks(all_data, ts_key, n_cats)
     missing = sorted(target_stocks - existing)
-    if not missing:
-        log(f"\n[{ts_key}] missing = 0,跳過")
+    # refill 只取「此 key 確實有列」的;沒列的本來就落在 missing → append
+    to_update = sorted(refill_stocks & existing)
+    fetch = sorted(set(missing) | set(to_update))
+    if not fetch:
+        log(f"\n[{ts_key}] missing=0 refill=0,跳過")
         return 0
 
     dates = header_dates(all_data, ts_key)
@@ -177,19 +239,21 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
         log(f"\n[{ts_key}] 沒有日期可回補")
         return 0
 
-    log(f"\n[{ts_key}] missing {len(missing)} 檔 × {len(dates)} 天 "
-        f"× {len(sources)} 來源 = {len(missing)*len(dates)*len(sources)} 次查表")
-    log(f"  目標股: {missing}")
+    log(f"\n[{ts_key}] append {len(missing)} 檔 + refill {len(to_update)} 檔 "
+        f"× {len(dates)} 天 × {len(sources)} 來源 = "
+        f"{len(fetch)*len(dates)*len(sources)} 次查表")
+    log(f"  append: {missing}")
+    log(f"  refill: {to_update}")
 
     folder_map = drive.folder_map()
 
     # acc[sid][cat] = {date: value}
     acc: dict[str, dict[str, dict[str, Any]]] = {
-        sid: {cat: {} for cat in parser_categories} for sid in missing
+        sid: {cat: {} for cat in parser_categories} for sid in fetch
     }
     names: dict[str, str] = {}
 
-    missing_set = set(missing)
+    missing_set = set(fetch)
     t0 = time.time()
     fail_dates: list[tuple[str, str]] = []
 
@@ -243,17 +307,17 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
     log(f"  完成 {len(dates)} 天,耗時 {time.time()-t0:.0f}s, "
         f"download fail {len(fail_dates)} 次")
 
-    # 把 acc 整成 rows,append 到 all_data[ts_key]
     arr = all_data[ts_key]
     hdr = arr[0]
+    hdr_str = [str(x) for x in hdr]
     n_cols = len(hdr)
 
+    # ── append:完全沒列的新股,整段補上 ──────────────────────────────
     new_rows = 0
     skipped = []
     for sid in missing:
         cat_data = acc[sid]
-        # 有任一 category 有值才寫
-        if not any(cat_data[cat] for cat in parser_categories):
+        if not any(cat_data[cat] for cat in parser_categories):  # 全無資料
             skipped.append(sid)
             continue
         name = names.get(sid, "")
@@ -269,10 +333,22 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
             arr.append(row)
             new_rows += 1
 
-    log(f"  寫入 {new_rows} rows  ({len(missing)-len(skipped)}/{len(missing)} 股有資料)")
+    # ── refill:有列但歷史殘缺,就地更新 cell ────────────────────────
+    upd_cells = 0
+    for sid in to_update:
+        cat_data = acc[sid]
+        for cat in parser_categories:
+            for d, v in cat_data[cat].items():
+                if v is None or d not in hdr_str:
+                    continue
+                if update_cell(arr, sid, cat, hdr_str.index(d), v):
+                    upd_cells += 1
+
+    log(f"  append {new_rows} rows + refill {upd_cells} cells"
+        f"  (append {len(missing)-len(skipped)}/{len(missing)} 股有資料)")
     if skipped:
         log(f"  無任何資料 → 跳過: {skipped}")
-    return new_rows
+    return new_rows + upd_cells
 
 
 def main(argv=None) -> int:
@@ -294,11 +370,15 @@ def main(argv=None) -> int:
     targets = primary_market_stocks(all_data)
     log(f"初級市場 + CBAS 已發行 對應股: {len(targets)} 檔")
 
+    refill = forward_only_stocks(all_data, targets)
+    if refill:
+        log(f"歷史殘缺(只有近期資料)需就地補的新進股: {sorted(refill)}")
+
     total = 0
     for key in SOURCES:
-        total += backfill_one_key(all_data, key, targets, args.recent)
+        total += backfill_one_key(all_data, key, targets, args.recent, refill)
 
-    log(f"\n總計新增 {total} rows")
+    log(f"\n總計異動 {total} (append rows + refill cells)")
 
     if args.dry_run:
         log("--dry-run,不寫 JSON")
