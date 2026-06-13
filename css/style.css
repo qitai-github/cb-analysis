@@ -1005,6 +1005,69 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* === 企業報告 (Drive 簡易報告 PNG + PDF) Modal === */
+.btn-tech-analysis.btn-icon-only {
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1;
+}
+/* header: title + PDF 按鈕貼齊左側,× 推到最右 */
+#company-report-modal .auction-modal-header {
+  justify-content: flex-start;
+  gap: 12px;
+}
+#company-report-modal .detail-close {
+  margin-left: auto;
+}
+.company-report-modal-body {
+  flex: 1 1 auto;
+  padding: 16px;
+  overflow: auto;
+  background: rgba(15,23,42,0.65);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.company-report-img-wrap {
+  width: 100%;
+  max-width: 1400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.company-report-img {
+  display: block;
+  width: 100%;
+  max-width: 1200px;
+  height: auto;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  cursor: zoom-in;
+}
+.company-report-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.company-report-meta a { color: var(--text-dim); text-decoration: none; }
+.company-report-meta a:hover { color: var(--text); text-decoration: underline; }
+.company-report-meta .dim { color: var(--text-dim); margin-left: 6px; }
+.company-report-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text);
+}
+.company-report-empty p { margin: 8px 0; }
+.company-report-empty .dim { color: var(--text-dim); font-size: 13px; }
+.company-report-empty a { color: #60a5fa; }
+.company-report-empty code {
+  background: rgba(0,0,0,0.3);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
 /* === 資訊格線 === */
 .info-grid {
   display: grid;

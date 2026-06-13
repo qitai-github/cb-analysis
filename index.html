@@ -58,6 +58,7 @@
         <h3>股價資訊</h3>
         <button class="btn-tech-analysis" type="button" onclick="App.openTechModal()" title="個股技術分析 (K線 / 法人 / 融資券)">個股技術分析</button>
         <button class="btn-tech-analysis" type="button" onclick="App.openInvestModal()" title="簡易報告 (投資重點一頁式)">簡易報告</button>
+        <button class="btn-tech-analysis btn-icon-only" type="button" onclick="App.openCompanyReportModal()" title="企業報告 (Drive 簡易報告 PNG + 完整 PDF)">📄</button>
       </div>
       <div id="detail-price-info"></div>
     </div>
@@ -330,6 +331,18 @@
         <button class="detail-close" onclick="App.closeInvestModal()">&times;</button>
       </div>
       <div class="auction-modal-body invest-modal-body" id="invest-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 企業報告 (Drive 簡易報告 PNG + 完整 PDF) Modal -->
+  <div class="auction-modal" id="company-report-modal" onclick="App.closeCompanyReportModal(event)">
+    <div class="auction-modal-content tech-modal-content" onclick="event.stopPropagation()">
+      <div class="auction-modal-header">
+        <div class="auction-modal-title" id="company-report-modal-title"></div>
+        <button class="btn-tech-analysis" type="button" id="company-report-pdf-btn" title="開啟完整 PDF 報告">📕 完整報告 PDF</button>
+        <button class="detail-close" onclick="App.closeCompanyReportModal()">&times;</button>
+      </div>
+      <div class="auction-modal-body company-report-modal-body" id="company-report-modal-body"></div>
     </div>
   </div>
 

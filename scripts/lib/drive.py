@@ -45,6 +45,34 @@ def folder_map() -> dict[str, str]:
     return json.loads(raw)
 
 
+def list_children(folder_id: str, mime_filter: Optional[str] = None) -> list[dict]:
+    """列 folder 下所有子項 (folder + file),回 [{id, name, mimeType}, ...]。
+
+    mime_filter: e.g. "application/vnd.google-apps.folder" 只要子資料夾。
+    """
+    svc = _get_service()
+    q_parts = [f"'{folder_id}' in parents", "trashed = false"]
+    if mime_filter:
+        q_parts.append(f"mimeType = '{mime_filter}'")
+    q = " and ".join(q_parts)
+    out: list[dict] = []
+    page_token = None
+    while True:
+        res = svc.files().list(
+            q=q,
+            fields="nextPageToken, files(id,name,mimeType)",
+            pageSize=1000,
+            pageToken=page_token,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute()
+        out.extend(res.get("files", []))
+        page_token = res.get("nextPageToken")
+        if not page_token:
+            break
+    return out
+
+
 def download(folder_id: str, filename: str) -> Optional[bytes]:
     """找 folder 內精確檔名的檔案,回傳 bytes;找不到回 None。
 

@@ -704,6 +704,53 @@ def main(argv=None) -> int:
                 summary["whitelist_log"] = {"status": "fail",
                                             "error": str(e)}
 
+        # Phase 4.9: 重建企業報告 (Drive 簡易報告 PNG + 完整報告 PDF) 索引,
+        #            並把 PNG/PDF 設成 anyone-with-link 可看 (網頁訪客不登入也能看)
+        if args.skip_sheet:
+            log("[Phase 4.9] --skip-sheet,企業報告索引跳過")
+        else:
+            log("[Phase 4.9] 重建 data/company_reports.json + 確保 Drive 檔公開")
+            try:
+                import build_company_reports_index as _bcri
+                idx = _bcri.build_index(_bcri.DEFAULT_ROOT_FOLDER_ID)
+                out_path = _bcri.OUT_JSON
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(out_path, "w", encoding="utf-8") as fh:
+                    json.dump(idx, fh, ensure_ascii=False,
+                              separators=(",", ":"))
+                log(f"  ✓ index: {idx['_meta']['ok']:,} / "
+                    f"{idx['_meta']['total_subfolders']:,} 檔有報告")
+                summary["company_reports"] = {"status": "ok",
+                                              **idx["_meta"]}
+
+                # 把 PNG/PDF 設成 anyone-with-link reader
+                try:
+                    import share_company_reports_public as _share
+                    svc = drive._get_service()
+                    cnt = {"ok": 0, "exists": 0, "fail": 0}
+                    for code, info in idx["stocks"].items():
+                        for kind in ("png_id", "pdf_id"):
+                            fid = info.get(kind)
+                            if not fid:
+                                continue
+                            r = _share.make_public(svc, fid)
+                            if r == "ok":
+                                cnt["ok"] += 1
+                            elif r == "exists":
+                                cnt["exists"] += 1
+                            else:
+                                cnt["fail"] += 1
+                    log(f"  ✓ share: ok={cnt['ok']} exists={cnt['exists']} "
+                        f"fail={cnt['fail']}")
+                    summary["company_reports"]["share"] = cnt
+                except Exception as e:  # noqa: BLE001
+                    log(f"  ⚠️  share 失敗: {e}")
+                    summary["company_reports"]["share_error"] = str(e)
+            except Exception as e:  # noqa: BLE001
+                log(f"  ⚠️  企業報告索引失敗 (不擋主流程): {e}")
+                summary["company_reports"] = {"status": "fail",
+                                              "error": str(e)}
+
         # Phase 5: 寫回 JSON
         if args.skip_json:
             log("[Phase 5] --skip-json,JSON 寫回跳過")

@@ -13,6 +13,8 @@ const App = (() => {
   // 為了讓「CB 已開標但還沒掛牌」的檔(例: 47491 掛牌前)也能顯示開標資訊,
   // 不依賴 stock.cbs 是否已建立 → 直接以 cbCode 為 key 的全域 map 查詢。
   let auctionByCbCode = new Map();
+  // 企業報告索引 (Drive 簡易報告 PNG + 完整報告 PDF) — code → {png_id, pdf_id, version, folder_name}
+  let companyReportsByCode = {};
 
   function _buildAuctionByCbCode(twsa) {
     const m = new Map();
@@ -37,6 +39,7 @@ const App = (() => {
       rawCBIssuance = cached.data.cbIssuance || null;
       rawCalendar = cached.data.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(cached.data.twsaAuction);
+      companyReportsByCode = (cached.data.companyReports && cached.data.companyReports.stocks) || {};
       updateDateDisplay();
       showLoading(false);
       buildFilterPanel();
@@ -60,6 +63,7 @@ const App = (() => {
       rawCBIssuance = rawResults.cbIssuance || null;
       rawCalendar = rawResults.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
+      companyReportsByCode = (rawResults.companyReports && rawResults.companyReports.stocks) || {};
 
       // 顯示更新日期
       updateDateDisplay();
@@ -510,6 +514,81 @@ const App = (() => {
     if (event && event.target && event.target.id !== 'invest-modal') return;
     document.getElementById('invest-modal').classList.remove('show');
     document.getElementById('invest-modal-body').innerHTML = '';  // 卸載 iframe
+  }
+
+  // === 企業報告 (Drive 簡易報告 PNG + 完整報告 PDF) ===
+  // 點 📄 → 彈 modal,內嵌 PNG;header 有「下載完整報告 PDF」按鈕
+  function openCompanyReportModal() {
+    if (!selectedStock) return;
+    const code = selectedStock.code;
+    const info = companyReportsByCode[code];
+    const titleEl = document.getElementById('company-report-modal-title');
+    const bodyEl = document.getElementById('company-report-modal-body');
+    const pdfBtn = document.getElementById('company-report-pdf-btn');
+
+    titleEl.textContent = `${code} ${selectedStock.name} · 企業報告`;
+
+    if (!info) {
+      pdfBtn.style.display = 'none';
+      bodyEl.innerHTML = `
+        <div class="company-report-empty">
+          <p>📂 此標的尚未產出企業報告</p>
+          <p class="dim">Drive 企業報告/ 內找不到 <code>${code}</code> 對應的資料夾</p>
+        </div>`;
+      document.getElementById('company-report-modal').classList.add('show');
+      return;
+    }
+
+    // PDF 按鈕
+    if (info.pdf_id) {
+      pdfBtn.style.display = '';
+      pdfBtn.onclick = () => {
+        window.open(`https://drive.google.com/file/d/${info.pdf_id}/view`, '_blank', 'noopener');
+      };
+      pdfBtn.title = `${info.version} · ${info.folder_name}`;
+    } else {
+      pdfBtn.style.display = 'none';
+    }
+
+    // PNG embed
+    //   主要用 lh3.googleusercontent.com/d/{id}=w2000 (最可靠的 Drive 公開直連端點)
+    //   onerror fallback 到舊 thumbnail 端點
+    if (info.png_id) {
+      const pngUrl = `https://lh3.googleusercontent.com/d/${info.png_id}=w2000`;
+      const pngFallback = `https://drive.google.com/thumbnail?id=${info.png_id}&sz=w2000`;
+      const pngLargeUrl = `https://drive.google.com/file/d/${info.png_id}/view`;
+      bodyEl.innerHTML = `
+        <div class="company-report-img-wrap">
+          <img src="${pngUrl}"
+               alt="${code} 簡易報告"
+               class="company-report-img"
+               referrerpolicy="no-referrer"
+               onerror="if (!this.dataset.fallback){this.dataset.fallback=1;this.src='${pngFallback}';}else{this.style.display='none';this.nextElementSibling.style.display='block';}">
+          <div class="company-report-empty" style="display:none">
+            <p>⚠️ 圖片載入失敗</p>
+            <p class="dim">可能是 Drive 權限尚未開啟,
+              <a href="${pngLargeUrl}" target="_blank" rel="noopener">點此在 Drive 開啟</a></p>
+          </div>
+          <div class="company-report-meta">
+            <a href="${pngLargeUrl}" target="_blank" rel="noopener">${info.folder_name} · ${info.version}</a>
+            ${info.pdf_id ? '' : '<span class="dim">(尚無 PDF)</span>'}
+          </div>
+        </div>`;
+    } else {
+      bodyEl.innerHTML = `
+        <div class="company-report-empty">
+          <p>📄 此標的尚無簡易報告 PNG</p>
+          ${info.pdf_id ? '<p class="dim">可透過上方按鈕開啟 PDF</p>' : ''}
+        </div>`;
+    }
+
+    document.getElementById('company-report-modal').classList.add('show');
+  }
+
+  function closeCompanyReportModal(event) {
+    if (event && event.target && event.target.id !== 'company-report-modal') return;
+    document.getElementById('company-report-modal').classList.remove('show');
+    document.getElementById('company-report-modal-body').innerHTML = '';
   }
 
   // 詳情面板標題:星星 + 代號名稱 + VCP/三線 狀態徽章
@@ -1652,6 +1731,7 @@ const App = (() => {
       rawCBIssuance = rawResults.cbIssuance || null;
       rawCalendar = rawResults.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
+      companyReportsByCode = (rawResults.companyReports && rawResults.companyReports.stocks) || {};
       etfLoaded = false; // 重新載入 ETF CB 交叉比對
       calendarLoaded = false;
       SheetsAPI.saveToStorage(rawResults);
@@ -1828,7 +1908,8 @@ const App = (() => {
     openTechModal, closeTechModal,
     openCBTechModal, closeCBTechModal, openCBTechFromStock, openTechFromCB,
     switchTab, showDetail,
-    openInvestModal, closeInvestModal
+    openInvestModal, closeInvestModal,
+    openCompanyReportModal, closeCompanyReportModal
   };
 })();
 

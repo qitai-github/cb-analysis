@@ -153,6 +153,13 @@ const SheetsAPI = (() => {
               console.warn('[loadAll] stockNews 載入失敗:', e.message);
             }
           }
+          // 企業報告 (Drive 簡易報告 PNG + 完整報告 PDF) 索引 — 失敗不影響主流程
+          try {
+            const crResp = await fetchWithTimeout('data/company_reports.json', 10000);
+            data.companyReports = await crResp.json();
+          } catch (e) {
+            console.warn('[loadAll] company_reports.json 載入失敗:', e.message);
+          }
           if (onProgress) onProgress(1, 1, '完成');
           console.log('[loadAll] 靜態JSON載入成功');
           return data;

@@ -141,6 +141,27 @@
 - 兩個 modal 各佔 49vw,任一關閉自動退出並排
 - 左右箭頭切股票時雙邊連動
 
+### 3.4 簡易報告 & 企業報告 (詳情面板 / 股價資訊)
+
+詳情面板「股價資訊」標題列右側有兩顆按鈕:
+
+| 按鈕 | 行為 | 來源 |
+|---|---|---|
+| `簡易報告` | iframe 內嵌 `investing.0099914.xyz/companies/{code}/` (對方已開放 frame-ancestors) | 外部一頁式投資儀表板 |
+| `📄` | Modal 顯示 Drive 企業報告 PNG;header 一顆「📕 完整報告 PDF」按鈕,點開新分頁看 PDF | Drive `我的雲端硬碟/Telegram Bot/企業報告/` |
+
+**📄 企業報告流程**:
+- 後端 [build_company_reports_index.py](../scripts/build_company_reports_index.py) 掃 Drive 根 folder `1pck7m3BIKw69CtvByhhMV6D_wmbhHW1w`
+- 每個子資料夾命名 `{name}{4-6位股號}/`,內含 `V1/`, `V2/`... 子資料夾 (新版本→更大號碼)
+- 挑最大 Vn,從內找 `{code}.png` (簡易報告) 跟 `{code}_報告.pdf` (完整報告) 的 file id
+- 寫 [data/company_reports.json](../data/company_reports.json): `{ stocks: { "3324": {png_id, pdf_id, version, folder_name}, ... }, _meta: {...} }`
+- 整合到 `parse_and_export.py` **Phase 4.9**,每日 pipeline 自動重建索引
+- 前端 [sheetsApi.js](../js/sheetsApi.js) `loadAll()` 併發載入,塞進 `data.companyReports`
+- [app.js openCompanyReportModal](../js/app.js) 查 code → 動態組 thumbnail URL: `https://drive.google.com/thumbnail?id={png_id}&sz=w1600`,PDF 開 `https://drive.google.com/file/d/{pdf_id}/view`
+- 找不到 → 顯示「此標的尚未產出企業報告」
+
+**Service Account 要求**: `stocks-backup@cb-analysis-494501.iam.gserviceaccount.com` 需有「企業報告/」folder Viewer 權限
+
 ---
 
 ## 4. CB 日曆 tab ([js/calendar.js](../js/calendar.js))
