@@ -1011,9 +1011,9 @@ body {
   font-size: 13px;
   line-height: 1;
 }
-/* 比 .tech-modal-content 的 920px 大 10% (≈1012px) */
+/* 比 .tech-modal-content 的 920px 大 20% (≈1113px) */
 #company-report-modal .auction-modal-content {
-  max-width: 1012px;
+  max-width: 1113px;
 }
 /* header: title + PDF 按鈕貼齊左側,× 推到最右 */
 #company-report-modal .auction-modal-header {
