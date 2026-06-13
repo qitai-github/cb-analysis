@@ -1011,11 +1011,6 @@ body {
   font-size: 13px;
   line-height: 1;
 }
-/* 撐大 modal 整體寬度 — 跟 tech-modal-content (920px) 不同,要更接近滿框 */
-#company-report-modal .auction-modal-content {
-  max-width: min(1600px, 96vw);
-  width: 96vw;
-}
 /* header: title + PDF 按鈕貼齊左側,× 推到最右 */
 #company-report-modal .auction-modal-header {
   justify-content: flex-start;
