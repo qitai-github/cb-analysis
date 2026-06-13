@@ -1026,36 +1026,16 @@ body {
 }
 .company-report-modal-body {
   flex: 1 1 auto;
-  padding: 12px;
+  padding: 0;
   overflow: auto;
-  background: rgba(15,23,42,0.65);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.company-report-img-wrap {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  background: #fff;
 }
 .company-report-img {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
   cursor: zoom-in;
 }
-.company-report-meta {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.company-report-meta a { color: var(--text-dim); text-decoration: none; }
-.company-report-meta a:hover { color: var(--text); text-decoration: underline; }
-.company-report-meta .dim { color: var(--text-dim); margin-left: 6px; }
 .company-report-empty {
   padding: 40px 20px;
   text-align: center;

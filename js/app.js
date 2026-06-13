@@ -558,21 +558,15 @@ const App = (() => {
       const pngFallback = `https://drive.google.com/thumbnail?id=${info.png_id}&sz=w2000`;
       const pngLargeUrl = `https://drive.google.com/file/d/${info.png_id}/view`;
       bodyEl.innerHTML = `
-        <div class="company-report-img-wrap">
-          <img src="${pngUrl}"
-               alt="${code} 簡易報告"
-               class="company-report-img"
-               referrerpolicy="no-referrer"
-               onerror="if (!this.dataset.fallback){this.dataset.fallback=1;this.src='${pngFallback}';}else{this.style.display='none';this.nextElementSibling.style.display='block';}">
-          <div class="company-report-empty" style="display:none">
-            <p>⚠️ 圖片載入失敗</p>
-            <p class="dim">可能是 Drive 權限尚未開啟,
-              <a href="${pngLargeUrl}" target="_blank" rel="noopener">點此在 Drive 開啟</a></p>
-          </div>
-          <div class="company-report-meta">
-            <a href="${pngLargeUrl}" target="_blank" rel="noopener">${info.folder_name} · ${info.version}</a>
-            ${info.pdf_id ? '' : '<span class="dim">(尚無 PDF)</span>'}
-          </div>
+        <img src="${pngUrl}"
+             alt="${code} 簡易報告"
+             class="company-report-img"
+             referrerpolicy="no-referrer"
+             onerror="if (!this.dataset.fallback){this.dataset.fallback=1;this.src='${pngFallback}';}else{this.style.display='none';this.nextElementSibling.style.display='block';}">
+        <div class="company-report-empty" style="display:none">
+          <p>⚠️ 圖片載入失敗</p>
+          <p class="dim">可能是 Drive 權限尚未開啟,
+            <a href="${pngLargeUrl}" target="_blank" rel="noopener">點此在 Drive 開啟</a></p>
         </div>`;
     } else {
       bodyEl.innerHTML = `
