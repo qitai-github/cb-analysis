@@ -551,18 +551,21 @@ const App = (() => {
     }
 
     // PNG embed
-    //   主要用 lh3.googleusercontent.com/d/{id}=w2000 (最可靠的 Drive 公開直連端點)
-    //   onerror fallback 到舊 thumbnail 端點
+    //   主要用 lh3.googleusercontent.com/d/{id}=w4000 (高解析,避免文字下採樣模糊)
+    //   onerror fallback 到 thumbnail 端點
+    //   點圖 → 開 Drive 原始大圖
     if (info.png_id) {
-      const pngUrl = `https://lh3.googleusercontent.com/d/${info.png_id}=w2000`;
-      const pngFallback = `https://drive.google.com/thumbnail?id=${info.png_id}&sz=w2000`;
+      const pngUrl = `https://lh3.googleusercontent.com/d/${info.png_id}=w4000`;
+      const pngFallback = `https://drive.google.com/thumbnail?id=${info.png_id}&sz=w4000`;
       const pngLargeUrl = `https://drive.google.com/file/d/${info.png_id}/view`;
       bodyEl.innerHTML = `
-        <img src="${pngUrl}"
-             alt="${code} 簡易報告"
-             class="company-report-img"
-             referrerpolicy="no-referrer"
-             onerror="if (!this.dataset.fallback){this.dataset.fallback=1;this.src='${pngFallback}';}else{this.style.display='none';this.nextElementSibling.style.display='block';}">
+        <a href="${pngLargeUrl}" target="_blank" rel="noopener" title="點擊在 Drive 開啟原圖">
+          <img src="${pngUrl}"
+               alt="${code} 簡易報告"
+               class="company-report-img"
+               referrerpolicy="no-referrer"
+               onerror="if (!this.dataset.fallback){this.dataset.fallback=1;this.src='${pngFallback}';}else{this.style.display='none';this.parentElement.nextElementSibling.style.display='block';}">
+        </a>
         <div class="company-report-empty" style="display:none">
           <p>⚠️ 圖片載入失敗</p>
           <p class="dim">可能是 Drive 權限尚未開啟,
