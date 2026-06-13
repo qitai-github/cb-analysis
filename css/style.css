@@ -1011,6 +1011,11 @@ body {
   font-size: 13px;
   line-height: 1;
 }
+/* 撐大 modal 整體寬度 — 跟 tech-modal-content (920px) 不同,要更接近滿框 */
+#company-report-modal .auction-modal-content {
+  max-width: min(1600px, 96vw);
+  width: 96vw;
+}
 /* header: title + PDF 按鈕貼齊左側,× 推到最右 */
 #company-report-modal .auction-modal-header {
   justify-content: flex-start;
@@ -1021,7 +1026,7 @@ body {
 }
 .company-report-modal-body {
   flex: 1 1 auto;
-  padding: 16px;
+  padding: 12px;
   overflow: auto;
   background: rgba(15,23,42,0.65);
   display: flex;
@@ -1030,7 +1035,6 @@ body {
 }
 .company-report-img-wrap {
   width: 100%;
-  max-width: 1400px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1039,7 +1043,6 @@ body {
 .company-report-img {
   display: block;
   width: 100%;
-  max-width: 1200px;
   height: auto;
   border-radius: 6px;
   background: #fff;
