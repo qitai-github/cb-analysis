@@ -658,9 +658,51 @@ const App = (() => {
     if (!selectedStock) return;
     document.getElementById('tech-modal').classList.add('show');
     bindTechFolderTabs();
+    bindTechWheel();
     bindQuotaGroup('tech-quota-group-stock');
     syncQuotaUI();
+    updateTechDaysBadge();
     refreshTechModalForCurrentStock();
+  }
+
+  // ── 滑鼠滾輪縮放時間範圍 (個股 + CB tech modal 共用 APP_CONFIG.techAnalysisDays) ──
+  let _techWheelPending = null;
+  function bindTechWheel() {
+    for (const id of ['tech-modal', 'cbtech-modal']) {
+      const modal = document.getElementById(id);
+      if (!modal || modal.dataset.wheelBound === '1') continue;
+      modal.dataset.wheelBound = '1';
+      modal.addEventListener('wheel', onTechWheel, { passive: false });
+    }
+  }
+  function onTechWheel(e) {
+    e.preventDefault();
+    const cur = APP_CONFIG.techAnalysisDays;
+    // scroll up (deltaY<0) → 縮短時間 (zoom in)
+    // scroll down (deltaY>0) → 拉長時間 (zoom out,看更早歷史)
+    const ratio = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+    let next = Math.round(cur * ratio);
+    next = Math.max(20, Math.min(240, next));
+    if (next === cur) return;
+    APP_CONFIG.techAnalysisDays = next;
+    updateTechDaysBadge();
+    if (_techWheelPending) cancelAnimationFrame(_techWheelPending);
+    _techWheelPending = requestAnimationFrame(() => {
+      _techWheelPending = null;
+      if (document.getElementById('tech-modal')?.classList.contains('show')) {
+        refreshTechModalForCurrentStock();
+      }
+      if (document.getElementById('cbtech-modal')?.classList.contains('show')) {
+        refreshCBTechModal();
+      }
+    });
+  }
+  function updateTechDaysBadge() {
+    const txt = `${APP_CONFIG.techAnalysisDays} 日`;
+    const b1 = document.getElementById('tech-days-badge');
+    const b2 = document.getElementById('cbtech-days-badge');
+    if (b1) b1.textContent = txt;
+    if (b2) b2.textContent = txt;
   }
 
   function bindTechFolderTabs() {
@@ -858,8 +900,10 @@ const App = (() => {
 
     document.getElementById('cbtech-modal').classList.add('show');
     bindCBTechFolderTabs();
+    bindTechWheel();
     bindQuotaGroup('tech-quota-group-cb');
     syncQuotaUI();
+    updateTechDaysBadge();
     refreshCBTechModal();
   }
 

@@ -1011,6 +1011,21 @@ body {
   font-size: 13px;
   line-height: 1;
 }
+
+/* 技術分析 modal:時間範圍 badge (滑鼠滾輪調整) */
+.tech-days-badge {
+  margin-left: 8px;
+  padding: 3px 10px;
+  background: rgba(59,130,246,0.15);
+  border: 1px solid rgba(59,130,246,0.5);
+  border-radius: 12px;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: help;
+  user-select: none;
+  white-space: nowrap;
+}
 /* 比 .tech-modal-content 的 920px 大 33% (≈1224px) */
 #company-report-modal .auction-modal-content {
   max-width: 1224px;
