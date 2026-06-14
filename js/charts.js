@@ -70,6 +70,22 @@ const Charts = (() => {
     });
   }
 
+  // 從完整 ohlcv 算 MA,再依顯示用的 axisDates 查表回填
+  // 用法: const { ma5, ma10, ma20, ma55 } = calcMAsByDates(ohlcv, axisDates, [5,10,20,55])
+  // 比 calcMAArray(closeData.slice(...)) 好的點:
+  //   1. MA55 在短視窗 (20-60 日) 也能填滿,不會全 null
+  //   2. axisDates 不需連續 (CB tech 的 stock∩CB 日期交集也行)
+  function calcMAsByDates(fullOhlcv, axisDates, periods) {
+    const closes = fullOhlcv.map(r => r.close);
+    const result = {};
+    for (const p of periods) {
+      const maArr = calcMAArray(closes, p);
+      const byDate = new Map(fullOhlcv.map((r, i) => [r.date, maArr[i]]));
+      result[`ma${p}`] = axisDates.map(d => byDate.get(d) ?? null);
+    }
+    return result;
+  }
+
   /**
    * 繪製 K 棒走勢圖 (含上下影線、MA均線、成交量)
    */
@@ -636,11 +652,11 @@ const Charts = (() => {
       return r.close >= r.open ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)';
     });
 
-    const ma5Data = calcMAArray(closeData, 5);
-    const ma10Data = calcMAArray(closeData, 10);
-    const ma20Data = calcMAArray(closeData, 20);
+    // MA 從完整 ohlcv 算後依顯示日期回填 — MA55 在 60 日視窗內也能填滿
+    const { ma5: ma5Data, ma10: ma10Data, ma20: ma20Data, ma55: ma55Data }
+      = calcMAsByDates(ohlcv, recentDates, [5, 10, 20, 55]);
 
-    const allPrices = [...highData, ...lowData, ...ma5Data, ...ma10Data, ...ma20Data].filter(v => v != null);
+    const allPrices = [...highData, ...lowData, ...ma5Data, ...ma10Data, ...ma20Data, ...ma55Data].filter(v => v != null);
     const priceMin = allPrices.length > 0 ? Math.min(...allPrices) * 0.995 : 0;
     const priceMax = allPrices.length > 0 ? Math.max(...allPrices) * 1.005 : 100;
 
@@ -686,6 +702,7 @@ const Charts = (() => {
           { type: 'line', label: 'MA5',  data: ma5Data,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
           { type: 'line', label: 'MA10', data: ma10Data, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
           { type: 'line', label: 'MA20', data: ma20Data, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA55', data: ma55Data, borderColor: '#10b981', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'yPrice', order: 1, tension: 0.1 },
           { type: 'bar',  label: '成交量', data: volumeData, backgroundColor: volumeColors, yAxisID: 'yVolume', order: 3, barPercentage: 0.6 }
         ]
       },
@@ -1048,11 +1065,10 @@ const Charts = (() => {
     const volumeColors = recent.map(r => r.close >= r.open
       ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)');
 
-    const ma5 = calcMAArray(closeData, 5);
-    const ma10 = calcMAArray(closeData, 10);
-    const ma20 = calcMAArray(closeData, 20);
+    // MA 從完整 cb.ohlcv 算後依 axisDates 查表 — MA55 在短視窗也能填滿
+    const { ma5, ma10, ma20, ma55 } = calcMAsByDates(ohlcv, axisDates, [5, 10, 20, 55]);
 
-    const allPrices = [...highData, ...lowData, ...ma5, ...ma10, ...ma20].filter(v => v != null);
+    const allPrices = [...highData, ...lowData, ...ma5, ...ma10, ...ma20, ...ma55].filter(v => v != null);
     const priceMin = allPrices.length ? Math.min(...allPrices) * 0.995 : 0;
     const priceMax = allPrices.length ? Math.max(...allPrices) * 1.005 : 100;
 
@@ -1088,6 +1104,7 @@ const Charts = (() => {
           { type: 'line', label: 'MA5',  data: ma5,  borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yPrice', order: 1, tension: 0.1 },
           { type: 'line', label: 'MA10', data: ma10, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yPrice', order: 1, tension: 0.1 },
           { type: 'line', label: 'MA20', data: ma20, borderColor: '#a855f7', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yPrice', order: 1, tension: 0.1 },
+          { type: 'line', label: 'MA55', data: ma55, borderColor: '#10b981', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, yAxisID: 'yPrice', order: 1, tension: 0.1 },
           { type: 'bar',  label: '成交量', data: volumeData, backgroundColor: volumeColors, yAxisID: 'yVolume', order: 3, barPercentage: 0.6 }
         ]
       },
