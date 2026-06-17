@@ -348,26 +348,28 @@ const divider = document.createElement('div');
 divider.className = 'star-menu-divider';
 menu.appendChild(divider);
 
-// 公用清單
-const pubRow = document.createElement('label');
-pubRow.className = 'star-menu-item star-menu-item--public';
-const pubCb = document.createElement('input');
-pubCb.type = 'checkbox';
-pubCb.checked = PublicWatchlist.has(code);
-pubCb.addEventListener('change', async () => {
-  pubCb.disabled = true;
-  if (pubCb.checked) await PublicWatchlist.add(code);
-  else await PublicWatchlist.remove(code);
-  pubCb.disabled = false;
-  updateStarCell(td, code);
-});
-const pubSpan = document.createElement('span');
-pubSpan.textContent = '🌟新天團';
-const pubBadge = document.createElement('span');
-pubBadge.className = 'star-menu-public-badge';
-pubBadge.textContent = '共用';
-pubRow.append(pubCb, pubSpan, pubBadge);
-menu.appendChild(pubRow);
+// 公用清單(多個)
+for (const pubName of PublicWatchlist.getLists()) {
+  const pubRow = document.createElement('label');
+  pubRow.className = 'star-menu-item star-menu-item--public';
+  const pubCb = document.createElement('input');
+  pubCb.type = 'checkbox';
+  pubCb.checked = PublicWatchlist.has(code, pubName);
+  pubCb.addEventListener('change', async () => {
+    pubCb.disabled = true;
+    if (pubCb.checked) await PublicWatchlist.add(pubName, code);
+    else await PublicWatchlist.remove(pubName, code);
+    pubCb.disabled = false;
+    updateStarCell(td, code);
+  });
+  const pubSpan = document.createElement('span');
+  pubSpan.textContent = `🌟${pubName}`;
+  const pubBadge = document.createElement('span');
+  pubBadge.className = 'star-menu-public-badge';
+  pubBadge.textContent = '共用';
+  pubRow.append(pubCb, pubSpan, pubBadge);
+  menu.appendChild(pubRow);
+}
 
     
     // 用 fixed 定位，避免被 table-wrapper overflow 裁切

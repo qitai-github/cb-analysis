@@ -349,10 +349,13 @@ const App = (() => {
     optAny.value = '__all__';
     optAny.textContent = '所有追蹤';
     select.appendChild(optAny);
-    const optPublic = document.createElement('option');
-    optPublic.value = '__public__';
-    optPublic.textContent = '🌟新天團';
-    select.appendChild(optPublic);
+    // 公用清單 — 每個都一個 option,value 是 __public__:清單名
+    for (const pubName of PublicWatchlist.getLists()) {
+      const opt = document.createElement('option');
+      opt.value = `__public__:${pubName}`;
+      opt.textContent = `🌟${pubName}`;
+      select.appendChild(opt);
+    }
     for (const name of Watchlist.getListNames()) {
       const opt = document.createElement('option');
       opt.value = name;
@@ -405,15 +408,18 @@ const App = (() => {
 
     function renderListItems() {
       listContainer.innerHTML = '';
-      // 公用清單（第一項，不可刪除）
-      const pubRow = document.createElement('div');
-      pubRow.className = 'wl-list-item';
-      const pubLabel = document.createElement('span');
-      pubLabel.className = 'wl-list-name';
-      pubLabel.style.color = 'var(--accent)';
-      pubLabel.textContent = `🌟新天團 (${PublicWatchlist.getAll().length})`;
-      pubRow.appendChild(pubLabel);
-      listContainer.appendChild(pubRow);
+      // 公用清單(置頂,不可刪除)
+      for (const pubName of PublicWatchlist.getLists()) {
+        const pubRow = document.createElement('div');
+        pubRow.className = 'wl-list-item';
+        const pubLabel = document.createElement('span');
+        pubLabel.className = 'wl-list-name';
+        pubLabel.style.color = 'var(--accent)';
+        const cnt = PublicWatchlist.getAll(pubName).length;
+        pubLabel.textContent = `🌟${pubName} (${cnt})`;
+        pubRow.appendChild(pubLabel);
+        listContainer.appendChild(pubRow);
+      }
       // 個人清單
       for (const name of Watchlist.getListNames()) {
         const row = document.createElement('div');

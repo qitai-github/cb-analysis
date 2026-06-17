@@ -20,7 +20,12 @@ const Filters = (() => {
       apply: (stock, val) => {
         if (!val) return true;
         if (val === '__all__') return Watchlist.isInAnyList(stock.code);
+        // __public__ → 任一公用清單;__public__:清單名 → 指定公用清單
         if (val === '__public__') return PublicWatchlist.has(stock.code);
+        if (val.startsWith('__public__:')) {
+          const listName = val.slice('__public__:'.length);
+          return PublicWatchlist.has(stock.code, listName);
+        }
         return Watchlist.isInList(stock.code, val);
       }
     },

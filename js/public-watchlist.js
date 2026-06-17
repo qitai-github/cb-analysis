@@ -1,7 +1,22 @@
-// 公用追蹤清單模組 — 以 Supabase 為後端，所有使用者共享
+// 公用追蹤清單模組 — 以 Supabase 為後端,所有使用者共享
+//
+// Schema: public_watchlist (list_name TEXT, code TEXT, PK(list_name, code))
+// 多清單支援:每個 (list_name, code) 是一個 row
+//
+// 寫死的清單名稱請見 PUBLIC_LIST_NAMES。要新增/改名 → 改這裡 + Supabase 不用動。
 const PublicWatchlist = (() => {
   const TABLE = 'public_watchlist';
-  let cache = new Set();
+
+  // 寫死的公用清單清單 — 想新增清單名稱在這加一行即可
+  const PUBLIC_LIST_NAMES = [
+    '新天團',
+    '芭樂可轉長線',
+    '芭樂現股波段',
+    '芭樂報告待跑',
+  ];
+
+  // cache: Map<list_name, Set<code>>
+  const cache = new Map(PUBLIC_LIST_NAMES.map(n => [n, new Set()]));
   let ready = false;
   let listeners = [];
 
@@ -19,10 +34,20 @@ const PublicWatchlist = (() => {
 
   async function load() {
     try {
-      const res = await fetch(apiUrl('?select=code'), { headers: headers() });
+      const res = await fetch(apiUrl('?select=list_name,code'), { headers: headers() });
       if (!res.ok) throw new Error(await res.text());
       const rows = await res.json();
-      cache = new Set(rows.map(r => r.code));
+      // 清空 cache 重建
+      for (const set of cache.values()) set.clear();
+      for (const r of rows) {
+        const name = r.list_name || '新天團';  // 舊資料兼容
+        if (!cache.has(name)) cache.set(name, new Set());
+        cache.get(name).add(r.code);
+      }
+      // 確保所有寫死清單名都存在 (空集也要有 key)
+      for (const n of PUBLIC_LIST_NAMES) {
+        if (!cache.has(n)) cache.set(n, new Set());
+      }
       ready = true;
       notify();
     } catch (e) {
@@ -30,14 +55,15 @@ const PublicWatchlist = (() => {
     }
   }
 
-  async function add(code) {
-    cache.add(code);
+  async function add(listName, code) {
+    if (!cache.has(listName)) cache.set(listName, new Set());
+    cache.get(listName).add(code);
     notify();
     try {
       const res = await fetch(apiUrl(), {
         method: 'POST',
         headers: { ...headers(), 'Prefer': 'resolution=ignore-duplicates' },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ list_name: listName, code })
       });
       if (!res.ok) {
         const txt = await res.text();
@@ -47,34 +73,52 @@ const PublicWatchlist = (() => {
       }
     } catch (e) {
       console.warn('[PublicWatchlist] 新增失敗', e);
-      cache.delete(code);
+      cache.get(listName)?.delete(code);
       notify();
     }
   }
 
-  async function remove(code) {
-    cache.delete(code);
+  async function remove(listName, code) {
+    cache.get(listName)?.delete(code);
     notify();
     try {
-      const res = await fetch(apiUrl(`?code=eq.${encodeURIComponent(code)}`), {
-        method: 'DELETE',
-        headers: headers()
-      });
+      const url = apiUrl(
+        `?list_name=eq.${encodeURIComponent(listName)}` +
+        `&code=eq.${encodeURIComponent(code)}`
+      );
+      const res = await fetch(url, { method: 'DELETE', headers: headers() });
       if (!res.ok) throw new Error(await res.text());
     } catch (e) {
       console.warn('[PublicWatchlist] 刪除失敗', e);
-      cache.add(code);
+      cache.get(listName)?.add(code);
       notify();
     }
   }
 
-  function has(code) { return cache.has(code); }
-  function getAll() { return [...cache]; }
+  // 是否在指定清單 (listName 省略 → 是否在「任一」公用清單)
+  function has(code, listName) {
+    if (listName) return cache.get(listName)?.has(code) ?? false;
+    for (const set of cache.values()) if (set.has(code)) return true;
+    return false;
+  }
+
+  // 取得清單內所有 code (listName 省略 → 所有公用清單聯集)
+  function getAll(listName) {
+    if (listName) return [...(cache.get(listName) || [])];
+    const all = new Set();
+    for (const set of cache.values()) for (const c of set) all.add(c);
+    return [...all];
+  }
+
+  function getLists() { return [...PUBLIC_LIST_NAMES]; }
   function isReady() { return ready; }
   function onChange(fn) { listeners.push(fn); }
   function notify() { for (const fn of listeners) fn(); }
 
   load();
 
-  return { load, add, remove, has, getAll, isReady, onChange };
+  return {
+    load, add, remove, has, getAll, getLists, isReady, onChange,
+    PUBLIC_LIST_NAMES,
+  };
 })();
