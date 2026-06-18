@@ -1144,6 +1144,11 @@ const App = (() => {
         ? `<button class="btn-auction" onclick="App.showAuctionModal('${cb.cbCode}')">CB開標統計表</button>`
         : '';
 
+      // 有開標資料 → 顯示得標預估價 (掛牌後仍保留)。轉換價用發行時原始價較準
+      const cbEstimateHtml = cb.auction
+        ? _buildEstimateHtml(stock, cb.issueConvPrice ?? cb.conversionPrice, _auctionEndYmd(cb.auction))
+        : '';
+
       // 事件標籤
       let badges = '';
       if (cb.conversionStop?.length > 0) {
@@ -1189,6 +1194,7 @@ const App = (() => {
 
             ${cb.business ? `<div class="info-item info-item-wide"><span class="info-label">經營項目</span><span class="info-value" style="font-size:11px">${cb.business}</span></div>` : ''}
           </div>
+          ${cbEstimateHtml}
           ${buildCBDetailToggle(cb)}
         </div>`;
     }
@@ -1396,6 +1402,18 @@ const App = (() => {
     return year + m + d;
   }
 
+  /** 從開標資料的「投標期間」("YYYY/MM/DD~YYYY/MM/DD") 抽截標日 → "YYYYMMDD"。
+   *  比 polling 字串可靠,且 CB 掛牌後仍保留 → 估價框可長期存在。 */
+  function _auctionEndYmd(auction) {
+    const period = auction && auction['投標期間'];
+    if (!period) return null;
+    const parts = String(period).split('~');
+    const end = (parts[parts.length - 1] || '').trim();
+    const m = end.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+    if (!m) return null;
+    return m[1] + String(m[2]).padStart(2, '0') + String(m[3]).padStart(2, '0');
+  }
+
   /** 截標日的前一交易日 (週末倒推到週五),回 "YYYYMMDD"。
    *  不考慮國定假日 — 假日撞到的話 MA5 會晚 1 天才浮出,可接受。 */
   function _expectedPrevTradingDay(endYmd) {
@@ -1502,7 +1520,10 @@ const App = (() => {
       : '';
 
     // 得標預估價:截標日前 5 交易日 MA5 / 轉換價 × 100 × {1.20,1.25,1.30,1.35}
-    const estimateHtml = _buildEstimateHtml(stock, convPrice, polling);
+    // 截標日優先用開標資料的投標期間 (較準),沒有才退回 polling 字串解析
+    const pmAuction = auctionByCbCode.get(String(grp.cbCode));
+    const pmEndDate = (pmAuction && _auctionEndYmd(pmAuction)) || _parsePollingEndDate(polling);
+    const estimateHtml = _buildEstimateHtml(stock, convPrice, pmEndDate);
 
     return `<div class="cb-card">
       <div class="cb-card-header">
@@ -1516,11 +1537,9 @@ const App = (() => {
     </div>`;
   }
 
-  function _buildEstimateHtml(stock, convPrice, polling) {
+  function _buildEstimateHtml(stock, convPrice, endDate) {
     const convNum = Number(convPrice);
-    if (!stock || !(convNum > 0) || !polling) return '';
-    const endDate = _parsePollingEndDate(polling);
-    if (!endDate) return '';
+    if (!stock || !(convNum > 0) || !endDate) return '';
     const ma5 = _ma5BeforeDate(stock, endDate);
     if (ma5 == null) return '';
     const ratio = ma5 / convNum * 100;

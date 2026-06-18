@@ -1287,9 +1287,11 @@ body {
 
 /* === 得標預估價 (PM 卡片內) === */
 .pm-estimate {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border-light);
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: rgba(15,23,42,0.25);
 }
 .pm-estimate-title {
   font-size: 12px;
