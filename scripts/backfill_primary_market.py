@@ -316,6 +316,9 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
     n_cols = len(hdr)
 
     # ── append:完全沒列的新股,整段補上 ──────────────────────────────
+    # 注意:row 必須跟 header 全範圍對齊 (不能只塞 dates 那段然後 padding),
+    # 不然用 --recent N 時資料會錯位到 header 開頭。改用 header_full_dates 對齊。
+    header_full_dates = [str(x) for x in hdr[3:]]
     new_rows = 0
     skipped = []
     for sid in missing:
@@ -328,7 +331,7 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
             row: list[Any] = [sid if i == 0 else "",
                               name if i == 0 else "",
                               cat]
-            for d in dates:
+            for d in header_full_dates:
                 v = cat_data[cat].get(d)
                 row.append(v if v is not None else "")
             while len(row) < n_cols:
