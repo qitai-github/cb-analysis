@@ -90,13 +90,14 @@ SOURCES: dict[str, list[dict[str, Any]]] = {
          "market": "TPEX", "filename": "TPEx_T86_{date}.csv"},
     ],
     "marginTrading": [
-        # 融資融券 Drive 只有最近 ~2 週,其餘走 fetch_stocks 直接爬 TWSE/TPEx
+        # 融資融券:Drive 從 2026-01-01 起有每日備份,以 Drive 為準、不爬蟲。
+        # 早於 min_date 的日期直接跳過 (Drive 無檔,也不回去 scrape)。
         {"folder": "MARGIN_TWSE", "parser": margin_trading,
          "market": "TWSE", "filename": "MI_MARGN_STOCK_{date}.csv",
-         "scrape_key": "MARGIN_TWSE"},
+         "min_date": "20260101"},
         {"folder": "MARGIN_TPEX", "parser": margin_trading,
          "market": "TPEX", "filename": "RSTA3106_{date}.csv",
-         "scrape_key": "MARGIN_TPEX"},
+         "min_date": "20260101"},
     ],
 }
 
@@ -265,6 +266,8 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
             log(f"  [{i}/{len(dates)}] {pct:.0f}%  elapsed={elapsed:.0f}s  ETA={eta:.0f}s")
 
         for src in sources:
+            if src.get("min_date") and date < src["min_date"]:
+                continue  # 早於來源起始日 (如 margin 2026-01-01) → 跳過,不撈不爬
             folder_id = folder_map.get(src["folder"])
             blob = None
             # 1) 先試 Drive

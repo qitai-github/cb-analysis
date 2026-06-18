@@ -68,6 +68,8 @@ def backfill_day_one_key(all_data: dict, ts_key: str,
         log(f"\n[{ts_key}] {date} (col {date_col}) — stocks={stocks}")
 
         for src in sources:
+            if src.get("min_date") and date < src["min_date"]:
+                continue  # 早於來源起始日 (如 margin 2026-01-01) → 跳過,不撈不爬
             folder_id = folder_map.get(src["folder"])
             blob = None
             src_label = f"{src['market']}/{src['folder']}"
