@@ -11,7 +11,8 @@ const PublicWatchlist = (() => {
   const PUBLIC_LIST_NAMES = [
     '新天團',
     '芭樂可轉長線',
-    '芭樂現股波段',
+    '芭樂波段型態',
+    '芭樂轉折型態',
     '芭樂報告待跑',
     '芭樂報告完成',
   ];
