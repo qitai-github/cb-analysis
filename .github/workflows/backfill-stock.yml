@@ -1,0 +1,70 @@
+name: Backfill Stock History
+
+# 手動觸發:把指定股號的全歷史資料 (價量+法人+融資券) 補進 data/all-data.json。
+# 用途:加新標的進網頁,或補某檔歷史殘缺的股。
+#
+# 本機跑 TPEX 常被 anti-bot 擋 (403),所以走 GHA IP 跑 scrape 較穩。
+# Drive 沒檔的日期 (例如 2025 整年的法人/融資券) 會 fallback 到 TWSE/TPEX 網站爬。
+#
+# 流程:
+#   1. workflow_dispatch 觸發,輸入 stock_ids
+#   2. 跑 backfill_primary_market.py --only ID1,ID2 補全歷史
+#   3. commit + push data/all-data.json → GH Pages rebuild
+
+on:
+  workflow_dispatch:
+    inputs:
+      stock_ids:
+        description: '股號 (逗號分隔, e.g. 5536 或 5536,1234)'
+        required: true
+        default: ''
+      recent:
+        description: '只回補最近 N 個交易日 (空白 = 全歷史)'
+        required: false
+        default: ''
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements-stocks.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements-stocks.txt
+
+      - name: Run backfill
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          DRIVE_FOLDERS: ${{ secrets.DRIVE_FOLDERS }}
+        run: |
+          ARGS="--only ${{ inputs.stock_ids }}"
+          if [ -n "${{ inputs.recent }}" ]; then
+            ARGS="$ARGS --recent ${{ inputs.recent }}"
+          fi
+          echo "Running: python scripts/backfill_primary_market.py $ARGS"
+          python scripts/backfill_primary_market.py $ARGS
+
+      - name: Commit & push
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet data/all-data.json; then
+            echo "No changes — skip commit"
+            exit 0
+          fi
+          git add data/all-data.json
+          git commit -m "data: backfill ${{ inputs.stock_ids }} 歷史 (GHA)"
+          git push

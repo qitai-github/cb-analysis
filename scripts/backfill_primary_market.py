@@ -79,25 +79,31 @@ DATA_JSON = REPO_ROOT / "data" / "all-data.json"
 SOURCES: dict[str, list[dict[str, Any]]] = {
     "stockTrading": [
         {"folder": "STOCK_PRICE_TWSE", "parser": stock_price,
-         "market": "TWSE", "filename": "TWSE-Daily-{date}.csv"},
+         "market": "TWSE", "filename": "TWSE-Daily-{date}.csv",
+         "scrape_key": "STOCK_PRICE_TWSE"},
         {"folder": "STOCK_PRICE_TPEX", "parser": stock_price,
-         "market": "TPEX", "filename": "TPEx-EW-{date}.csv"},
+         "market": "TPEX", "filename": "TPEx-EW-{date}.csv",
+         "scrape_key": "STOCK_PRICE_TPEX"},
     ],
     "cbInstitutional": [
+        # 個股法人 T86: Drive 只有 2026 起,2025 要爬 TWSE/TPEX 網站。
+        # 本機 TPEX 常被擋 (anti-bot),GHA IP 可以。
         {"folder": "STOCK_INST_TWSE", "parser": stock_inst,
-         "market": "TWSE", "filename": "TWSE_T86_{date}.csv"},
+         "market": "TWSE", "filename": "TWSE_T86_{date}.csv",
+         "scrape_key": "STOCK_INST_TWSE"},
         {"folder": "STOCK_INST_TPEX", "parser": stock_inst,
-         "market": "TPEX", "filename": "TPEx_T86_{date}.csv"},
+         "market": "TPEX", "filename": "TPEx_T86_{date}.csv",
+         "scrape_key": "STOCK_INST_TPEX"},
     ],
     "marginTrading": [
-        # 融資融券:Drive 從 2026-01-01 起有每日備份,以 Drive 為準、不爬蟲。
-        # 早於 min_date 的日期直接跳過 (Drive 無檔,也不回去 scrape)。
+        # 融資融券:Drive 從 2026-01-01 起有每日備份。
+        # min_date 改成「Drive 不會有早於此日期的檔」,但 scrape 不受限制。
         {"folder": "MARGIN_TWSE", "parser": margin_trading,
          "market": "TWSE", "filename": "MI_MARGN_STOCK_{date}.csv",
-         "min_date": "20260101"},
+         "drive_min_date": "20260101", "scrape_key": "MARGIN_TWSE"},
         {"folder": "MARGIN_TPEX", "parser": margin_trading,
          "market": "TPEX", "filename": "RSTA3106_{date}.csv",
-         "min_date": "20260101"},
+         "drive_min_date": "20260101", "scrape_key": "MARGIN_TPEX"},
     ],
 }
 
@@ -266,12 +272,12 @@ def backfill_one_key(all_data: dict, ts_key: str, target_stocks: set[str],
             log(f"  [{i}/{len(dates)}] {pct:.0f}%  elapsed={elapsed:.0f}s  ETA={eta:.0f}s")
 
         for src in sources:
-            if src.get("min_date") and date < src["min_date"]:
-                continue  # 早於來源起始日 (如 margin 2026-01-01) → 跳過,不撈不爬
             folder_id = folder_map.get(src["folder"])
             blob = None
-            # 1) 先試 Drive
-            if folder_id:
+            # 1) 先試 Drive (drive_min_date 之前的日期直接跳 Drive 改爬)
+            drive_blocked = (src.get("drive_min_date")
+                             and date < src["drive_min_date"])
+            if folder_id and not drive_blocked:
                 fname = src["filename"].format(date=date)
                 try:
                     blob = drive.download(folder_id, fname)
@@ -364,6 +370,10 @@ def main(argv=None) -> int:
                    help="只回補最近 N 個交易日 (預設全部)")
     p.add_argument("--dry-run", action="store_true",
                    help="不寫回 all-data.json")
+    p.add_argument("--include", type=str, default="",
+                   help="額外納入的 stock id (逗號分隔),補在 primary market 之外")
+    p.add_argument("--only", type=str, default="",
+                   help="只回補這些 stock id (逗號分隔),忽略 primary market")
     args = p.parse_args(argv)
 
     if not DATA_JSON.exists():
@@ -373,10 +383,25 @@ def main(argv=None) -> int:
     with open(DATA_JSON, "r", encoding="utf-8") as fh:
         all_data = json.load(fh)
 
-    targets = primary_market_stocks(all_data)
-    log(f"初級市場 + CBAS 已發行 對應股: {len(targets)} 檔")
+    forced_refill: set[str] = set()
+    if args.only:
+        targets = set(s.strip() for s in args.only.split(",") if s.strip())
+        log(f"--only 指定: {sorted(targets)} ({len(targets)} 檔)")
+        forced_refill |= targets
+    else:
+        targets = primary_market_stocks(all_data)
+        log(f"初級市場 + CBAS 已發行 對應股: {len(targets)} 檔")
+        if args.include:
+            extra = set(s.strip() for s in args.include.split(",") if s.strip())
+            new = extra - targets
+            log(f"--include 額外納入: {sorted(extra)} (新增 {len(new)} 檔)")
+            targets |= extra
+            forced_refill |= extra
 
     refill = forward_only_stocks(all_data, targets)
+    if forced_refill:
+        log(f"--only/--include 強制 refill: {sorted(forced_refill)}")
+        refill |= forced_refill
     if refill:
         log(f"歷史殘缺(只有近期資料)需就地補的新進股: {sorted(refill)}")
 
