@@ -13,6 +13,7 @@ const PublicWatchlist = (() => {
     '芭樂可轉長線',
     '芭樂現股波段',
     '芭樂報告待跑',
+    '芭樂報告完成',
   ];
 
   // cache: Map<list_name, Set<code>>
