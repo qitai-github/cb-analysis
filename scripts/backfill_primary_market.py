@@ -86,8 +86,8 @@ SOURCES: dict[str, list[dict[str, Any]]] = {
          "scrape_key": "STOCK_PRICE_TPEX"},
     ],
     "cbInstitutional": [
-        # 個股法人 T86: Drive 只有 2026 起,2025 要爬 TWSE/TPEX 網站。
-        # 本機 TPEX 常被擋 (anti-bot),GHA IP 可以。
+        # 個股法人 T86: Drive 從 2025-01-01 起已補齊 (2026-06 補),先讀 Drive。
+        # Drive miss 才 fallback 爬;本機 TPEX 被 Cloudflare 擋,GHA IP 通常可。
         {"folder": "STOCK_INST_TWSE", "parser": stock_inst,
          "market": "TWSE", "filename": "TWSE_T86_{date}.csv",
          "scrape_key": "STOCK_INST_TWSE"},
@@ -96,14 +96,15 @@ SOURCES: dict[str, list[dict[str, Any]]] = {
          "scrape_key": "STOCK_INST_TPEX"},
     ],
     "marginTrading": [
-        # 融資融券:Drive 從 2026-01-01 起有每日備份。
-        # min_date 改成「Drive 不會有早於此日期的檔」,但 scrape 不受限制。
+        # 融資融券:Drive 已補齊 2025-01-01 起每日備份 (2026-06 補,上市本機/上櫃 GAS)。
+        # drive_min_date = 「Drive 不會有早於此日期的檔」,降到 20250101 才會讀到 2025 補檔;
+        # 早於此才跳 Drive 改爬。scrape 不受限制。
         {"folder": "MARGIN_TWSE", "parser": margin_trading,
          "market": "TWSE", "filename": "MI_MARGN_STOCK_{date}.csv",
-         "drive_min_date": "20260101", "scrape_key": "MARGIN_TWSE"},
+         "drive_min_date": "20250101", "scrape_key": "MARGIN_TWSE"},
         {"folder": "MARGIN_TPEX", "parser": margin_trading,
          "market": "TPEX", "filename": "RSTA3106_{date}.csv",
-         "drive_min_date": "20260101", "scrape_key": "MARGIN_TPEX"},
+         "drive_min_date": "20250101", "scrape_key": "MARGIN_TPEX"},
     ],
 }
 
