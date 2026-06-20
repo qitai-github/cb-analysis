@@ -221,13 +221,38 @@ const VCPView = (() => {
   }
 
   // ── K 線收斂圖 Modal ──────────────────────────────────────────────
+  let modalId = null;          // 目前 modal 開的股票代號 (給上一檔/下一檔導航)
+
   function openModal(r) {
     const modal = document.getElementById('vcp-modal');
     if (!modal) return;
+    modalId = r.id;
+
+    // ◀ ☆ 代號名稱+徽章 ▶ — 串接目前篩選+排序後的清單前後切換
+    const list = getFiltered();
+    const idx = list.findIndex(x => x.id === r.id);
+    const canPrev = idx > 0;
+    const canNext = idx >= 0 && idx < list.length - 1;
+    const starred = (typeof Watchlist !== 'undefined' && Watchlist.has(r.id));
     document.getElementById('vcp-modal-title').innerHTML =
-      `${r.id} ${r.name} ` +
-      `<span class="vcp-badge tier-${r.tier}">${TIER_LABEL[r.tier]}</span> ` +
-      `<span class="vcp-badge stage-${r.stage}">${STAGE_LABEL[r.stage]}</span>`;
+      `<button class="tech-nav-arrow" id="vcp-nav-prev" ${canPrev ? '' : 'disabled'} title="上一檔">&#x25C0;</button>` +
+      `<span class="tech-nav-center">` +
+        `<button class="tech-nav-star" id="vcp-nav-star" title="加入清單" style="color:${starred ? '#f59e0b' : 'var(--text-dim)'}">${starred ? '★' : '☆'}</button>` +
+        `<span class="tech-nav-label">${r.id} ${r.name}</span>` +
+        `<span class="vcp-badge tier-${r.tier}">${TIER_LABEL[r.tier]}</span>` +
+        `<span class="vcp-badge stage-${r.stage}">${STAGE_LABEL[r.stage]}</span>` +
+      `</span>` +
+      `<button class="tech-nav-arrow" id="vcp-nav-next" ${canNext ? '' : 'disabled'} title="下一檔">&#x25B6;</button>`;
+    document.getElementById('vcp-nav-prev')?.addEventListener('click', () => navigate(-1));
+    document.getElementById('vcp-nav-next')?.addEventListener('click', () => navigate(1));
+    document.getElementById('vcp-nav-star')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof Watchlist === 'undefined') return;
+      Watchlist.toggle(r.id);
+      const on = Watchlist.has(r.id);
+      e.currentTarget.textContent = on ? '★' : '☆';
+      e.currentTarget.style.color = on ? '#f59e0b' : 'var(--text-dim)';
+    });
 
     // 收斂明細
     const info = document.getElementById('vcp-modal-info');
@@ -257,6 +282,18 @@ const VCPView = (() => {
     const modal = document.getElementById('vcp-modal');
     if (modal) modal.classList.remove('show');
     if (vcpChart) { vcpChart.destroy(); vcpChart = null; }
+    modalId = null;
+  }
+
+  /** 上一檔(-1)/下一檔(+1) — 走目前篩選+排序後的清單 */
+  function navigate(dir) {
+    if (modalId == null) return;
+    const list = getFiltered();
+    const idx = list.findIndex(x => x.id === modalId);
+    if (idx < 0) return;
+    const ni = idx + dir;
+    if (ni < 0 || ni >= list.length) return;
+    openModal(list[ni]);
   }
 
   // ── 畫圖 (沿用現有 candlestick 畫法 + VCP 疊圖) ───────────────────
@@ -292,6 +329,16 @@ const VCPView = (() => {
       : { up: '#ef4444', down: '#22c55e', text: '#e2e8f0', textMuted: '#94a3b8' };
     const zones = (r.markers && r.markers.contractionZones) || [];
     const pivot = r.markers ? r.markers.pivotLine : r.pivot;
+
+    // 收斂高低點 ZigZag 連線點位: H1→L1→H2→L2→… (x=切片index, y=價)
+    const cons = r.contractions || [];
+    const zz = [];
+    zones.forEach((z, k) => {
+      const ct = cons[k];
+      if (!ct) return;
+      zz.push({ x: z[0], y: ct.high });
+      zz.push({ x: z[1], y: ct.low });
+    });
 
     // 收斂區塊 + Pivot 線 疊圖 plugin
     const overlay = {
@@ -345,6 +392,28 @@ const VCPView = (() => {
         ctx.font = '11px sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText('Pivot ' + fmtNum(pivot), chartArea.right - 4, yPiv - 4);
+
+        // 收斂高低點連線 (螢光黃 ZigZag) — 把偵測到的 H/L 依序連起來
+        if (zz.length >= 2) {
+          ctx.strokeStyle = '#eaff00';
+          ctx.lineWidth = 2.5;
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          zz.forEach((p, k) => {
+            const px = xs.getPixelForValue(p.x);
+            const py = yp.getPixelForValue(p.y);
+            if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          });
+          ctx.stroke();
+          ctx.fillStyle = '#eaff00';
+          zz.forEach(p => {
+            const px = xs.getPixelForValue(p.x);
+            const py = yp.getPixelForValue(p.y);
+            ctx.beginPath();
+            ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
         ctx.restore();
       }
     };

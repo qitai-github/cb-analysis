@@ -2222,6 +2222,11 @@ input[type="number"] { -moz-appearance: textfield; }
 .vcp-star.on { color: #fbbf24; }
 
 /* modal */
+/* 標題列: ◀ ☆ 代號名稱 徽章 ▶ (沿用 .tech-nav-arrow 樣式)
+   中央固定寬度 → 箭頭位置不隨股名字數跳動 */
+#vcp-modal-title { display: flex; align-items: center; gap: 10px; }
+#vcp-modal-title .tech-nav-center { width: 380px; }
+#vcp-modal-title .tech-nav-label { flex: 0 1 auto; min-width: 0; }
 .vcp-modal-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
 .vcp-chart-container { width: 100%; height: 52vh; min-height: 320px; position: relative; }
 .vcp-modal-info { font-size: 13px; }

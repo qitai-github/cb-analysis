@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""Phase 1｜VCP (Volatility Contraction Pattern) 全台股掃描器。
+"""VCP (Volatility Contraction Pattern) 全台股掃描器 — 壓力線觸碰模型。
 
-讀 build_universe.py 建的本地快取 (scripts/cache/universe/*.json),對每檔台股做:
+讀 build_universe.py 建的本地快取 (scripts/cache/universe/*.json),對每檔個股做:
   1. 前處理 (forward-fill 停牌、除權息斷點偵測)
-  2. 流動性/體質過濾
-  3. Minervini 趨勢樣板 (Stage 2 多頭前提)
-  4. swing 轉折 + base 視窗
-  5. 收斂序列 (depth 遞減)
-  6. 量縮確認
-  7. Pivot / stage (watch | setup | breakout)
-  8. 誤判排除 (上升三角 / 純上升支撐)
-  9. 三級 tier 評分 (loose / standard / strict) — 一次掃描, 前端可切換
+  2. 流動性/體質過濾 (收盤≥10、近50日均額≥門檻、歷史≥200根)
+  3. Minervini 趨勢樣板 (收盤>MA50>MA150>MA200、距52週高≤25%… Stage 2 前提)
+  4. 偵測收斂 (detect_contractions, 壓力線觸碰):
+       盤中高低 ZigZag(≥8%) → 由高往低找「被觸碰≥2次、橫跨≥20日、近30日內」的壓力線
+       → 每次觸頂=一波, 低點取兩觸頂間最低 (自動忽略未觸頂雜峰)
+  5. 三級 tier 判定 (strict/standard/loose, 一次掃描同時判定, 前端可切換):
+       高點群等高(帶寬 3/4/6%) + 低點逐步墊高 + 深度遞減 + 距Pivot
+       量縮(volDryUp) 只計分不過濾
+  6. stage: breakout(剛站上壓力線+帶量) / setup(貼壓力線下方) / extended(已突破延伸) / watch
+  7. 評分 + 近 120 根 OHLC 切片 + Pivot/收斂區塊標記
 
 輸出:
-  data/vcp.json          通過股票 + 近 120 根 OHLC 切片 + 收斂/Pivot 標記 (前端用)
-  scripts/output/vcp_<asOf>.xlsx   攤平表 (離線檢視, 對應 GPT)
+  data/vcp.json          通過股票 + OHLC 切片 + 收斂/Pivot 標記 (前端用)
+  scripts/output/vcp_<asOf>.xlsx   攤平表 (離線檢視)
 
 用法:
   python vcp_scanner.py              # 用快取最新日期掃描
@@ -56,12 +58,15 @@ CONFIG = {
     "DIST_52W_HIGH_MAX": 0.25,    # 收盤距 52 週高 ≤ 25%
     "DIST_52W_LOW_MIN": 0.30,     # 收盤 ≥ 52 週低 ×1.30
     "MA200_SLOPE_LOOKBACK": 22,   # MA200 向上判定回看天數
+    "RECENT_HIGH_BARS": 126,      # 「近 6 個月高點」回看天數 (給 DIST_RECENT_HIGH_MAX 用)
 
     # swing / base (壓力線觸碰模型)
     "ZIGZAG_PCT": 0.08,           # ZigZag 反轉門檻 (盤中高低, 只認 ≥8% 的波)
     "BASE_MAX_BARS": 130,         # base 視窗上限 (~6 個月)
     "CEILING_BAND": 0.05,         # 壓力線帶寬: 峰落在 ceiling×(1-此值)~ceiling 內算一次觸碰
     "CEILING_MIN_SPAN": 20,       # 壓力線首末觸碰須橫跨 ≥ 此交易日 (濾掉突破當下連續高點)
+    "CEILING_PIERCE_MAX": 0.06,   # 收斂期間(首~末觸碰)高點不得高於壓力線 >此值 (否則=被貫穿洗盤,非真壓力線)
+    "CEILING_MAX_GAP": 35,        # 相鄰兩次觸碰間隔須 ≤ 此交易日 (砍掉久遠孤立觸碰, 如 V 型反彈)
 
     # 突破量
     "BREAKOUT_VOL_MULT": 1.5,     # 突破日量 ≥ 50 日均量 ×1.5
@@ -80,6 +85,7 @@ CONFIG = {
             "NEAR_PIVOT_MAX": 0.10,
             "DEPTH_VIOLATIONS_ALLOWED": 1,
             "LOW_VIOL_ALLOWED": 1, "HIGH_BAND_MAX": 0.06,
+            "DIST_RECENT_HIGH_MAX": 0.99,   # 不限 (僅嚴格啟用)
         },
         "standard": {
             "MIN_CONTRACTIONS": 2, "MAX_CONTRACTIONS": 5,
@@ -87,13 +93,15 @@ CONFIG = {
             "NEAR_PIVOT_MAX": 0.08,
             "DEPTH_VIOLATIONS_ALLOWED": 0,
             "LOW_VIOL_ALLOWED": 0, "HIGH_BAND_MAX": 0.04,
+            "DIST_RECENT_HIGH_MAX": 0.99,   # 不限
         },
         "strict": {
-            "MIN_CONTRACTIONS": 2, "MAX_CONTRACTIONS": 5,
+            "MIN_CONTRACTIONS": 3, "MAX_CONTRACTIONS": 5,
             "FIRST_CONTRACTION_MAX": 0.40, "TIGHT_MAX": 0.08,
             "NEAR_PIVOT_MAX": 0.06,
             "DEPTH_VIOLATIONS_ALLOWED": 0,
             "LOW_VIOL_ALLOWED": 0, "HIGH_BAND_MAX": 0.03,
+            "DIST_RECENT_HIGH_MAX": 0.20,   # 現價須 ≥ 近6個月高點×(1-0.20)
         },
     },
 }
@@ -229,11 +237,13 @@ def zigzag_hl(h: list[float], low: list[float], start: int, end: int, pct: float
             ext_hi, ext_hi_i = h[i], i
         if low[i] < ext_lo:
             ext_lo, ext_lo_i = low[i], i
-        if direction >= 0 and low[i] <= ext_hi * (1 - pct):
+        # 反轉須在比極值「更晚」的交易日確認 (i > ext_*_i),
+        # 否則單根大振幅 K 棒會在同一天同時製造一高一低 (假收斂波)
+        if direction >= 0 and i > ext_hi_i and low[i] <= ext_hi * (1 - pct):
             pivots.append((ext_hi_i, "H", ext_hi))
             direction = -1
             ext_lo, ext_lo_i = low[i], i
-        elif direction <= 0 and h[i] >= ext_lo * (1 + pct):
+        elif direction <= 0 and i > ext_lo_i and h[i] >= ext_lo * (1 + pct):
             pivots.append((ext_lo_i, "L", ext_lo))
             direction = 1
             ext_hi, ext_hi_i = h[i], i
@@ -270,32 +280,59 @@ def detect_contractions(s: dict):
 
     band = CONFIG["CEILING_BAND"]
     min_span = CONFIG["CEILING_MIN_SPAN"]
+    pierce = CONFIG["CEILING_PIERCE_MAX"]
+    max_gap = CONFIG["CEILING_MAX_GAP"]
     touches = None
     for cand in sorted({px for _, px in peaks}, reverse=True):   # 由高往低
         grp = sorted([(idx, px) for idx, px in peaks
                       if cand * (1 - band) <= px <= cand * 1.001])
-        if (len(grp) >= 2
-                and (grp[-1][0] - grp[0][0]) >= min_span
-                and (n - 1 - grp[-1][0]) <= CONFIG["CEILING_RECENT_MAX"]):
-            touches = grp
-            break
+        if len(grp) < 2:
+            continue
+        # 從最近觸碰往回串, 只留「與後一觸碰間隔 ≤ max_gap」者 (砍久遠孤立觸碰)
+        chain = [grp[-1]]
+        for j in range(len(grp) - 2, -1, -1):
+            if chain[0][0] - grp[j][0] <= max_gap:
+                chain.insert(0, grp[j])
+            else:
+                break
+        grp = chain
+        if len(grp) < 2:
+            continue
+        if (grp[-1][0] - grp[0][0]) < min_span:               # 橫跨不夠久
+            continue
+        if (n - 1 - grp[-1][0]) > CONFIG["CEILING_RECENT_MAX"]:  # 最後觸碰太舊
+            continue
+        cand_ceiling = max(px for _, px in grp)
+        # 壓力線不可被收斂期間(首~末觸碰)高點貫穿 > pierce (否則是上下洗盤, 非真壓力)
+        seg_high = max(h[grp[0][0]:grp[-1][0] + 1])
+        if seg_high > cand_ceiling * (1 + pierce):
+            continue
+        touches = grp
+        break
     if not touches:
         return None
-    ceiling = max(px for _, px in touches)
 
     contractions = []
     for k in range(len(touches)):
         hi_idx, hi = touches[k]
         b = touches[k + 1][0] if k + 1 < len(touches) else n - 1
-        seg = low[hi_idx:b + 1]
+        # 低點只從高點「之後」的日子取 (同一天的高低不可同時當參數)
+        seg = low[hi_idx + 1:b + 1]
+        if not seg:                 # 高點即最後一根 (今日創高, 尚無回檔低點) → 跳過
+            continue
         lo = min(seg)
-        lo_idx = hi_idx + seg.index(lo)
+        lo_idx = hi_idx + 1 + seg.index(lo)
         depth = (hi - lo) / hi if hi > 0 else 0
         contractions.append({
             "high": hi, "highIdx": hi_idx,
             "low": lo, "lowIdx": lo_idx, "depth": depth,
         })
-    base_start = touches[0][0]
+    if not contractions:
+        return None
+    # 壓力線(Pivot)只取「有確認回檔的收斂波高點」最高值,
+    # 不含突破當下那根尚無回檔的高點 (否則 Pivot 會被墊高、突破被誤判成待突破)
+    ceiling = max(ct["high"] for ct in contractions)
+    base_start = contractions[0]["highIdx"]
     return base_start, contractions, ceiling
 
 
@@ -386,10 +423,9 @@ def evaluate(code: str, raw: dict):
 
     dist_to_pivot = (pivot - close) / pivot if pivot > 0 else 1.0
     above = -dist_to_pivot               # >0 = 現價在壓力線上方
+    recent_high = max(s["h"][-CONFIG["RECENT_HIGH_BARS"]:])  # 近6個月高點
     ma_vol50 = sum(s["v"][-50:]) / 50
-    vol_surge = s["v"][i] >= ma_vol50 * CONFIG["BREAKOUT_VOL_MULT"]
-    # 突破 = 剛站上壓力線 (0~BREAKOUT_BAND 上方) 且帶量; 遠離壓力線上方則算 extended
-    breakout = (0 <= above <= CONFIG["BREAKOUT_BAND"]) and vol_surge
+    vol_surge = s["v"][i] >= ma_vol50 * CONFIG["BREAKOUT_VOL_MULT"]  # 是否帶量 (僅供參考)
 
     # 逐級 (strict→standard→loose) 取尾段並判定; 取「最嚴格通過」者為 tier
     tier = None
@@ -416,6 +452,7 @@ def evaluate(code: str, raw: dict):
             and low_viol <= p["LOW_VIOL_ALLOWED"]
             and hband <= p["HIGH_BAND_MAX"]
             and dist_to_pivot <= p["NEAR_PIVOT_MAX"]
+            and close >= recent_high * (1 - p["DIST_RECENT_HIGH_MAX"])
         )
         if ok:
             tier = name
@@ -438,7 +475,7 @@ def evaluate(code: str, raw: dict):
     elif dist_to_pivot >= 0:
         stage = "setup"               # 貼在壓力線下方待突破
     elif above <= bband:
-        stage = "breakout" if vol_surge else "setup"   # 剛站上壓力線
+        stage = "breakout"            # 剛站上壓力線 (價格 ≤BREAKOUT_BAND 上方; vol_surge 另記)
     else:
         stage = "extended"            # 已突破且遠離壓力線上方 (延伸)
 
@@ -458,6 +495,7 @@ def evaluate(code: str, raw: dict):
             for ct in contractions
         ],
         "volDryUp": round(dryup, 3), "tight": last_contraction <= 0.08,
+        "volSurge": bool(vol_surge),   # 突破當日是否帶量 (前端可標「帶量突破」)
         "rsApprox": round(tt["rsApprox"], 3),
         "_base_start_idx": base_start,
         "_contraction_idx": [(ct["highIdx"], ct["lowIdx"]) for ct in contractions],
