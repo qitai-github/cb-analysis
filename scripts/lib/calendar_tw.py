@@ -17,6 +17,7 @@ hardcoded fallback 涵蓋每年「日期固定」的重大休市日,即使 API �
 from __future__ import annotations
 
 import functools
+import re
 from datetime import datetime
 from typing import Set
 
@@ -49,19 +50,36 @@ def fetch_holidays() -> Set[str]:
 
     out: Set[str] = set()
     for item in data:
-        # 格式:Date = "115/01/01" (民國年/月/日)
-        roc = (item.get("Date") or "").strip()
-        parts = roc.split("/")
-        if len(parts) != 3:
+        ad = _roc_to_ad(item.get("Date"))
+        if not ad:
             continue
-        try:
-            year = int(parts[0]) + 1911
-            mm = int(parts[1])
-            dd = int(parts[2])
-            out.add(f"{year:04d}{mm:02d}{dd:02d}")
-        except ValueError:
-            continue
+        # 這個 API 不是純「休市清單」:它也標註『有開盤』的特殊日,例如
+        #   「國曆新年開始交易日」「農曆春節前最後交易日」「農曆春節後開始交易日」
+        # (Description 為「…交易。」)。那些是交易日,不能算休市,否則 pipeline
+        # 會跳過真正的交易日。只把真正休市的算進來:放假 / 補假 / 市場無交易。
+        text = str(item.get("Name") or "") + str(item.get("Description") or "")
+        if ("放假" in text) or ("補假" in text) or ("市場無交易" in text):
+            out.add(ad)
     return out
+
+
+def _roc_to_ad(roc) -> str | None:
+    """民國日期 → 西元 YYYYMMDD;無法解析回 None。
+
+    TWSE OpenAPI 的 Date 欄位實測是 "1150619" (民國 7 碼,無分隔),
+    舊註解寫 "115/06/19" 並不準。為保險兩種都吃,並接受已是西元 8 碼。
+    """
+    s = re.sub(r"[/\-.]", "", str(roc or "").strip())
+    if not s.isdigit():
+        return None
+    if len(s) == 8:            # 已是西元 YYYYMMDD
+        return s
+    if len(s) == 7:            # 民國 YYYMMDD → +1911
+        try:
+            return f"{int(s[:3]) + 1911:04d}{s[3:5]}{s[5:7]}"
+        except ValueError:
+            return None
+    return None
 
 
 def is_trading_day(yyyymmdd: str) -> bool:
