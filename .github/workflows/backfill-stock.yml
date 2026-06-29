@@ -67,4 +67,21 @@ jobs:
           fi
           git add data/all-data.json
           git commit -m "data: backfill ${{ inputs.stock_ids }} 歷史 (GHA)"
-          git push
+          # backfill 跑 ~1 小時,期間 origin 常被別的 commit 推進 (daily pipeline 等)
+          # 重試 5 次,每次失敗就 pull --rebase (data/all-data.json 衝突就用我們版本)
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "Push succeeded on attempt $i"
+              exit 0
+            fi
+            echo "Push attempt $i failed, fetching & rebasing..."
+            git fetch origin main
+            # 衝突時用我們的版本覆蓋 (我們的 backfill 是更完整的歷史)
+            git rebase -X ours origin/main || {
+              echo "Rebase failed, abort"
+              git rebase --abort
+              exit 1
+            }
+          done
+          echo "All push attempts failed"
+          exit 1
