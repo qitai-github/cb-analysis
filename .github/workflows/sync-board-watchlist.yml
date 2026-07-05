@@ -1,0 +1,58 @@
+name: Sync Board Announcements → 芭樂報告待跑
+
+# CB 日曆「董事會公告(board)」個股 → Supabase「芭樂報告待跑」自動化。
+# 排在 Parse+Export (10:47 UTC,會 commit 最新 data/all-data.json) 之後,
+# 讓本 job checkout 到最新 all-data.json 再同步。11:25 UTC = 19:25 TPE,週一~五。
+on:
+  schedule:
+    - cron: '25 11 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '只印不寫 (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write   # commit data/board_watchlist_state.json
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Sync board announcements to 待跑
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY" = "true" ]; then
+            python scripts/sync_board_watchlist.py --dry-run
+          else
+            python scripts/sync_board_watchlist.py
+          fi
+
+      - name: Commit & push state file
+        if: ${{ inputs.dry_run != 'true' }}
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/board_watchlist_state.json
+          if git diff --cached --quiet; then
+            echo "no state changes"
+            exit 0
+          fi
+          git commit -m "board→待跑 sync state @ $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+          for i in 1 2 3; do
+            if git push; then echo "pushed on attempt $i"; exit 0; fi
+            git pull --rebase --autostash
+          done
+          echo "push failed after 3 retries"; exit 1
