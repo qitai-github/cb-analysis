@@ -187,53 +187,53 @@ const Filters = (() => {
       label: 'CB溢價率% >=',
       type: 'number',
       group: 'CB篩選',
-      apply: (stock, val) => !val || (stock.cbPremiumRate != null && stock.cbPremiumRate >= val)
+      cbApply: (cb, val) => !val || (cb.premiumRate != null && cb.premiumRate >= val)
     },
     cbPremiumMax: {
       label: 'CB溢價率% <=',
       type: 'number',
       group: 'CB篩選',
-      apply: (stock, val) => !val || (stock.cbPremiumRate != null && stock.cbPremiumRate <= val)
+      cbApply: (cb, val) => !val || (cb.premiumRate != null && cb.premiumRate <= val)
     },
     cbPriceMin: {
       label: 'CB收盤價 >=',
       type: 'number',
       group: 'CB篩選',
-      apply: (stock, val) => !val || (stock.mainCB?.close != null && stock.mainCB.close >= val)
+      cbApply: (cb, val) => !val || (cb.close != null && cb.close >= val)
     },
     cbPriceMax: {
       label: 'CB收盤價 <=',
       type: 'number',
       group: 'CB篩選',
-      apply: (stock, val) => !val || (stock.mainCB?.close != null && stock.mainCB.close <= val)
+      cbApply: (cb, val) => !val || (cb.close != null && cb.close <= val)
     },
     cbFirstBarSignal: {
       label: 'CB價格第一根表態',
       type: 'checkbox',
       group: 'CB篩選',
-      apply: (stock, val) => !val || stock.cbFirstBarSignal === true
+      cbApply: (cb, val) => !val || cb.firstBarSignal === true
     },
     cbHighDaysMin: {
       label: 'CB價格創 N 日新高',
       type: 'number',
       placeholder: '天數...',
       group: 'CB篩選',
-      apply: (stock, val) => !val || (stock.cbHighDays != null && stock.cbHighDays >= val)
+      cbApply: (cb, val) => !val || (cb.highDays != null && cb.highDays >= val)
     },
     cbVolumeMin: {
       label: 'CB成交量 >=',
       type: 'number',
       group: 'CB篩選',
-      apply: (stock, val) => !val || (stock.mainCB?.volume != null && stock.mainCB.volume >= val)
+      cbApply: (cb, val) => !val || (cb.volume != null && cb.volume >= val)
     },
     cbVolumeRatioMin: {
       label: 'CB量比(今/5日均) >=',
       type: 'number',
       group: 'CB篩選',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val) return true;
-        const v = stock.mainCB?.volume;
-        const ohlcv = stock.mainCB?.ohlcv;
+        const v = cb.volume;
+        const ohlcv = cb.ohlcv;
         if (v == null || !Array.isArray(ohlcv) || ohlcv.length < 5) return false;
         // 5日均 = 含今日往前 5 個交易日
         const last5 = ohlcv.slice(-5);
@@ -255,9 +255,9 @@ const Filters = (() => {
       unitLabel: '元',
       group: 'CB條件',
       field: 'min',
-      apply: (stock, val) => {
+      cbApply: (cb, val, stock) => {
         if (!val) return true;
-        const cv = _convValue_(stock);
+        const cv = _convValue_(cb, stock);
         return cv != null && cv >= val;
       }
     },
@@ -268,9 +268,9 @@ const Filters = (() => {
       group: 'CB條件',
       field: 'max',
       pairWith: 'cbConvValueMin',
-      apply: (stock, val) => {
+      cbApply: (cb, val, stock) => {
         if (!val) return true;
-        const cv = _convValue_(stock);
+        const cv = _convValue_(cb, stock);
         return cv != null && cv <= val;
       }
     },
@@ -285,9 +285,9 @@ const Filters = (() => {
         { label: '50%以下', value: '50' }
       ],
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val) return true;
-        const pct = stock.mainCB?.outstandingPct;
+        const pct = cb.outstandingPct;
         if (pct == null) return false;
         return (100 - pct) <= Number(val);
       }
@@ -303,9 +303,9 @@ const Filters = (() => {
         { label: '180天以內', value: '180' }
       ],
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val) return true;
-        const d = stock.mainCB?.listDate || stock.mainCB?.issueDate;
+        const d = cb.listDate || cb.issueDate;
         if (!d) return false;
         return _daysFromNow_(d) <= Number(val);
       }
@@ -323,9 +323,9 @@ const Filters = (() => {
         { label: '3年以上', value: '-1095' }
       ],
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val) return true;
-        const d = stock.mainCB?.maturityDate;
+        const d = cb.maturityDate;
         if (!d) return false;
         const days = _daysUntil_(d);
         const n = Number(val);
@@ -344,9 +344,9 @@ const Filters = (() => {
         { label: '大於 5%', value: '5' }
       ],
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val && val !== '0') return true;
-        const ytp = stock.mainCB?.ytp;
+        const ytp = cb.ytp;
         if (ytp == null) return false;
         return (ytp * 100) >= Number(val);
       }
@@ -362,9 +362,9 @@ const Filters = (() => {
         { label: '大於 5%', value: '5' }
       ],
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val && val !== '0') return true;
-        const ytm = stock.mainCB?.ytm;
+        const ytm = cb.ytm;
         if (ytm == null) return false;
         return (ytm * 100) >= Number(val);
       }
@@ -378,9 +378,9 @@ const Filters = (() => {
         { label: '尚未可轉換', value: 'not_started' }
       ],
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val) return true;
-        const period = stock.mainCB?.conversionPeriod;
+        const period = cb.conversionPeriod;
         if (!period) return false;
         const start = period.split(/[~～]/)[0]?.trim();
         if (!start) return false;
@@ -399,9 +399,9 @@ const Filters = (() => {
         { label: '無擔保', value: 'no' }
       ],
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val) return true;
-        const g = stock.mainCB?.guarantee;
+        const g = cb.guarantee;
         if (val === 'yes') return !!g && g !== '無' && g !== '無擔保' && g !== '-';
         return !g || g === '無' || g === '無擔保' || g === '-';
       }
@@ -410,16 +410,18 @@ const Filters = (() => {
       label: '排除暫停轉換',
       type: 'checkbox',
       group: 'CB條件',
-      apply: (stock, val) => {
+      cbApply: (cb, val) => {
         if (!val) return true;
-        return !stock.mainCB?.conversionStop || stock.mainCB.conversionStop.length === 0;
+        return !cb.conversionStop || cb.conversionStop.length === 0;
       }
     }
   };
 
-  function _convValue_(stock) {
-    if (!stock.conversionPrice || !stock.latestClose) return null;
-    return (100 / stock.conversionPrice) * stock.latestClose;
+  function _convValue_(cb, stock) {
+    const price = cb?.conversionPrice ?? stock?.conversionPrice;
+    const close = stock?.latestClose ?? cb?.stockRef?.latestClose;
+    if (!price || !close) return null;
+    return (100 / price) * close;
   }
 
   function _daysFromNow_(dateStr) {
@@ -445,19 +447,65 @@ const Filters = (() => {
     return new Date(s) || null;
   }
 
+  /** 該筆篩選值是否等同「沒填」 */
+  function isEmptyVal(val) {
+    return val === undefined || val === null || val === '' || val === false;
+  }
+
+  /** 個股層級條件 (不含逐檔 CB 條件) 是否全部通過 */
+  function passStockLevel(stock, filters) {
+    for (const [key, def] of Object.entries(filterDefs)) {
+      if (def.isHelper || def.cbApply || !def.apply) continue;
+      const val = filters[key];
+      if (isEmptyVal(val)) continue;
+      if (!def.apply(stock, val, filters)) return false;
+    }
+    return true;
+  }
+
+  /** 單檔 CB 是否通過所有 CB 層級條件 */
+  function passCBLevel(cb, stock, filters) {
+    for (const [key, def] of Object.entries(filterDefs)) {
+      if (def.isHelper || !def.cbApply) continue;
+      const val = filters[key];
+      if (isEmptyVal(val)) continue;
+      if (!def.cbApply(cb, val, stock, filters)) return false;
+    }
+    return true;
+  }
+
+  /** 個股分頁:CB 條件只要該股「任一檔」CB 符合就算通過 */
   function applyFilters(stockMap, filters) {
     const results = [];
     for (const [code, stock] of stockMap) {
-      let pass = true;
-      for (const [key, def] of Object.entries(filterDefs)) {
-        if (def.isHelper || !def.apply) continue;
-        const val = filters[key];
-        if (val === undefined || val === null || val === '' || val === false) continue;
-        if (!def.apply(stock, val, filters)) { pass = false; break; }
+      if (!passStockLevel(stock, filters)) continue;
+      if (hasCBCondition(filters)) {
+        const cbs = stock.cbs || [];
+        if (!cbs.some(cb => passCBLevel(cb, stock, filters))) continue;
       }
-      if (pass) results.push(stock);
+      results.push(stock);
     }
     return results;
+  }
+
+  function hasCBCondition(filters) {
+    for (const [key, def] of Object.entries(filterDefs)) {
+      if (def.cbApply && !isEmptyVal(filters[key])) return true;
+    }
+    return false;
+  }
+
+  /** 可轉債分頁:回傳逐檔 CB 的篩選結果 (個股條件套在正股上,CB 條件套在該檔 CB 上) */
+  function applyCBFilters(stockMap, filters) {
+    const rows = [];
+    for (const [code, stock] of stockMap) {
+      if (!passStockLevel(stock, filters)) continue;
+      for (const cb of (stock.cbs || [])) {
+        if (!cb || !cb.cbCode) continue;
+        if (passCBLevel(cb, stock, filters)) rows.push(cb);
+      }
+    }
+    return rows;
   }
 
   function sortResults(results, sortKey, ascending = true) {
@@ -476,5 +524,5 @@ const Filters = (() => {
     return key.split('.').reduce((o, k) => o?.[k], obj) ?? null;
   }
 
-  return { filterDefs, applyFilters, sortResults };
+  return { filterDefs, applyFilters, applyCBFilters, sortResults };
 })();

@@ -1,6 +1,7 @@
 // 表格渲染模組
 const Table = (() => {
   let currentData = [];
+  let currentCBData = null;   // 可轉債分頁的列 (已套過篩選),null = 尚未提供
   let currentSort = { key: 'code', asc: true };
   let currentPage = 0;
   let onRowClick = null;
@@ -54,20 +55,21 @@ const Table = (() => {
   // 給外部讀 (updateInstDays) — 只動股票欄位
   const columns = STOCK_COLUMNS;
 
-  /** CB 分頁:把所有個股的 stock.cbs 攤平成 cb 列表,套上目前的 sort */
-  function flattenCBs(stocks) {
-    const list = [];
-    for (const stock of stocks) {
-      for (const cb of (stock.cbs || [])) {
-        if (cb && cb.cbCode) list.push(cb);
-      }
-    }
+  /**
+   * CB 分頁的列。優先用呼叫端算好的逐檔 CB 篩選結果 (options.cbRows);
+   * 沒提供時退回攤平目前個股的 cbs。
+   */
+  function cbRows(stocks) {
+    const list = currentCBData !== null
+      ? currentCBData.slice()
+      : stocks.flatMap(s => (s.cbs || []).filter(cb => cb && cb.cbCode));
     return Filters.sortResults(list, currentSort.key, currentSort.asc);
   }
 
   function render(containerId, data, options = {}) {
     currentData = data;
     currentContainerId = containerId;
+    if (options.cbRows !== undefined) currentCBData = options.cbRows;
     if (options.onRowClick) onRowClick = options.onRowClick;
 
     const container = document.getElementById(containerId);
@@ -75,7 +77,7 @@ const Table = (() => {
 
     // === CB 分頁攤平,股票分頁保持原樣 ===
     const cols = activeColumns();
-    const rows = currentTab === 'cb' ? flattenCBs(data) : data;
+    const rows = currentTab === 'cb' ? cbRows(data) : data;
 
     // === 工具列:左邊 folder-tab,右邊 共 N 檔標的 ===
     const toolbar = document.createElement('div');
@@ -180,7 +182,7 @@ const Table = (() => {
       currentSort = { key, asc: true };
     }
     currentPage = 0;
-    // 股票分頁直接 sort stock 陣列;CB 分頁的 sort 由 flattenCBs 在 render 時套用
+    // 股票分頁直接 sort stock 陣列;CB 分頁的 sort 由 cbRows() 在 render 時套用
     if (currentTab !== 'cb') {
       currentData = Filters.sortResults(currentData, key, currentSort.asc);
     }

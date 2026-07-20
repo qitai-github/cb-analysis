@@ -929,6 +929,9 @@ const DataProcessor = (() => {
         const ohlcv = buildCBOHLCVArray(cbEntry.data, cbTradingByCode.dates);
         if (ohlcv.length > 0) {
           cb.ohlcv = ohlcv;
+          // 可轉債分頁的逐檔篩選要用 (原本只有 mainCB 算在 stock 層級)
+          cb.firstBarSignal = checkFirstBarSignal(ohlcv);
+          cb.highDays = calcNewHighDays(ohlcv);
         }
       }
     }
