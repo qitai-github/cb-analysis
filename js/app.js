@@ -1852,6 +1852,8 @@ const App = (() => {
       await initETFView();
     } else if (tab === 'vcp') {
       await initVCPView();
+    } else if (tab === 'strength') {
+      await initStrengthView();
     } else if (tab === 'calendar') {
       initCalendarView();
     }
@@ -1878,6 +1880,30 @@ const App = (() => {
       const mt = document.getElementById('main-table');
       if (mt) mt.innerHTML = '<div style="padding:24px;color:#94a3b8">VCP 資料尚未產生 (data/vcp.json)。請先執行 scripts/vcp_scanner.py。</div>';
       if (statusEl) statusEl.textContent = 'VCP 資料未就緒';
+    }
+  }
+
+  let strengthLoaded = false;
+  async function initStrengthView() {
+    const statusEl = document.getElementById('header-status');
+    try {
+      if (!strengthLoaded) {
+        if (statusEl) statusEl.textContent = '載入強勢股掃描結果...';
+        await StrengthView.loadData();
+        strengthLoaded = true;
+      }
+      const st = StrengthView.getStats();
+      if (statusEl) {
+        statusEl.textContent = `強勢股 | 資料日 ${st.asOf} | RS≥90 ${st.strong90} 檔 | 其中突破中 ${st.breakout90} 檔`;
+        statusEl.style.color = '';
+      }
+      StrengthView.buildFilterPanel('filter-panel');
+      StrengthView.renderColumns('main-table');
+    } catch (err) {
+      console.error('[Strength] 載入失敗', err);
+      const mt = document.getElementById('main-table');
+      if (mt) mt.innerHTML = '<div style="padding:24px;color:#94a3b8">強勢股資料尚未產生 (data/strength.json)。請先執行 scripts/strength_scanner.py。</div>';
+      if (statusEl) statusEl.textContent = '強勢股資料未就緒';
     }
   }
 

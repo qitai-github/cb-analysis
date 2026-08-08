@@ -1,0 +1,96 @@
+name: Strength Scan (強勢股)
+
+# 全台股強勢個股掃描 (RS 相對強度 + 動能創新高 + 量價齊揚) → data/strength.json。
+#
+# 流程:
+#   1. actions/cache 還原全市場 OHLCV 快取 scripts/cache/universe/ (增量, ~64MB)
+#   2. build_universe.py --refresh-latest  → 增量抓 Drive 當天最新交易日
+#   3. strength_scanner.py --no-excel       → 產 data/strength.json
+#   4. commit + push → 觸發 GH Pages rebuild
+#
+# 排程 19:40 TPE = 11:40 UTC, 週一~五。
+#   資料來源 STOCK_PRICE_TWSE/TPEX 由 fetch-stocks.yml 於 18:23 TPE 寫進 Drive,
+#   此處排在其後 (用奇怪分鐘避開 GHA :00/:30 排程高峰; GHA schedule 不保證準時)。
+#
+# 快取策略: key 帶 run_id 每次存新快取, restore-keys 前綴還原最近一份 →
+#   形成「每日增量、持續保溫」的可演進快取。cache miss 時 build_universe.py
+#   會自動全量重建 (無狀態 fallback),不會壞。
+
+on:
+  schedule:
+    - cron: '40 11 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      as_of:
+        description: '指定 as-of 日期 YYYYMMDD (空白 = 快取最新交易日)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+# 避免與自身排程/手動觸發重疊 (快取還原/存檔會打架)
+concurrency:
+  group: strength-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements-stocks.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements-stocks.txt
+
+      - name: Restore universe cache
+        uses: actions/cache@v4
+        with:
+          path: scripts/cache/universe
+          key: universe-cache-${{ github.run_id }}
+          restore-keys: |
+            universe-cache-
+
+      - name: Build universe (增量抓 Drive 最新交易日)
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          DRIVE_FOLDERS: ${{ secrets.DRIVE_FOLDERS }}
+        run: python scripts/build_universe.py --refresh-latest
+
+      - name: Run strength scanner
+        run: |
+          ARGS="--no-excel"
+          if [ -n "${{ inputs.as_of }}" ]; then
+            ARGS="$ARGS ${{ inputs.as_of }}"
+          fi
+          python scripts/strength_scanner.py $ARGS
+
+      - name: Commit & push data/strength.json
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/strength.json
+          if git diff --cached --quiet; then
+            echo "no strength.json changes"
+            exit 0
+          fi
+          git commit -m "Update data/strength.json @ $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+          for i in 1 2 3; do
+            if git push; then
+              echo "pushed on attempt $i"
+              exit 0
+            fi
+            echo "push attempt $i failed,rebase 後重試..."
+            git pull --rebase --autostash
+          done
+          echo "push failed after 3 retries"
+          exit 1
