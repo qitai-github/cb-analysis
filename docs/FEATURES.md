@@ -231,20 +231,25 @@ Pattern) 掃描。資料來源 `data/vcp.json` (由 `scripts/vcp_scanner.py` 產
 8. stage 純看價格相對 Pivot: breakout(剛站上0~6%) / setup(下方0~near) /
    extended(上方>6%) / watch(下方>near);是否帶量另記於 `volSurge`
 
-### 6.2 資料 pipeline (本機手動, 使用者要求時才跑)
+### 6.2 資料 pipeline (**GitHub Actions 自動化**)
 
 ```
 Drive 上市/上櫃每日交易明細 CSV
-  │ scripts/build_universe.py   抓 Drive → 本機快取 scripts/cache/universe/ (64MB, 不上傳)
-  ▼  (增量: 只補快取沒有的交易日)
-全市場 OHLCV 快取 (本機)
-  │ scripts/vcp_scanner.py      讀快取 → 偵測 → data/vcp.json (+ scripts/output Excel)
+  │ .github/workflows/vcp-scan.yml   排程 19:35 TPE (11:35 UTC) 週一~五
+  │   1. actions/cache 還原 scripts/cache/universe/ (與強勢股共用 universe-cache-* 池)
+  │   2. build_universe.py --refresh-latest  抓 Drive 當天最新交易日
+  │   3. vcp_scanner.py --no-excel           產 data/vcp.json
   ▼
-data/vcp.json  ──commit + push──▶ GitHub repo ──▶ 線上網站讀取
+data/vcp.json  ──commit + push──▶ 觸發 GH Pages rebuild ──▶ 線上網站
 ```
 
 - ⚠️ 全市場歷史**只在 Drive 原始 CSV** (all-data.json / Supabase 都被 CB 白名單砍過)
 - 快取與 Excel 在 `.gitignore`, **不上傳**; 上線只 commit `data/vcp.json`
+- 與 [strength-scan.yml](../.github/workflows/strength-scan.yml) 讀同一份快取但**獨立成兩支** workflow (故障隔離);
+  排程錯開 5 分鐘 (VCP 19:35 / 強勢股 19:40) 避免同時搶 Drive
+- 本機仍可手動跑: `python vcp_scanner.py [YYYYMMDD]` (預設出 Excel, 加 `--no-excel` 略過)
+- ⚠️ `is_individual_stock` (vcp_scanner 自有一份) 未排除 `00` 開頭 ETF — 與 lib/universe 版不同,
+  待統一 (strength 版已修, 見 §7.1)
 
 ---
 
@@ -437,9 +442,12 @@ _meta                pipeline 時間戳
 
 | Workflow | 排程 |
 |---|---|
-| `fetch-stocks.yml` | 每日抓 raw |
-| `parse-and-export.yml` | 每日合併 + 寫 JSON |
-| `margin-late.yml` | 延遲抓融資融券 |
+| `fetch-stocks.yml` | 每日 18:23 TPE 抓 raw → Drive |
+| `parse-and-export.yml` | 每日 18:47 TPE 合併 + 寫 all-data.json |
+| `margin-late.yml` | 19:30 TPE 延遲抓融資融券 |
+| `vcp-scan.yml` | 19:35 TPE VCP 選股 → data/vcp.json |
+| `strength-scan.yml` | 19:40 TPE 強勢股 → data/strength.json |
+| `pages-rebuild.yml` | 手動觸發 Pages 重建 (空 commit) |
 
 ### 11.4 環境變數 (`scripts/.env`)
 
