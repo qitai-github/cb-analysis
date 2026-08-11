@@ -15,6 +15,7 @@ const App = (() => {
   let auctionByCbCode = new Map();
   // 企業報告索引 (Drive 簡易報告 PNG + 完整報告 PDF) — code → {png_id, pdf_id, version, folder_name}
   let companyReportsByCode = {};
+  let companyReportOverview = null;   // 產業鏈總覽(無股號的置頂報告)
 
   function _buildAuctionByCbCode(twsa) {
     const m = new Map();
@@ -40,6 +41,7 @@ const App = (() => {
       rawCalendar = cached.data.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(cached.data.twsaAuction);
       companyReportsByCode = (cached.data.companyReports && cached.data.companyReports.stocks) || {};
+      companyReportOverview = (cached.data.companyReports && cached.data.companyReports.overview) || null;
       updateDateDisplay();
       showLoading(false);
       buildFilterPanel();
@@ -64,6 +66,7 @@ const App = (() => {
       rawCalendar = rawResults.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
       companyReportsByCode = (rawResults.companyReports && rawResults.companyReports.stocks) || {};
+      companyReportOverview = (rawResults.companyReports && rawResults.companyReports.overview) || null;
 
       // 顯示更新日期
       updateDateDisplay();
@@ -528,66 +531,8 @@ const App = (() => {
   // 點 📄 → 彈 modal,內嵌 PNG;header 有「下載完整報告 PDF」按鈕
   function openCompanyReportModal() {
     if (!selectedStock) return;
-    const code = selectedStock.code;
-    const info = companyReportsByCode[code];
-    const titleEl = document.getElementById('company-report-modal-title');
-    const bodyEl = document.getElementById('company-report-modal-body');
-    const pdfBtn = document.getElementById('company-report-pdf-btn');
-
-    titleEl.textContent = `${code} ${selectedStock.name} · 企業報告`;
-
-    if (!info) {
-      pdfBtn.style.display = 'none';
-      bodyEl.innerHTML = `
-        <div class="company-report-empty">
-          <p>📂 此標的尚未產出企業報告</p>
-          <p class="dim">Drive 企業報告/ 內找不到 <code>${code}</code> 對應的資料夾</p>
-        </div>`;
-      document.getElementById('company-report-modal').classList.add('show');
-      return;
-    }
-
-    // PDF 按鈕
-    if (info.pdf_id) {
-      pdfBtn.style.display = '';
-      pdfBtn.onclick = () => {
-        window.open(`https://drive.google.com/file/d/${info.pdf_id}/view`, '_blank', 'noopener');
-      };
-      pdfBtn.title = `${info.version} · ${info.folder_name}`;
-    } else {
-      pdfBtn.style.display = 'none';
-    }
-
-    // PNG embed
-    //   主要用 lh3.googleusercontent.com/d/{id}=w4000 (高解析,避免文字下採樣模糊)
-    //   onerror fallback 到 thumbnail 端點
-    //   點圖 → 開 Drive 原始大圖
-    if (info.png_id) {
-      const pngUrl = `https://lh3.googleusercontent.com/d/${info.png_id}=w4000`;
-      const pngFallback = `https://drive.google.com/thumbnail?id=${info.png_id}&sz=w4000`;
-      const pngLargeUrl = `https://drive.google.com/file/d/${info.png_id}/view`;
-      bodyEl.innerHTML = `
-        <a href="${pngLargeUrl}" target="_blank" rel="noopener" title="點擊在 Drive 開啟原圖">
-          <img src="${pngUrl}"
-               alt="${code} 簡易報告"
-               class="company-report-img"
-               referrerpolicy="no-referrer"
-               onerror="if (!this.dataset.fallback){this.dataset.fallback=1;this.src='${pngFallback}';}else{this.style.display='none';this.parentElement.nextElementSibling.style.display='block';}">
-        </a>
-        <div class="company-report-empty" style="display:none">
-          <p>⚠️ 圖片載入失敗</p>
-          <p class="dim">可能是 Drive 權限尚未開啟,
-            <a href="${pngLargeUrl}" target="_blank" rel="noopener">點此在 Drive 開啟</a></p>
-        </div>`;
-    } else {
-      bodyEl.innerHTML = `
-        <div class="company-report-empty">
-          <p>📄 此標的尚無簡易報告 PNG</p>
-          ${info.pdf_id ? '<p class="dim">可透過上方按鈕開啟 PDF</p>' : ''}
-        </div>`;
-    }
-
-    document.getElementById('company-report-modal').classList.add('show');
+    // 統一走 openReportModalFor(支援多版本切換)
+    openReportModalFor(selectedStock.code, selectedStock.name);
   }
 
   function closeCompanyReportModal(event) {
@@ -1800,6 +1745,7 @@ const App = (() => {
       rawCalendar = rawResults.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
       companyReportsByCode = (rawResults.companyReports && rawResults.companyReports.stocks) || {};
+      companyReportOverview = (rawResults.companyReports && rawResults.companyReports.overview) || null;
       etfLoaded = false; // 重新載入 ETF CB 交叉比對
       calendarLoaded = false;
       SheetsAPI.saveToStorage(rawResults);
@@ -1838,7 +1784,7 @@ const App = (() => {
     // 更新 tab 按鈕樣式
     // 用 optional chaining:某些 tab 只存在於本機版 index.html (未上線),
     // 缺按鈕時不能讓整個 switchTab 拋錯,否則所有分頁都切不動。
-    for (const t of ['cb', 'etf', 'vcp', 'strength', 'calendar']) {
+    for (const t of ['cb', 'etf', 'vcp', 'strength', 'calendar', 'reports']) {
       document.getElementById(`tab-${t}`)?.classList.toggle('active', tab === t);
     }
 
@@ -1856,7 +1802,87 @@ const App = (() => {
       await initStrengthView();
     } else if (tab === 'calendar') {
       initCalendarView();
+    } else if (tab === 'reports') {
+      initReportsView();
     }
+  }
+
+  function initReportsView() {
+    if (typeof ReportsView === 'undefined') return;
+    ReportsView.render('filter-panel', 'main-table', companyReportsByCode, {
+      onOpen: (code, name) => openReportModalFor(code, name),
+      stockName: (code) => (stockMap && stockMap[code] && stockMap[code].name) || null,
+      overview: companyReportOverview,
+      onOpenOverview: () => openReportModalFor('', (companyReportOverview && companyReportOverview.title) || '台股產業鏈交叉分析', companyReportOverview)
+    });
+    const statusEl = document.getElementById('header-status');
+    if (statusEl) {
+      const n = Object.keys(companyReportsByCode || {}).length;
+      statusEl.textContent = `報告清單 | ${n} 檔有企業報告`;
+      statusEl.style.color = '';
+    }
+  }
+
+  /** 由報告清單頁直接以 code+name 開啟企業報告 modal(不依賴 selectedStock),支援多版本切換 */
+  function openReportModalFor(code, name, infoArg) {
+    const info = infoArg || companyReportsByCode[code];
+    const titleEl = document.getElementById('company-report-modal-title');
+    if (titleEl) titleEl.textContent = `${(code ? code + ' ' : '')}${name || ''} · 企業報告`;
+    if (!info) {
+      const pdfBtn0 = document.getElementById('company-report-pdf-btn');
+      if (pdfBtn0) pdfBtn0.style.display = 'none';
+      const bodyEl0 = document.getElementById('company-report-modal-body');
+      if (bodyEl0) bodyEl0.innerHTML = `<div class="company-report-empty"><p>📂 此標的尚未產出企業報告</p><p class="dim">Drive 企業報告/ 內找不到 <code>${code}</code> 對應的資料夾</p></div>`;
+      document.getElementById('company-report-modal')?.classList.add('show');
+      return;
+    }
+    // 多版本(info.versions):由新到舊排序,預設顯示最新
+    const verMap = (info.versions && Object.keys(info.versions).length > 1) ? info.versions : null;
+    const verKeys = verMap ? Object.keys(verMap).sort((a, b) =>
+      (parseInt(b.replace(/\D/g, '')) || 0) - (parseInt(a.replace(/\D/g, '')) || 0)) : null;
+    _renderReportVersion(code, info, verMap, (verKeys ? verKeys[0] : info.version));
+    document.getElementById('company-report-modal')?.classList.add('show');
+  }
+
+  /** 渲染指定版本的報告(png + PDF 按鈕 + 版本切換列) */
+  function _renderReportVersion(code, info, verMap, ver) {
+    const bodyEl = document.getElementById('company-report-modal-body');
+    const pdfBtn = document.getElementById('company-report-pdf-btn');
+    // 該版本的 png/pdf:優先 verMap[ver],否則用 info 本身(latest)
+    const v = (verMap && verMap[ver]) || { png_id: info.png_id, pdf_id: info.pdf_id };
+    if (pdfBtn) {
+      if (v.pdf_id) {
+        pdfBtn.style.display = '';
+        pdfBtn.onclick = () => window.open(`https://drive.google.com/file/d/${v.pdf_id}/view`, '_blank', 'noopener');
+        pdfBtn.title = `${ver} · ${info.folder_name}`;
+      } else { pdfBtn.style.display = 'none'; }
+    }
+    if (!bodyEl) return;
+    // 版本切換列(多版本才顯示)
+    let verBar = '';
+    if (verMap) {
+      const keys = Object.keys(verMap).sort((a, b) => (parseInt(b.replace(/\D/g,''))||0) - (parseInt(a.replace(/\D/g,''))||0));
+      verBar = `<div class="crm-ver-bar">版本：${keys.map(k =>
+        `<button class="crm-ver-btn${k===ver?' on':''}" data-ver="${k}">${k}${k===keys[0]?'（最新）':''}</button>`).join('')}</div>`;
+    }
+    let imgHtml;
+    if (v.png_id) {
+      const pngUrl = `https://lh3.googleusercontent.com/d/${v.png_id}=w4000`;
+      const pngFallback = `https://drive.google.com/thumbnail?id=${v.png_id}&sz=w4000`;
+      const pngLargeUrl = `https://drive.google.com/file/d/${v.png_id}/view`;
+      imgHtml = `
+        <a href="${pngLargeUrl}" target="_blank" rel="noopener" title="點擊在 Drive 開啟原圖">
+          <img src="${pngUrl}" alt="${code} 簡易報告" class="company-report-img" referrerpolicy="no-referrer"
+               onerror="if(!this.dataset.fallback){this.dataset.fallback=1;this.src='${pngFallback}';}else{this.style.display='none';}">
+        </a>`;
+    } else {
+      imgHtml = `<div class="company-report-empty"><p>📄 此版本尚無簡易報告 PNG</p>${v.pdf_id ? '<p class="dim">可透過上方按鈕開啟 PDF</p>' : ''}</div>`;
+    }
+    bodyEl.innerHTML = verBar + imgHtml;
+    // 綁定版本切換
+    bodyEl.querySelectorAll('.crm-ver-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); _renderReportVersion(code, info, verMap, btn.dataset.ver); });
+    });
   }
 
   let vcpLoaded = false;

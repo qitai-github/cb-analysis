@@ -115,6 +115,7 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
     log(f"  ↳ 共 {len(companies)} 個子資料夾")
 
     stocks: dict[str, dict] = {}
+    overview: dict | None = None      # 產業鏈總覽(無股號的特殊報告)
     skipped_no_code = 0
     skipped_no_v = 0
     skipped_no_files = 0
@@ -123,9 +124,33 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
         folder_name = c["name"]
         m = CODE_RE.search(folder_name)
         if not m:
-            if verbose:
-                log(f"  [{i}/{len(companies)}] {folder_name} → 找不到股號,skip")
-            skipped_no_code += 1
+            # 特例:「_產業鏈總覽」無股號,取最新 V 的 png + _報告.pdf 當總覽卡片
+            if "產業鏈總覽" in folder_name:
+                sub = drive.list_children(c["id"], mime_filter=FOLDER_MIME)
+                lv = pick_latest_v(sub)
+                if lv:
+                    vf = drive.list_children(lv["id"])
+                    o_png = next((f["id"] for f in vf if f["name"].lower().endswith(".png")), None)
+                    o_pdf = next((f["id"] for f in vf if f["name"].endswith("_報告.pdf")), None)
+                    if o_png or o_pdf:
+                        overview = {"png_id": o_png, "pdf_id": o_pdf, "version": lv["name"],
+                                    "folder_name": folder_name, "title": "台股產業鏈交叉分析 2026H2"}
+                        ovmap = {}
+                        for vs_ in sub:
+                            if not V_RE.match(vs_["name"]):
+                                continue
+                            vf_ = vf if vs_["id"] == lv["id"] else drive.list_children(vs_["id"])
+                            vp = next((f["id"] for f in vf_ if f["name"].lower().endswith(".png")), None)
+                            vd = next((f["id"] for f in vf_ if f["name"].endswith("_報告.pdf")), None)
+                            if vp or vd:
+                                ovmap[vs_["name"]] = {"png_id": vp, "pdf_id": vd}
+                        if len(ovmap) > 1:
+                            overview["versions"] = ovmap
+                        log(f"  [{i}/{len(companies)}] {folder_name}/{lv['name']} → 產業鏈總覽 [{'png' if o_png else ''}{'+pdf' if o_pdf else ''}]")
+            else:
+                if verbose:
+                    log(f"  [{i}/{len(companies)}] {folder_name} → 找不到股號,skip")
+                skipped_no_code += 1
             continue
         code = m.group(1)
 
@@ -154,6 +179,18 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
             "version": latest_v["name"],
             "folder_name": folder_name,
         }
+        # 多版本:若有 >1 個 V 資料夾,收各版本 png/pdf 供 modal 切換
+        if len(sub) > 1:
+            vmap = {}
+            for vs_ in sub:
+                if not V_RE.match(vs_["name"]):
+                    continue
+                vf_ = v_files if vs_["id"] == latest_v["id"] else drive.list_children(vs_["id"])
+                vpng, vpdf = find_files(vf_, code)
+                if vpng or vpdf:
+                    vmap[vs_["name"]] = {"png_id": vpng, "pdf_id": vpdf}
+            if len(vmap) > 1:
+                stocks[code]["versions"] = vmap
         if verbose:
             tag = []
             if png_id:
@@ -162,6 +199,19 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
                 tag.append("pdf")
             log(f"  [{i}/{len(companies)}] {folder_name} → {code} "
                 f"({latest_v['name']}) [{'+'.join(tag)}]")
+
+    # 注入官方簡稱(給報告清單頁用):data/stock_names.json = {code: 簡稱}(由 TWSE/TPEx 日檔產)
+    try:
+        names_path = Path(__file__).resolve().parent.parent / "data" / "stock_names.json"
+        if names_path.exists():
+            names = json.loads(names_path.read_text(encoding="utf-8"))
+            n_named = 0
+            for code, info in stocks.items():
+                if code in names:
+                    info["name"] = names[code]; n_named += 1
+            log(f"注入簡稱: {n_named}/{len(stocks)} (data/stock_names.json)")
+    except Exception as e:
+        log(f"注入簡稱失敗(略過): {e}")
 
     tz_tw = timezone(timedelta(hours=8))
     out = {
@@ -176,6 +226,8 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
         },
         "stocks": stocks,
     }
+    if overview:
+        out["overview"] = overview
     return out
 
 

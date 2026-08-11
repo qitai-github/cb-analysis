@@ -2299,3 +2299,59 @@ input[type="number"] { -moz-appearance: textfield; }
 .str-chip.active { background: rgba(251,191,36,0.15); color: #fbbf24; border-color: #fbbf2466; }
 .str-chip.static { cursor: default; }
 .str-chip.static:hover { background: #0f172a; }
+
+/* ===== 報告清單頁 (ReportsView) ===== */
+.rv-panel { padding: 14px 12px; }
+.rv-sum { font-size: 15px; color: var(--text); font-weight: 600; }
+.rv-sum-n { font-size: 22px; color: var(--accent); font-weight: 800; margin-right: 4px; }
+.rv-sub { font-size: 12px; color: var(--text-muted); margin: 2px 0 12px; }
+.rv-search { width: 100%; padding: 8px 10px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text); font-size: 13px; margin-bottom: 12px; box-sizing: border-box; }
+.rv-search:focus { outline: none; border-color: var(--accent); }
+.rv-group-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 5px; }
+.rv-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.rv-chip { padding: 4px 12px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 999px; color: var(--text-muted); font-size: 12px; cursor: pointer; }
+.rv-chip:hover { background: var(--bg-hover); color: var(--text); }
+.rv-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.rv-hint { margin-top: 14px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+
+.rv-wrap { padding: 10px 14px; }
+.rv-count { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.rv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rv-table thead th { position: sticky; top: 0; background: var(--bg-card); color: var(--text-muted);
+  font-weight: 600; text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; z-index: 1; }
+.rv-row { cursor: pointer; border-bottom: 1px solid var(--border-light); }
+.rv-row:hover { background: var(--bg-hover); }
+.rv-table td { padding: 9px 12px; color: var(--text); }
+.rv-code { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+.rv-name { color: var(--text); }
+.rv-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px;
+  background: var(--bg-hover); color: var(--text-muted); }
+.rv-badge.v2 { background: #7c3aed22; color: #a78bfa; border: 1px solid #7c3aed55; }
+.rv-act { white-space: nowrap; }
+.rv-link { display: inline-block; padding: 2px 8px; margin-right: 4px; border-radius: var(--radius-sm);
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted); font-size: 12px; }
+.rv-row:hover .rv-link { color: var(--text); }
+.rv-empty { text-align: center; padding: 30px; color: var(--text-muted); }
+
+/* 報告清單頁 — 置頂總覽卡片 */
+.rv-featured { display: flex; align-items: center; gap: 14px; padding: 14px 18px; margin-bottom: 14px;
+  background: linear-gradient(135deg, #1e293b, #0f2544); border: 1px solid var(--accent);
+  border-radius: var(--radius); cursor: pointer; transition: background .15s, transform .1s; }
+.rv-featured:hover { background: linear-gradient(135deg, #24324a, #123056); transform: translateY(-1px); }
+.rv-feat-badge { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #fbbf24;
+  background: #78350f44; border: 1px solid #b45309; border-radius: 999px; padding: 3px 10px; }
+.rv-feat-main { flex: 1 1 auto; min-width: 0; }
+.rv-feat-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.rv-feat-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.rv-feat-cta { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--accent); }
+
+/* 企業報告 modal — 版本切換列 */
+.crm-ver-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin-bottom: 6px;
+  background: var(--bg-card); border-bottom: 1px solid var(--border-light); font-size: 12px; color: var(--text-muted);
+  position: sticky; top: 0; z-index: 2; }
+.crm-ver-btn { padding: 3px 12px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 999px; color: var(--text-muted); font-size: 12px; cursor: pointer; }
+.crm-ver-btn:hover { background: var(--bg-hover); color: var(--text); }
+.crm-ver-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
