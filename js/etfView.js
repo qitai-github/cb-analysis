@@ -18,7 +18,7 @@ const ETFView = (() => {
   async function loadData() {
     if (etfData) return etfData;
     try {
-      const resp = await fetch(ETF_STATIC_URL);
+      const resp = await fetch(`${ETF_STATIC_URL}?t=${Date.now()}`, { cache: 'no-store' });
       etfData = await resp.json();
       return etfData;
     } catch (err) {
