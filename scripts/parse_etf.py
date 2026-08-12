@@ -317,6 +317,9 @@ def compute_holding_changes(etfs, prev_etfs):
         prev_map = {}
         if prev and prev.get("holdings"):
             for h in prev["holdings"]:
+                # 跳過前一版已標記為 removed 的幽靈項目，否則會每天被重複判為刪除
+                if h.get("change") == "removed":
+                    continue
                 prev_map[h["code"]] = h
 
         summary = {"added": 0, "removed": 0, "increased": 0, "decreased": 0, "unchanged": 0}
