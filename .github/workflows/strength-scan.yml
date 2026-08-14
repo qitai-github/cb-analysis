@@ -16,9 +16,11 @@ name: Strength Scan (強勢股)
 #   形成「每日增量、持續保溫」的可演進快取。cache miss 時 build_universe.py
 #   會自動全量重建 (無狀態 fallback),不會壞。
 
+# [2026-08-14] 強勢股分頁暫時封存 → 停用每日排程,只保留手動觸發 (workflow_dispatch)。
+#   要恢復自動更新:把下面的 schedule 區塊取消註解即可。
 on:
-  schedule:
-    - cron: '40 11 * * 1-5'
+  # schedule:
+  #   - cron: '40 11 * * 1-5'
   workflow_dispatch:
     inputs:
       as_of:

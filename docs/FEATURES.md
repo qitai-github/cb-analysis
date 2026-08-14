@@ -31,7 +31,8 @@
 ## 1. 頂部導覽
 
 - **Logo + 標題**「CB 可轉債分析平台」
-- **5 個 tab**: `CB 分析` / `ETF 持股` / `VCP 選股` / `強勢股` / `CB 日曆`
+- **tab**: `CB 分析` / `ETF 持股` / `VCP 選股` / `CB 日曆` / `報告清單`
+  (`強勢股` 已於 2026-08-14 暫時封存, 見 §7)
 - **右上區**:
   - 資料日期 (從 stockTrading 末日推算)
   - 標的數狀態列
@@ -255,6 +256,11 @@ data/vcp.json  ──commit + push──▶ 觸發 GH Pages rebuild ──▶ �
 
 ## 7. 強勢股 (相對強度 RS) tab ([js/strengthView.js](../js/strengthView.js))
 
+> **[2026-08-14] 已暫時封存**:前端 tab 按鈕在 [index.html](../index.html) 被註解掉
+> (`tab-strength`),`strength-scan.yml` 的每日排程也停用 (只留 workflow_dispatch)。
+> 程式碼 (`strengthView.js` / `strength_scanner.py`) 與 `data/strength.json` 全部保留,
+> 復原 = 取消註解那一行 tab 按鈕 + workflow 的 schedule 區塊。以下說明為封存前狀態。
+
 全台股 (上市+上櫃 ~1985 檔**個股**, 排除 ETF/權證) 的強勢個股掃描。資料來源
 `data/strength.json` (由 `scripts/strength_scanner.py` 產生)。與 VCP 共用
 `scripts/build_universe.py` 的全市場快取與 `scripts/lib/universe.py` 讀取/前處理。
@@ -446,7 +452,7 @@ _meta                pipeline 時間戳
 | `parse-and-export.yml` | 每日 18:47 TPE 合併 + 寫 all-data.json |
 | `margin-late.yml` | 19:30 TPE 延遲抓融資融券 |
 | `vcp-scan.yml` | 19:35 TPE VCP 選股 → data/vcp.json |
-| `strength-scan.yml` | 19:40 TPE 強勢股 → data/strength.json |
+| `strength-scan.yml` | ~~19:40 TPE 強勢股 → data/strength.json~~ **已停用排程 (2026-08-14 封存)**, 只剩手動觸發 |
 | `pages-rebuild.yml` | 手動觸發 Pages 重建 (空 commit) |
 
 ### 11.4 環境變數 (`scripts/.env`)

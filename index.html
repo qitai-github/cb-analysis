@@ -20,7 +20,9 @@
       <button class="header-tab active" id="tab-cb" onclick="App.switchTab('cb')">CB 分析</button>
       <button class="header-tab" id="tab-etf" onclick="App.switchTab('etf')">ETF 持股</button>
       <button class="header-tab" id="tab-vcp" onclick="App.switchTab('vcp')">VCP 選股</button>
-      <button class="header-tab" id="tab-strength" onclick="App.switchTab('strength')">強勢股</button>
+      <!-- 強勢股分頁暫時封存 (2026-08-14):相關程式碼 js/strengthView.js / data/strength.json 皆保留,
+           要復原只需把下面這行取消註解 (switchTab 的 'strength' 分支仍在)。 -->
+      <!-- <button class="header-tab" id="tab-strength" onclick="App.switchTab('strength')">強勢股</button> -->
       <button class="header-tab" id="tab-calendar" onclick="App.switchTab('calendar')">CB 日曆</button>
       <button class="header-tab" id="tab-reports" onclick="App.switchTab('reports')">報告清單</button>
     </div>
