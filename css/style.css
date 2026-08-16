@@ -1517,6 +1517,171 @@ body {
   border-radius: 4px;
 }
 
+/* ============================================================
+   CB 開標統計表 Modal — 兩頁式版面 (js/auctionView.js)
+   ============================================================ */
+
+.auc-modal-content { max-width: 1040px; max-height: 92vh; }
+.auc-modal-body { padding: 14px; background: var(--bg); }
+
+/* 上方頁面切換 tab (置中於 header) */
+.auc-pagetabs {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 3px;
+}
+.auc-pagetab {
+  padding: 4px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.auc-pagetab:hover { color: var(--text); }
+.auc-pagetab.active { background: var(--accent); color: #fff; }
+
+/* --- 標題區 --- */
+.auc-head { padding: 2px 4px 12px; border-bottom: 2px solid var(--border-light); margin-bottom: 12px; }
+.auc-head-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.auc-head-code { font-size: 24px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+.auc-head-name { font-size: 22px; font-weight: 700; color: var(--text); }
+.auc-head-tag {
+  font-size: 12px; font-weight: 600; color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.5); background: rgba(245,158,11,0.1);
+  border-radius: 4px; padding: 2px 8px;
+}
+.auc-head-tag.is-blue { color: #60a5fa; border-color: rgba(96,165,250,0.5); background: rgba(96,165,250,0.1); }
+.auc-head-uw { font-size: 12px; color: var(--text-muted); }
+.auc-head-meta { margin-top: 5px; font-size: 12px; color: var(--text-muted); }
+
+/* --- 卡片 --- */
+.auc-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.auc-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.auc-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.auc-card-note { font-size: 11px; color: var(--text-dim); }
+.auc-empty { padding: 24px 8px; text-align: center; color: var(--text-dim); font-size: 12px; line-height: 1.7; }
+.auc-modal-body .sep { color: var(--text-dim); margin: 0 4px; }
+
+/* --- KPI --- */
+.auc-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 18px;
+}
+.auc-kpi { min-width: 0; }
+.auc-kpi-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.auc-kpi-value { font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.auc-kpi-value small { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 2px; }
+.auc-kpi-value.is-hot { color: #ef4444; }
+.auc-kpi-value.is-accent { color: #38bdf8; }
+.auc-kpi-value.is-gold { color: #f59e0b; }
+.auc-kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.auc-subline {
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px dashed var(--border-light);
+  font-size: 11.5px; color: var(--text-muted);
+}
+
+/* --- 價位分布圖 --- */
+.auc-legend { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text-muted); }
+.auc-legend .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--c); margin-right: 4px; vertical-align: middle;
+}
+.auc-legend .swatch {
+  display: inline-block; width: 14px; height: 9px; margin-right: 4px; vertical-align: middle;
+  background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.45); border-radius: 2px;
+}
+.auc-dist-hint { font-size: 11px; color: var(--text-dim); margin: -4px 0 2px; }
+.auc-dist-scroll { overflow-x: auto; }
+.auc-dist-svg { width: 100%; height: auto; display: block; }
+.auc-dist-note { font-size: 11px; color: #ef4444; text-align: right; margin-top: -6px; }
+.auc-dist-foot {
+  margin-top: 6px; padding-top: 8px;
+  border-top: 1px solid var(--border-light);
+  font-size: 12px; color: var(--text-muted);
+}
+.auc-dist-foot b { color: #f59e0b; }
+
+/* --- 關鍵足跡 + 法人足跡 兩欄 --- */
+.auc-two-col { display: grid; grid-template-columns: 1.85fr 1fr; gap: 12px; align-items: start; }
+.auc-two-col > .auc-card { margin-bottom: 12px; }
+
+.auc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.auc-table th {
+  font-weight: 500; color: var(--text-muted); text-align: right;
+  padding: 4px 6px; border-bottom: 1px solid var(--border-light); white-space: nowrap;
+}
+.auc-table td { padding: 4px 6px; text-align: right; color: var(--text); white-space: nowrap; }
+.auc-table tbody tr + tr td { border-top: 1px solid rgba(51,65,85,0.5); }
+.auc-table tr.is-max td { background: rgba(245,158,11,0.08); font-weight: 600; }
+.auc-mono { font-variant-numeric: tabular-nums; font-family: 'Consolas', 'Menlo', monospace; }
+.auc-share { color: #f59e0b; font-weight: 600; }
+.auc-dotcell { width: 16px; text-align: left !important; }
+.auc-dotcell .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+
+.auc-donut-wrap { display: flex; justify-content: center; }
+.auc-donut { width: 128px; height: 128px; }
+.auc-bar-block { margin-top: 12px; }
+.auc-bar-label { font-size: 11px; color: var(--text-muted); }
+.auc-bar-nums { font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.auc-bar-nums span { color: var(--text-dim); margin: 0 3px; }
+.auc-bar { height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+.auc-bar > span { display: block; height: 100%; border-radius: 3px; }
+.auc-bar-pct { font-size: 12px; font-weight: 700; text-align: right; margin-top: 2px; }
+
+.auc-footnote {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding-top: 8px; border-top: 2px solid var(--border-light);
+  font-size: 11px; color: var(--text-dim);
+}
+
+/* --- 第 2 頁:事件軸 --- */
+.auc-k-wrap { height: 380px; position: relative; }
+.auc-tl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px; }
+.auc-tl-item { display: flex; gap: 8px; align-items: flex-start; }
+.auc-tl-no {
+  flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%;
+  color: #0f172a; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.auc-tl-label { font-size: 12.5px; font-weight: 600; }
+.auc-tl-date { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+@media (max-width: 860px) {
+  .auc-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .auc-two-col { grid-template-columns: 1fr; }
+  .auc-tl-grid { grid-template-columns: 1fr; }
+  .auc-pagetabs { position: static; transform: none; order: 3; }
+  #auction-modal .auction-modal-header { flex-wrap: wrap; row-gap: 8px; }
+  #auction-modal .auction-modal-title { font-size: 13px; flex: 1 1 auto; }
+  .auc-head-code, .auc-head-name { font-size: 18px; }
+  .auc-kpi-value { font-size: 19px; }
+  .auc-k-wrap { height: 300px; }
+  /* 窄螢幕直接壓縮會讓棒棒糖圖只剩 100px 高 → 給最小寬度改成橫向捲動 */
+  .auc-dist-svg { min-width: 620px; }
+}
+
 /* === 技術分析 Modal === */
 .btn-tech-analysis {
   margin-left: 8px;

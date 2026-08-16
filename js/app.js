@@ -1654,56 +1654,44 @@ const App = (() => {
     }
     if (!a) return;
 
-    const pdf = a.pdf || {};
-    const info = pdf.info || {};
-    const priceRows = pdf.priceRows || [];
+    // 現股 — CB 尚未掛牌時 selectedStock 可能是 null,退回用 cbCode 前 4 碼查
+    const stockCode = String(cbCode).length >= 5
+      ? String(cbCode).substring(0, 4) : String(cbCode);
+    const stock = selectedStock || (stockMap ? stockMap.get(stockCode) : null);
 
-    document.getElementById('auction-modal-title').textContent =
-      `${cbCode} ${cbName} 開標統計表`;
-
-    const f = (label, val) => `<div class="info-item"><span class="info-label">${label}</span><span class="info-value">${val ?? '-'}</span></div>`;
-    // 投標期間 "YYYY/MM/DD~YYYY/MM/DD" 太長,在 ~ 後斷成 2 行
-    const fmtPeriod = (v) => {
-      if (!v) return v;
-      const m = String(v).match(/^(.+?~)(.+)$/);
-      return m ? `${m[1]}<br>${m[2]}` : String(v);
-    };
-
-    let html = '<div class="info-grid info-grid-sm">' +
-      f('發行公司', a['發行公司']) +
-      f('主辦承銷商', a['主辦承銷商']) +
-      f('發行性質', a['發行性質']) +
-      f('承銷股數', a['承銷股數']) +
-      f('競拍股數', a['競拍股數']) +
-      f('投標期間', fmtPeriod(a['投標期間'])) +
-      f('最低承銷價格', a['最低承銷價格']) +
-      f('競拍方式', info.auctionType) +
-      f('最低得標價', info.minWin) +
-      f('最高得標價', info.maxWin) +
-      f('平均得標價', info.avgWin) +
-      f('公開承銷價', info.pubOffer) +
-      f('開標日期', info.openDate) +
-      '</div>';
-
-    if (priceRows.length > 0) {
-      html += `<h4 style="margin-top:16px">得標明細</h4>
-        <div class="auction-table-wrap"><table class="inst-summary-table">
-          <thead><tr><th>序號</th><th>價格</th><th>股數(千股)</th><th>金額(千元)</th></tr></thead>
-          <tbody>`;
-      for (const row of priceRows) {
-        html += `<tr><td>${row[0] ?? '-'}</td><td>${row[1] ?? '-'}</td><td>${row[2] ?? '-'}</td><td>${row[3] ?? '-'}</td></tr>`;
+    // 轉換價:已掛牌 CB 用發行時原始價,還沒掛牌就找初級市場卡
+    let convPrice = null, tcri = null;
+    const cbObj = stock?.cbs?.find(c => String(c.cbCode) === String(cbCode));
+    if (cbObj) {
+      const v = Number(cbObj.issueConvPrice ?? cbObj.conversionPrice);
+      if (isFinite(v) && v > 0) convPrice = v;
+    }
+    for (const pm of (stock?.primaryMarket || [])) {
+      if (String(pm.cbCode) !== String(cbCode)) continue;
+      if (convPrice == null) {
+        const v = Number(pm.convPrice ?? pm.conversionPrice);
+        if (isFinite(v) && v > 0) convPrice = v;
       }
-      html += '</tbody></table></div>';
+      if (tcri == null && pm.tcriGuarantee) {
+        const m = String(pm.tcriGuarantee).match(/\d+/);
+        if (m) tcri = m[0];
+      }
     }
 
-    document.getElementById('auction-modal-body').innerHTML = html;
-    document.getElementById('auction-modal').classList.add('show');
+    const events = (rawCalendar?.events || [])
+      .filter(e => String(e.cbCode) === String(cbCode));
+
+    AuctionView.open({
+      cbCode: String(cbCode),
+      cbName,
+      auction: a,
+      stock: stock ? { code: stock.code, name: stock.name, ohlcv: stock.ohlcv || [] } : null,
+      convPrice, tcri, events
+    });
   }
 
   function closeAuctionModal(event) {
-    // 若是事件觸發：只有點擊背景遮罩 (#auction-modal 本身) 時才關閉
-    if (event && event.target && event.target.id !== 'auction-modal') return;
-    document.getElementById('auction-modal').classList.remove('show');
+    AuctionView.close(event);
   }
 
   function cc(v) { return v == null || v === 0 ? 'text-neutral' : v > 0 ? 'text-up' : 'text-down'; }

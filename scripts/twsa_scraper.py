@@ -165,6 +165,33 @@ KV_PATTERNS = [
 ]
 
 
+def _parse_stats_after(text: str, header_re: str, col_count: int) -> list[str]:
+    """抓某段表頭之後緊接著的第一列數字 (共 col_count 欄)。
+
+    開標 PDF 有兩張統計表,欄位都是純數字,pdfplumber 抽出來會變成
+    「表頭一行 + 數值一行」。作法: 先用表頭 regex 定位,再從其後的文字裡
+    連續取數字,並在遇到下一段標題 (說明 / 得標單價 / 有價證券名稱) 前停住,
+    避免把後面得標明細的數字吃進來。與 GAS 版 parseStatsAfter_ 同邏輯。
+    """
+    m = re.search(header_re, text)
+    if not m:
+        return []
+    rest = text[m.end():]
+    stop = len(rest)
+    for kw in ("說明", "得標單價", "有價證券名稱"):
+        i = rest.find(kw)
+        if i != -1:
+            stop = min(stop, i)
+    nums = re.findall(r"[\d,]+(?:\.\d+)?", rest[:stop])
+    return nums[:col_count]
+
+
+# 總表 5 欄: 合格投標筆數 / 合格投標數量(仟股) / 得標筆數 / 得標數量(仟股) / 得標總金額(仟元)
+TOTAL_STATS_RE = r"合格投標筆數[\s\S]*?得標總金額[^\n]*\n"
+# 法人表 6 欄: 合格投標筆數 / 合格投標數量 / 投標數量比率% / 得標筆數 / 得標數量 / 得標數量比率%
+LEGAL_STATS_RE = r"合格投標筆[\s\S]*?得標數量比[\s\S]*?率%[^\n]*\n"
+
+
 def parse_pdf_text(text: str) -> dict | None:
     m = re.search(r"([^\s(（]+)\s*[(（](\d{4,6})[)）]\s*([^\n]*)", text)
     if not m:
@@ -192,6 +219,8 @@ def parse_pdf_text(text: str) -> dict | None:
         "stockName": m.group(1).strip(),
         "secType": m.group(3).strip(),
         "info": info,
+        "totalStats": _parse_stats_after(text, TOTAL_STATS_RE, 5),
+        "legalStats": _parse_stats_after(text, LEGAL_STATS_RE, 6),
         "priceRows": price_rows,
     }
 

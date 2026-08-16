@@ -300,12 +300,18 @@
 
   <!-- CB 開標統計表 Modal -->
   <div class="auction-modal" id="auction-modal" onclick="App.closeAuctionModal(event)">
-    <div class="auction-modal-content" onclick="event.stopPropagation()">
+    <div class="auction-modal-content auc-modal-content" onclick="event.stopPropagation()">
       <div class="auction-modal-header">
         <div class="auction-modal-title" id="auction-modal-title"></div>
+        <div class="auc-pagetabs">
+          <button class="auc-pagetab active" id="auc-tab-summary"
+                  onclick="AuctionView.switchPage('summary')">開標全覽</button>
+          <button class="auc-pagetab" id="auc-tab-timeline"
+                  onclick="AuctionView.switchPage('timeline')">發行事件軸</button>
+        </div>
         <button class="detail-close" onclick="App.closeAuctionModal()">&times;</button>
       </div>
-      <div class="auction-modal-body" id="auction-modal-body"></div>
+      <div class="auction-modal-body auc-modal-body" id="auction-modal-body"></div>
     </div>
   </div>
 
@@ -398,6 +404,7 @@
   <script src="js/etfView.js"></script>
   <script src="js/vcpView.js"></script>
   <script src="js/strengthView.js"></script>
+  <script src="js/auctionView.js"></script>
   <script src="js/calendar.js"></script>
   <script src="js/reportsView.js"></script>
   <script src="js/app.js"></script>
