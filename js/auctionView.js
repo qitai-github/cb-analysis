@@ -399,41 +399,98 @@ const AuctionView = (() => {
 
   /* ---------- 第 2 頁:發行事件軸 ---------- */
 
-  /** 把 cbasCalendar 事件 + twsa 的投標期間/開標日合成一條時間軸 */
+  /** CB 從董事會到拆解的固定七段流程 — 不論有沒有資料都照這個順序排,
+   *  抓不到日期的那段留空位顯示「待補」,讓缺口看得出來而不是悄悄消失。
+   *
+   *  2 代收價款公告 / 3 競拍公告(轉換價公告) 目前三個來源 (CBAS 日曆、元大、
+   *  富邦初級卡) 都沒有欄位,先留 source:null。日後有資料只要在 fill() 裡
+   *  補上取值即可,版面與編號不用動。 */
+  const TIMELINE_SLOTS = [
+    { key: 'board', label: '董事會公告', color: '#94a3b8' },
+    { key: 'collection', label: '代收價款公告', color: '#a78bfa' },
+    { key: 'auctionNotice', label: '競拍公告(轉換價公告)', color: '#eab308' },
+    { key: 'auction', label: '競拍期間', color: '#38bdf8' },
+    { key: 'result', label: '競拍結果公告', color: '#f59e0b' },
+    { key: 'issue', label: 'CB 上市櫃日', color: '#2563eb' },
+    { key: 'aso', label: 'CB 拆解日', color: '#ea7c17' }
+  ];
+  // 七段以外的事件 (賣回/到期/強贖/重設/詢圈) 接在後面,依日期排
+  const EXTRA_TYPES = ['bookbuilding', 'resetConv', 'putback', 'maturity', 'forcedRedeem'];
+
   function buildTimeline() {
     const p = cur, info = cur.derived.info;
+    const evOf = (type) => (p.events || []).find(e => e.type === type);
+
+    const fill = {
+      board: () => {
+        const e = evOf('board');
+        return e ? { ymd: toYmd(e.date) } : null;
+      },
+      // 尚無資料來源 — 待補
+      collection: () => null,
+      auctionNotice: () => null,
+      auction: () => {
+        const e = evOf('auction');
+        if (e) {
+          const s = toYmd(e.date), t = toYmd(e.endDate);
+          return { ymd: s, endYmd: t, note: t ? `${mmdd(s)}–${mmdd(t)}` : '' };
+        }
+        // 日曆沒有就用 twsa 的「投標期間」
+        const period = p.auction?.['投標期間'];
+        if (!period) return null;
+        const parts = String(period).split('~');
+        const s = toYmd(parts[0]), t = toYmd(parts[parts.length - 1]);
+        return s ? { ymd: s, endYmd: t, note: t ? `${mmdd(s)}–${mmdd(t)}` : '' } : null;
+      },
+      result: () => {
+        const ymd = toYmd(info.openDate);
+        if (!ymd) return null;
+        const note = [
+          info.avgWin ? `均價 ${info.avgWin}` : null,
+          cur.derived.winLots != null ? `${fmtInt(cur.derived.winLots)} 張` : null,
+          p.convPrice ? `轉換價 ${p.convPrice}` : null
+        ].filter(Boolean).join('｜');
+        return { ymd, note };
+      },
+      issue: () => {
+        const e = evOf('issue');
+        return e ? { ymd: toYmd(e.date) } : null;
+      },
+      aso: () => {
+        const e = evOf('aso');
+        return e ? { ymd: toYmd(e.date) } : null;
+      }
+    };
+
     const out = [];
-    for (const e of (p.events || [])) {
-      const ymd = toYmd(e.date);
-      if (!ymd) continue;
+    for (const slot of TIMELINE_SLOTS) {
+      const got = fill[slot.key]();
       out.push({
-        ymd, endYmd: toYmd(e.endDate), type: e.type,
-        label: EVENT_LABEL[e.type] || e.type,
-        note: e.type === 'auction' && e.endDate
-          ? `${mmdd(ymd)}–${mmdd(toYmd(e.endDate))}` : ''
+        type: slot.key, label: slot.label, color: slot.color,
+        ymd: got?.ymd || null, endYmd: got?.endYmd || null, note: got?.note || ''
       });
     }
-    // twsa 投標期間 (日曆沒有 auction 事件時補上)
-    if (!out.some(e => e.type === 'auction') && p.auction?.['投標期間']) {
-      const parts = String(p.auction['投標期間']).split('~');
-      const s = toYmd(parts[0]), t = toYmd(parts[parts.length - 1]);
-      if (s) out.push({ ymd: s, endYmd: t, type: 'auction', label: '競拍期間', note: t ? `${mmdd(s)}–${mmdd(t)}` : '' });
-    }
-    // 開標結果
-    const openYmd = toYmd(info.openDate);
-    if (openYmd) {
-      out.push({
-        ymd: openYmd, type: 'result', label: '競拍結果公告',
-        note: `均價 ${info.avgWin || '-'}｜${fmtInt(cur.derived.winLots)} 張`
-      });
-    }
-    if (p.convPrice) {
-      const cv = out.find(e => e.type === 'result') || out[out.length - 1];
-      if (cv) cv.note += `｜轉換價 ${p.convPrice}`;
-    }
-    out.sort((a, b) => a.ymd.localeCompare(b.ymd));
-    out.forEach((e, i) => { e.no = i + 1; });
+
+    // 七段以外的既有事件 (多半是掛牌後的賣回/到期)
+    const extras = (p.events || [])
+      .filter(e => EXTRA_TYPES.includes(e.type) && toYmd(e.date))
+      .map(e => ({
+        type: e.type, label: EVENT_LABEL[e.type] || e.type,
+        color: EVENT_COLOR[e.type] || '#94a3b8',
+        ymd: toYmd(e.date), endYmd: toYmd(e.endDate), note: ''
+      }))
+      .sort((a, b) => a.ymd.localeCompare(b.ymd));
+    out.push(...extras);
+
+    // 只有拿到日期的才給編號 (K 線上的圓點也用這個號)
+    let n = 0;
+    for (const e of out) e.no = e.ymd ? ++n : null;
     return out;
+  }
+
+  /** 給 K 線用:只取有日期的事件,依日期排 */
+  function datedEvents() {
+    return cur.timeline.filter(e => e.ymd).sort((a, b) => a.ymd.localeCompare(b.ymd));
   }
 
   function renderTimeline() {
@@ -462,21 +519,35 @@ const AuctionView = (() => {
       html += `<div class="auc-card"><div class="auc-empty">查無對應現股的日 K 資料</div></div>`;
     }
 
+    const missing = tl.filter(e => !e.ymd).length;
     html += `<div class="auc-card">
       <div class="auc-card-head"><span class="auc-card-title">完整事件總覽</span>
-      <span class="auc-card-note">事件日以公告上架日為準</span></div>
+      <span class="auc-card-note">依 CB 發行流程排序,事件日以公告上架日為準</span></div>
       <div class="auc-tl-grid">`;
     for (const e of tl) {
-      const c = EVENT_COLOR[e.type] || '#94a3b8';
+      if (!e.ymd) {
+        html += `<div class="auc-tl-item is-empty">
+          <span class="auc-tl-no is-empty">–</span>
+          <div>
+            <div class="auc-tl-label">${esc(e.label)}</div>
+            <div class="auc-tl-date">尚無資料來源</div>
+          </div>
+        </div>`;
+        continue;
+      }
       html += `<div class="auc-tl-item">
-        <span class="auc-tl-no" style="background:${c}">${e.no}</span>
+        <span class="auc-tl-no" style="background:${e.color}">${e.no}</span>
         <div>
-          <div class="auc-tl-label" style="color:${c}">${esc(e.label)}</div>
+          <div class="auc-tl-label" style="color:${e.color}">${esc(e.label)}</div>
           <div class="auc-tl-date">${ymdSlash(e.ymd)}${e.note ? ' <span class="sep">|</span> ' + esc(e.note) : ''}</div>
         </div>
       </div>`;
     }
-    html += '</div></div>';
+    html += '</div>';
+    if (missing) {
+      html += `<div class="auc-tl-foot">灰色項目目前三個初級市場來源 (CBAS 日曆 / 元大 / 富邦) 都沒有對應欄位,補到資料後會自動帶入</div>`;
+    }
+    html += '</div>';
     return html;
   }
 
@@ -487,7 +558,8 @@ const AuctionView = (() => {
     if (chart) { chart.destroy(); chart = null; }
 
     const all = cur.stock.ohlcv;
-    const tl = cur.timeline;
+    const tl = datedEvents();
+    if (!all.length) return;
     // 視窗:第一個事件前 20 根 ~ 最後一個事件後 15 根 (不足就往回補到 60 根)
     const firstYmd = tl.length ? tl[0].ymd : null;
     let si = firstYmd ? all.findIndex(b => String(b.date) >= firstYmd) : -1;
@@ -519,7 +591,7 @@ const AuctionView = (() => {
     for (const e of tl) {
       let i = dates.findIndex(d => d >= e.ymd);
       if (i < 0) continue;
-      marks.push({ i, no: e.no, type: e.type, price: C[i] ?? O[i] });
+      marks.push({ i, no: e.no, color: e.color, price: C[i] ?? O[i] });
     }
     const auctionEv = tl.find(e => e.type === 'auction');
     const bandRange = auctionEv ? {
@@ -578,7 +650,7 @@ const AuctionView = (() => {
           const py = y.getPixelForValue(m.price) - 16;
           ctx.beginPath();
           ctx.arc(px, py, 8, 0, Math.PI * 2);
-          ctx.fillStyle = EVENT_COLOR[m.type] || '#94a3b8';
+          ctx.fillStyle = m.color || '#94a3b8';
           ctx.fill();
           ctx.fillStyle = '#0f172a'; ctx.font = 'bold 11px sans-serif';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

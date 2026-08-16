@@ -29,8 +29,10 @@ from __future__ import annotations
 
 import datetime as _dt
 import io
+import json
 import re
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 import requests
@@ -404,6 +406,54 @@ def _extract_stock4(stock_cell: Any, cb_code: str) -> str:
     return cb_code[:4] if len(cb_code) >= 4 else cb_code
 
 
+# ── 董事會公告日長期存檔 ────────────────────────────────────────────
+# 董事會公告日只出現在「董事會公告 / 近期生效」兩張分頁,案子一旦推進到
+# 「近期掛牌」就從表上消失,已發行CB資料.xlsx 也沒有這欄 → 等到開標、掛牌
+# 後回頭看,CBAS 已經查不到當初的董事會日了 (開標統計表的發行事件軸就少
+# 掉第一段)。這裡把每天看到的 board 事件累積存檔,之後永遠補得回來。
+BOARD_ARCHIVE = Path(__file__).resolve().parents[2] / "data" / "cb_board_dates.json"
+
+
+def _merge_board_archive(events: list[dict]) -> list[dict]:
+    """把今天看到的 board 事件併進存檔,再用存檔補回已經從 CBAS 消失的。"""
+    store: dict[str, dict] = {}
+    if BOARD_ARCHIVE.exists():
+        try:
+            store = json.loads(BOARD_ARCHIVE.read_text(encoding="utf-8"))
+        except Exception as e:  # noqa: BLE001
+            print(f"⚠️ 讀不到董事會存檔,這次重建: {e}", file=sys.stderr, flush=True)
+            store = {}
+
+    changed = False
+    for e in events:
+        if e.get("type") != "board":
+            continue
+        code = str(e.get("cbCode") or "")
+        if not code:
+            continue
+        prev = store.get(code)
+        # 同一檔可能公告多次 (改期/重送),保留最早那次才是「董事會決議發行」
+        if not prev or e["date"] < prev.get("date", "9999"):
+            store[code] = {"date": e["date"], "cbName": e.get("cbName", "")}
+            changed = True
+
+    have = {(str(e.get("cbCode")), e.get("type")) for e in events}
+    out = list(events)
+    for code, rec in store.items():
+        if (code, "board") in have:
+            continue
+        out.append({"date": rec["date"], "type": "board", "cbCode": code,
+                    "cbName": rec.get("cbName", ""), "source": "archive"})
+
+    if changed:
+        BOARD_ARCHIVE.parent.mkdir(parents=True, exist_ok=True)
+        BOARD_ARCHIVE.write_text(
+            json.dumps(store, ensure_ascii=False, indent=1, sort_keys=True),
+            encoding="utf-8",
+        )
+    return out
+
+
 def _dedup(events: list[dict]) -> list[dict]:
     """以 (cbCode,type,date) 去重,保留首見。"""
     seen: set = set()
@@ -511,7 +561,7 @@ def fetch_and_parse(folder_id: str = DEFAULT_FOLDER_ID) -> dict[str, Any]:
         source = "drive"
     issued_events, issued_info = parse_issued(issued_blob)
     planned_events, planned_primary = parse_planned(planned_blob)
-    events = issued_events + planned_events
+    events = _merge_board_archive(issued_events + planned_events)
     return {"reportDate": date_str, "events": _dedup(events),
             "issuedInfo": issued_info, "plannedPrimary": planned_primary,
             "source": source}

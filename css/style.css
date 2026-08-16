@@ -1667,6 +1667,18 @@ body {
 }
 .auc-tl-label { font-size: 12.5px; font-weight: 600; }
 .auc-tl-date { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+/* 沒有資料來源的流程節點 — 留位子但整格調暗 */
+.auc-tl-item.is-empty { opacity: 0.45; }
+.auc-tl-item.is-empty .auc-tl-label { color: var(--text-muted); font-weight: 500; }
+.auc-tl-no.is-empty {
+  background: transparent; color: var(--text-dim);
+  border: 1px dashed var(--border); font-weight: 400;
+}
+.auc-tl-foot {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px dashed var(--border-light);
+  font-size: 11px; color: var(--text-dim);
+}
 
 @media (max-width: 860px) {
   .auc-kpi-grid { grid-template-columns: repeat(2, 1fr); }
