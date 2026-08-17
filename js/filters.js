@@ -183,6 +183,12 @@ const Filters = (() => {
       group: 'CB篩選',
       apply: (stock, val) => !val || stock.hasPrimary
     },
+    cbFirstBarSignal: {
+      label: 'CB價格第一根表態',
+      type: 'checkbox',
+      group: 'CB篩選',
+      cbApply: (cb, val) => !val || cb.firstBarSignal === true
+    },
     cbPremiumMin: {
       label: 'CB溢價率% >=',
       type: 'number',
@@ -207,11 +213,29 @@ const Filters = (() => {
       group: 'CB篩選',
       cbApply: (cb, val) => !val || (cb.close != null && cb.close <= val)
     },
-    cbFirstBarSignal: {
-      label: 'CB價格第一根表態',
-      type: 'checkbox',
+    // 距離到期日 — 原本是「距到期日」下拉(30天以內/3年以上...),
+    // 改成使用者自填天數的上下限,可組出任意區間
+    cbMaturityDaysMin: {
+      label: '距離到期日(天) >=',
+      type: 'number',
+      placeholder: '天數...',
       group: 'CB篩選',
-      cbApply: (cb, val) => !val || cb.firstBarSignal === true
+      cbApply: (cb, val) => {
+        if (!val) return true;
+        if (!cb.maturityDate) return false;
+        return _daysUntil_(cb.maturityDate) >= Number(val);
+      }
+    },
+    cbMaturityDaysMax: {
+      label: '距離到期日(天) <=',
+      type: 'number',
+      placeholder: '天數...',
+      group: 'CB篩選',
+      cbApply: (cb, val) => {
+        if (!val) return true;
+        if (!cb.maturityDate) return false;
+        return _daysUntil_(cb.maturityDate) <= Number(val);
+      }
     },
     cbHighDaysMin: {
       label: 'CB價格創 N 日新高',
@@ -246,189 +270,9 @@ const Filters = (() => {
         if (!(avg > 0)) return false;
         return (v / avg) >= val;
       }
-    },
-
-    // 可轉債條件篩選
-    cbConvValueMin: {
-      label: '轉換價值',
-      type: 'range',
-      unitLabel: '元',
-      group: 'CB條件',
-      field: 'min',
-      cbApply: (cb, val, stock) => {
-        if (!val) return true;
-        const cv = _convValue_(cb, stock);
-        return cv != null && cv >= val;
-      }
-    },
-    cbConvValueMax: {
-      label: '轉換價值',
-      type: 'range',
-      unitLabel: '元',
-      group: 'CB條件',
-      field: 'max',
-      pairWith: 'cbConvValueMin',
-      cbApply: (cb, val, stock) => {
-        if (!val) return true;
-        const cv = _convValue_(cb, stock);
-        return cv != null && cv <= val;
-      }
-    },
-    cbOutstandingPct: {
-      label: '已轉換比例',
-      type: 'cb_select',
-      options: [
-        { label: '-- 不限 --', value: '' },
-        { label: '10%以下', value: '10' },
-        { label: '20%以下', value: '20' },
-        { label: '30%以下', value: '30' },
-        { label: '50%以下', value: '50' }
-      ],
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val) return true;
-        const pct = cb.outstandingPct;
-        if (pct == null) return false;
-        return (100 - pct) <= Number(val);
-      }
-    },
-    cbRecentIssue: {
-      label: '近期發行',
-      type: 'cb_select',
-      options: [
-        { label: '-- 不限 --', value: '' },
-        { label: '30天以內', value: '30' },
-        { label: '60天以內', value: '60' },
-        { label: '90天以內', value: '90' },
-        { label: '180天以內', value: '180' }
-      ],
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val) return true;
-        const d = cb.listDate || cb.issueDate;
-        if (!d) return false;
-        return _daysFromNow_(d) <= Number(val);
-      }
-    },
-    cbMaturityDays: {
-      label: '距到期日',
-      type: 'cb_select',
-      options: [
-        { label: '-- 不限 --', value: '' },
-        { label: '30天以內', value: '30' },
-        { label: '90天以內', value: '90' },
-        { label: '180天以內', value: '180' },
-        { label: '1年以內', value: '365' },
-        { label: '2年以內', value: '730' },
-        { label: '3年以上', value: '-1095' }
-      ],
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val) return true;
-        const d = cb.maturityDate;
-        if (!d) return false;
-        const days = _daysUntil_(d);
-        const n = Number(val);
-        if (n < 0) return days >= Math.abs(n);
-        return days <= n;
-      }
-    },
-    cbYtpMin: {
-      label: '提前賣回收益率',
-      type: 'cb_select',
-      options: [
-        { label: '-- 不限 --', value: '' },
-        { label: '大於 0%', value: '0' },
-        { label: '大於 1%', value: '1' },
-        { label: '大於 3%', value: '3' },
-        { label: '大於 5%', value: '5' }
-      ],
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val && val !== '0') return true;
-        const ytp = cb.ytp;
-        if (ytp == null) return false;
-        return (ytp * 100) >= Number(val);
-      }
-    },
-    cbYtmMin: {
-      label: '到期收益率',
-      type: 'cb_select',
-      options: [
-        { label: '-- 不限 --', value: '' },
-        { label: '大於 0%', value: '0' },
-        { label: '大於 1%', value: '1' },
-        { label: '大於 3%', value: '3' },
-        { label: '大於 5%', value: '5' }
-      ],
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val && val !== '0') return true;
-        const ytm = cb.ytm;
-        if (ytm == null) return false;
-        return (ytm * 100) >= Number(val);
-      }
-    },
-    cbConvStarted: {
-      label: '轉換開始日',
-      type: 'cb_select',
-      options: [
-        { label: '-- 不限 --', value: '' },
-        { label: '已可轉換', value: 'started' },
-        { label: '尚未可轉換', value: 'not_started' }
-      ],
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val) return true;
-        const period = cb.conversionPeriod;
-        if (!period) return false;
-        const start = period.split(/[~～]/)[0]?.trim();
-        if (!start) return false;
-        const startDate = _parseDate_(start);
-        if (!startDate) return false;
-        if (val === 'started') return startDate <= new Date();
-        return startDate > new Date();
-      }
-    },
-    cbGuarantee: {
-      label: '擔保情形',
-      type: 'cb_select',
-      options: [
-        { label: '-- 不限 --', value: '' },
-        { label: '有擔保', value: 'yes' },
-        { label: '無擔保', value: 'no' }
-      ],
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val) return true;
-        const g = cb.guarantee;
-        if (val === 'yes') return !!g && g !== '無' && g !== '無擔保' && g !== '-';
-        return !g || g === '無' || g === '無擔保' || g === '-';
-      }
-    },
-    cbExcludeConvStop: {
-      label: '排除暫停轉換',
-      type: 'checkbox',
-      group: 'CB條件',
-      cbApply: (cb, val) => {
-        if (!val) return true;
-        return !cb.conversionStop || cb.conversionStop.length === 0;
-      }
     }
   };
 
-  function _convValue_(cb, stock) {
-    const price = cb?.conversionPrice ?? stock?.conversionPrice;
-    const close = stock?.latestClose ?? cb?.stockRef?.latestClose;
-    if (!price || !close) return null;
-    return (100 / price) * close;
-  }
-
-  function _daysFromNow_(dateStr) {
-    const d = _parseDate_(dateStr);
-    if (!d) return Infinity;
-    return Math.abs(Math.floor((new Date() - d) / 86400000));
-  }
 
   function _daysUntil_(dateStr) {
     const d = _parseDate_(dateStr);
