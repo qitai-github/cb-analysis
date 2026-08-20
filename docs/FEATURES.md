@@ -445,8 +445,18 @@ A/B/C…)。抽不出期次的公告不收,因為掛不到特定一檔 CB。
 `parse_and_export.py` Phase 4.75 併進 `cbasCalendar.events` → 前端 `fill.collection`
 / `fill.auctionNotice` 直接 `evOf()` 讀。同 (cbCode, type) 只留最早那筆,重跑不重複。
 
-⚠️ 一樣是**往後累積**:OpenAPI 只給最近一個發言日,2026-08-20 之前的公告補不回來
-(MOPS 逐檔查詢也只回最近數則),舊 CB 那兩格仍會顯示「尚無資料來源」。
+⚠️ 是**往後累積**:OpenAPI 只給最近一個發言日,MOPS 逐檔查詢也只回最近數則
+→ 2026-08-20 之前的公告程式抓不回來。這段歷史改由人工彙整補:
+`scripts/import_cb_announcements.py` 讀 `CB重大訊息彙整.xlsx`(從 MOPS「歷史
+重大訊息」114/115 年度逐檔查出來的),把 board / auctionNotice / collection
+三欄寫進 `mops_news.json` 的 cbEvents(`src: "xlsx"`),之後每次 merge 都會沿用。
+2026-08-20 匯入 122 筆 → 併進日曆 118 筆,**連董事會決議日也一起補回來**
+(就是 §8.2.1 說 CBAS 掛牌後查不到的那一欄)。CB 代碼直接取表上的欄位,不從
+主旨反推期次 — 主旨常一次公告兩檔(「第二次暨第三次」),反推會錯。
+
+匯入後開標清單 55 檔 CB 的填充率:董事會 55/55、代收價款 54/55
+(4113 聯上六 MOPS 查無)、轉換價公告 13/55(多數公司沒單獨發重訊,只在公開
+說明書揭露)、上市櫃日 55/55、拆解日 55/55。
 
 ### 8.2.3 怎麼做到不漏抓
 
@@ -568,6 +578,7 @@ _meta                pipeline 時間戳
 | `scripts/twsa_scraper.py` | 競拍資料 |
 | `scripts/build_universe.py` | 全市場標的清單 |
 | `scripts/mops_news.py` | MOPS 重大訊息 → `data/mops_news.json` (含 CB 發行事件抽取) |
+| `scripts/import_cb_announcements.py` | 人工彙整的 `CB重大訊息彙整.xlsx` → cbEvents (補 2026-08 前的歷史) |
 
 ### 11.2 Backfill 工具
 
