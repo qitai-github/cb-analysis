@@ -5,9 +5,10 @@ name: MOPS 重大訊息
 # 週五晚上那班多做一次逐檔補漏,把整週漏掉的抓回來。
 on:
   schedule:
-    - cron: '0 6 * * 1-6'    # 14:00 Taipei
-    - cron: '0 10 * * 1-6'   # 18:00 Taipei
-    - cron: '0 15 * * 1-6'   # 23:00 Taipei
+    # 每天都跑 — 週末偶爾也有公告,而且快照漏一天就補不回來,多跑幾次很便宜
+    - cron: '0 6 * * *'    # 14:00 Taipei
+    - cron: '0 10 * * *'   # 18:00 Taipei
+    - cron: '0 15 * * *'   # 23:00 Taipei
   workflow_dispatch:
     inputs:
       catchup:
