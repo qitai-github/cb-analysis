@@ -303,6 +303,13 @@
     <div class="auction-modal-content auc-modal-content" onclick="event.stopPropagation()">
       <div class="auction-modal-header">
         <div class="auction-modal-title" id="auction-modal-title"></div>
+        <div class="auc-nav">
+          <button class="auc-nav-btn" id="auc-nav-prev" title="上一檔 (←)"
+                  onclick="App.stepAuction(-1)">&#9664;</button>
+          <span class="auc-nav-pos" id="auc-nav-pos">–</span>
+          <button class="auc-nav-btn" id="auc-nav-next" title="下一檔 (→)"
+                  onclick="App.stepAuction(1)">&#9654;</button>
+        </div>
         <div class="auc-pagetabs">
           <button class="auc-pagetab active" id="auc-tab-summary"
                   onclick="AuctionView.switchPage('summary')">開標全覽</button>

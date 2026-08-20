@@ -13,6 +13,7 @@ const App = (() => {
   // 為了讓「CB 已開標但還沒掛牌」的檔(例: 47491 掛牌前)也能顯示開標資訊,
   // 不依賴 stock.cbs 是否已建立 → 直接以 cbCode 為 key 的全域 map 查詢。
   let auctionByCbCode = new Map();
+  let curAuctionCode = null;   // 開標統計表 modal 目前顯示的 CB (左右鍵切換用)
   // 企業報告索引 (Drive 簡易報告 PNG + 完整報告 PDF) — code → {png_id, pdf_id, version, folder_name}
   let companyReportsByCode = {};
   let companyReportOverview = null;   // 產業鏈總覽(無股號的置頂報告)
@@ -1657,7 +1658,7 @@ const App = (() => {
     return html;
   }
 
-  function showAuctionModal(cbCode) {
+  function showAuctionModal(cbCode, opts = {}) {
     // 一般情境:selectedStock.cbs 有對應 cb → 直接用 cb.auction (含 cbName)
     // 例外情境:CB 已開標但尚未掛牌 (例: 47491 → 還沒進 stock.cbs),
     //          fallback 到全域 auctionByCbCode,顯示用 pdf.stockName。
@@ -1672,10 +1673,11 @@ const App = (() => {
     }
     if (!a) return;
 
-    // 現股 — CB 尚未掛牌時 selectedStock 可能是 null,退回用 cbCode 前 4 碼查
+    // 現股 — 一律用 cbCode 前 4 碼查,不能用 selectedStock 當主要來源:
+    // 左右鍵切到別檔 CB 時 selectedStock 還停在原本那檔,會把別人的 K 線畫上去。
     const stockCode = String(cbCode).length >= 5
       ? String(cbCode).substring(0, 4) : String(cbCode);
-    const stock = selectedStock || (stockMap ? stockMap.get(stockCode) : null);
+    const stock = (stockMap ? stockMap.get(stockCode) : null) || null;
 
     // 轉換價:已掛牌 CB 用發行時原始價,還沒掛牌就找初級市場卡
     let convPrice = null, tcri = null;
@@ -1699,17 +1701,58 @@ const App = (() => {
     const events = (rawCalendar?.events || [])
       .filter(e => String(e.cbCode) === String(cbCode));
 
+    curAuctionCode = String(cbCode);
+    syncAuctionNav();
     AuctionView.open({
       cbCode: String(cbCode),
       cbName,
       auction: a,
       stock: stock ? { code: stock.code, name: stock.name, ohlcv: stock.ohlcv || [] } : null,
       convPrice, tcri, events
-    });
+    }, { keepPage: !!opts.keepPage });
   }
 
   function closeAuctionModal(event) {
     AuctionView.close(event);
+    curAuctionCode = null;
+  }
+
+  /* ── 開標統計表:上一檔 / 下一檔 ─────────────────────────────────
+   * 順序直接沿用 twsa.json 的排列 (序號 115001, 115002 … = 依開標先後),
+   * 所以左右鍵是照「今年第幾檔競拍」在翻,跟你從哪個畫面點進來無關。 */
+  function auctionCodes() {
+    return [...auctionByCbCode.keys()];
+  }
+
+  function stepAuction(delta) {
+    const list = auctionCodes();
+    if (!list.length || !curAuctionCode) return;
+    const i = list.indexOf(String(curAuctionCode));
+    if (i < 0) return;
+    const next = list[i + delta];
+    if (!next) return;              // 頭尾不繞回去,免得不知道自己翻到哪
+    showAuctionModal(next, { keepPage: true });
+  }
+
+  function syncAuctionNav() {
+    const list = auctionCodes();
+    const i = list.indexOf(String(curAuctionCode));
+    const pos = document.getElementById('auc-nav-pos');
+    const prev = document.getElementById('auc-nav-prev');
+    const next = document.getElementById('auc-nav-next');
+    if (pos) pos.textContent = i < 0 ? '–' : `${i + 1} / ${list.length}`;
+    if (prev) prev.disabled = i <= 0;
+    if (next) next.disabled = i < 0 || i >= list.length - 1;
+  }
+
+  function onAuctionKey(e) {
+    if (!curAuctionCode) return;
+    if (!document.getElementById('auction-modal')?.classList.contains('show')) return;
+    // 使用者正在輸入框裡打字時不要搶方向鍵
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); stepAuction(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); stepAuction(1); }
   }
 
   function cc(v) { return v == null || v === 0 ? 'text-neutral' : v > 0 ? 'text-up' : 'text-down'; }
@@ -2031,7 +2074,7 @@ const App = (() => {
 
   return {
     init, closeDetail, getSelectedStock, refreshData, toggleMobileFilter,
-    showAuctionModal, closeAuctionModal,
+    showAuctionModal, closeAuctionModal, stepAuction, onAuctionKey,
     openTechModal, closeTechModal,
     openCBTechModal, closeCBTechModal, openCBTechFromStock, openTechFromCB,
     switchTab, showDetail,
@@ -2041,3 +2084,5 @@ const App = (() => {
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);
+// 開標統計表開著時,← → 切換上一檔 / 下一檔
+document.addEventListener('keydown', App.onAuctionKey);

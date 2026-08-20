@@ -1506,6 +1506,37 @@ body {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
+/* --- 開標統計表:上一檔 / 下一檔 --- */
+.auc-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* .auc-pagetabs 是絕對定位置中的 → 這排按鈕靠右貼著關閉鈕,才不會被蓋住 */
+  margin-left: auto;
+  margin-right: 10px;
+}
+.auc-nav-btn {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 10px;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.auc-nav-btn:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #fff; }
+.auc-nav-btn:disabled { opacity: .35; cursor: default; }
+.auc-nav-pos {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 46px;
+  text-align: center;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
 .auction-modal-header {
   display: flex;
   align-items: center;

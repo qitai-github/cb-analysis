@@ -749,11 +749,13 @@ const AuctionView = (() => {
 
   /* ---------- 對外 ---------- */
 
-  function open(payload) {
+  /** opts.keepPage:左右鍵切換下一檔時沿用目前分頁 —— 在事件軸一檔一檔翻的時候
+   *  被彈回「開標全覽」很煩。一般開啟 (從卡片點進來) 仍然從第 1 頁開始。 */
+  function open(payload, opts = {}) {
     cur = payload;
     cur.derived = derive(payload);
     cur.timeline = buildTimeline();
-    page = 'summary';
+    if (!opts.keepPage) page = 'summary';
     kZoom = 1;                 // 換一檔就回到依事件自動算的範圍
     document.getElementById('auction-modal-title').textContent =
       `${payload.cbCode} ${payload.cbName || ''} 開標統計表`;
