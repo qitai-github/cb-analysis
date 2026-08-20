@@ -469,7 +469,10 @@ const AuctionView = (() => {
       },
       aso: () => {
         const e = evOf('aso');
-        return e ? { ymd: toYmd(e.date) } : null;
+        if (!e) return null;
+        // source==='derived' 是 pipeline 用上市櫃日推的 (第 6 個交易日),
+        // 不是公告值 → 標出來,免得跟 CBAS 給的真實日期混在一起看。
+        return { ymd: toYmd(e.date), note: e.source === 'derived' ? '推估 (上市櫃日起第 6 個交易日)' : '' };
       }
     };
 

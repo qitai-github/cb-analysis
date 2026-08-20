@@ -518,6 +518,55 @@ def fetch_cbas_calendar(trade_date: str, all_data: dict, *,
         return {"status": "fail", "error": str(e)}
 
 
+# ── Phase 4.76: 缺漏的 CB 拆解日用上市櫃日推算 ─────────────────────────
+def derive_missing_aso(all_data: dict) -> dict:
+    """CBAS 的拆解日只出現在「預計發行 · 近期掛牌」那張表,案子一掛牌就從表上
+    消失 → 掛牌一段時間的 CB 全都沒有 aso 事件(開標清單 55 檔裡 45 檔缺)。
+
+    慣例是**上市櫃日當天算第 1 個交易日,第 6 個交易日拆解**(以 31494 正達四
+    驗證:上市 2026/08/31 → 拆解 2026/09/07,中間 09/01~09/04 共 4 個交易日)。
+    現有 4 組 issue+aso 都吻合這條規則。
+
+    交易日以 stockTrading 的日期表頭為準(= 實際有成交的市場交易日)。推不到
+    第 6 個交易日的(上市日太新、或早於交易日表起點)就不補,寧可留白。
+    補出來的事件標 source="derived",前端顯示時會標「推估」。"""
+    dates = sorted({str(d) for d in (all_data.get("stockTrading") or [[]])[0][3:]})
+    if len(dates) < 6:
+        log("  - 交易日表不足,跳過")
+        return {"status": "skip"}
+    iso = [f"{d[:4]}-{d[4:6]}-{d[6:]}" for d in dates]
+
+    cal = all_data.setdefault("cbasCalendar", {})
+    events = cal.setdefault("events", [])
+    issue: dict[str, dict] = {}
+    have_aso = set()
+    for e in events:
+        code = str(e.get("cbCode") or "")
+        if not code:
+            continue
+        if e.get("type") == "aso":
+            have_aso.add(code)
+        elif e.get("type") == "issue" and code not in issue:
+            issue[code] = e
+
+    import bisect
+    added = 0
+    for code, ev in issue.items():
+        if code in have_aso:
+            continue
+        d = str(ev.get("date") or "")
+        if not d or d < iso[0]:
+            continue                      # 交易日表涵蓋不到,推不了
+        i = bisect.bisect_left(iso, d)     # 上市日當天;不是交易日就取之後第一天
+        if i + 5 >= len(iso):
+            continue                      # 第 6 個交易日還沒到
+        events.append({"date": iso[i + 5], "type": "aso", "cbCode": code,
+                       "cbName": ev.get("cbName") or "", "source": "derived"})
+        added += 1
+    log(f"  ✓ 缺拆解日 {len(issue) - len(have_aso & set(issue)):,} 檔 → 推算補上 {added:,} 筆")
+    return {"status": "ok", "added": added}
+
+
 # ── Phase 4.75: MOPS 重大訊息抽出的 CB 事件併入日曆 ────────────────────
 def merge_mops_cb_events(all_data: dict) -> dict:
     """把 data/mops_news.json 的 cbEvents (代收價款公告 / 轉換價公告) 併進
@@ -725,6 +774,10 @@ def main(argv=None) -> int:
         # Phase 4.75: MOPS 重大訊息的 CB 事件 (代收價款 / 轉換價公告) → 事件軸
         log("[Phase 4.75] 併入 MOPS CB 事件")
         summary["mops_cb_events"] = merge_mops_cb_events(all_data)
+
+        # Phase 4.76: 沒有拆解日的 CB → 用上市櫃日推算 (第 6 個交易日)
+        log("[Phase 4.76] 推算缺漏的 CB 拆解日")
+        summary["derived_aso"] = derive_missing_aso(all_data)
 
         # Phase 4.8: 把當日白名單聯集寫到 Google Sheet (留歷史軌跡)
         if args.skip_sheet:
