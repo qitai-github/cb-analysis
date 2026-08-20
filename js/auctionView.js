@@ -16,6 +16,8 @@ const AuctionView = (() => {
   let cur = null;          // 目前這檔的 payload + 衍生統計
   let page = 'summary';    // 'summary' | 'timeline'
   let chart = null;        // 第 2 頁的 Chart.js 實例
+  let kZoom = 1;           // K 線視窗縮放倍率 (滑鼠滾輪,1 = 依事件自動算出的範圍)
+  let kWheelPending = null;
 
   // 事件型別 → 顯示名稱 (對齊 calendar.js 的 EVENT_TYPES)
   const EVENT_LABEL = {
@@ -520,7 +522,8 @@ const AuctionView = (() => {
       html += `<div class="auc-card auc-kchart">
         <div class="auc-card-head">
           <span class="auc-card-title">現股走勢 ${esc(p.stock.code || '')} ${esc(p.stock.name || '')}</span>
-          <span class="auc-card-note">K 棒上圓點對應下方事件編號</span>
+          <span class="auc-k-days" id="auction-k-days" title="滑鼠滾輪可調整時間範圍">–</span>
+          <span class="auc-card-note">K 棒上圓點對應下方事件編號 · 滾輪縮放</span>
         </div>
         <div class="auc-k-wrap"><canvas id="auction-k-chart"></canvas></div>
       </div>`;
@@ -560,6 +563,30 @@ const AuctionView = (() => {
     return html;
   }
 
+  /** K 線區的滑鼠滾輪縮放 — 跟個股技術分析同樣的手感:
+   *  往上滾 = 縮短時間 (zoom in)、往下滾 = 拉長時間 (看更早歷史)。
+   *  只攔 K 線容器上的滾輪,面板其他地方照常捲動。
+   *  容器每次 paint 都會重畫,所以用 dataset 旗標避免重複綁。 */
+  function bindKWheel(baseSpan, total) {
+    const wrap = document.querySelector('.auc-k-wrap');
+    if (!wrap || wrap.dataset.wheelBound === '1') return;
+    wrap.dataset.wheelBound = '1';
+    wrap.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const next = kZoom * (e.deltaY > 0 ? 1.15 : 1 / 1.15);
+      // 下限 20 根、上限吃滿整段歷史,換算成倍率再夾住
+      const lo = 20 / baseSpan, hi = Math.max(1, total / baseSpan);
+      const clamped = Math.max(lo, Math.min(hi, next));
+      if (Math.abs(clamped - kZoom) < 1e-6) return;
+      kZoom = clamped;
+      if (kWheelPending) cancelAnimationFrame(kWheelPending);
+      kWheelPending = requestAnimationFrame(() => {
+        kWheelPending = null;
+        renderKChart();
+      });
+    }, { passive: false });
+  }
+
   /** 現股日 K + 轉換價線 + 競拍期間色塊 + 事件編號圓點 */
   function renderKChart() {
     const canvas = document.getElementById('auction-k-chart');
@@ -582,8 +609,17 @@ const AuctionView = (() => {
     ei = ei < 0 ? all.length : Math.min(all.length, ei + 25);
     // 事件都擠在近期時視窗會太短、K 棒被拉得很胖 → 至少湊到 50 根
     if (ei - si < 50) si = Math.max(0, ei - 50);
+    // 滾輪縮放:以上面算出來的「事件視窗」當基準倍率 1,往左邊擴/縮;
+    // 左邊到頂了還要放大就往右邊吃 (賣回/到期日那個方向)。
+    const baseSpan = Math.max(ei - si, 20);
+    const span = Math.max(20, Math.min(all.length, Math.round(baseSpan * kZoom)));
+    si = Math.max(0, ei - span);
+    if (ei - si < span) ei = Math.min(all.length, si + span);
     const bars = all.slice(si, Math.max(ei, si + 20));
     if (!bars.length) return;
+    const daysBadge = document.getElementById('auction-k-days');
+    if (daysBadge) daysBadge.textContent = `${bars.length} 根`;
+    bindKWheel(baseSpan, all.length);
 
     const dates = bars.map(b => String(b.date));
     const labels = dates.map(d => d.slice(4, 6) + '/' + d.slice(6, 8));
@@ -595,16 +631,21 @@ const AuctionView = (() => {
     const pad = (Math.max(...prices) - Math.min(...prices)) * 0.08 || 1;
     const yMin = Math.min(...prices) - pad, yMax = Math.max(...prices) + pad;
 
-    // 事件 → 落在哪一根 K 棒 (取當天或之後第一根有交易的)
+    // 事件 → 落在哪一根 K 棒 (取當天或之後第一根有交易的)。
+    // 早於視窗左界的事件要整個丟掉 — findIndex 會回 0,不擋的話董事會公告
+    // 那種半年前的事件會被畫在第一根 K 棒上,縮放後看起來像發生在窗內。
     const marks = [];
     for (const e of tl) {
-      let i = dates.findIndex(d => d >= e.ymd);
+      if (e.ymd < dates[0]) continue;
+      const i = dates.findIndex(d => d >= e.ymd);
       if (i < 0) continue;
       marks.push({ i, no: e.no, color: e.color, price: C[i] ?? O[i] });
     }
     const auctionEv = tl.find(e => e.type === 'auction');
-    const bandRange = auctionEv ? {
-      from: dates.findIndex(d => d >= auctionEv.ymd),
+    // 競拍色塊整段都在視窗左邊就不畫;只有起點在左邊界外則貼齊左緣 (from=0)
+    const bandEnd = auctionEv ? (auctionEv.endYmd || auctionEv.ymd) : null;
+    const bandRange = (auctionEv && bandEnd >= dates[0]) ? {
+      from: Math.max(0, dates.findIndex(d => d >= auctionEv.ymd)),
       to: auctionEv.endYmd ? dates.findIndex(d => d >= auctionEv.endYmd) : -1
     } : null;
 
@@ -713,6 +754,7 @@ const AuctionView = (() => {
     cur.derived = derive(payload);
     cur.timeline = buildTimeline();
     page = 'summary';
+    kZoom = 1;                 // 換一檔就回到依事件自動算的範圍
     document.getElementById('auction-modal-title').textContent =
       `${payload.cbCode} ${payload.cbName || ''} 開標統計表`;
     document.getElementById('auction-modal').classList.add('show');

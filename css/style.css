@@ -1630,6 +1630,20 @@ body {
 }
 .auc-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
 .auc-card-note { font-size: 11px; color: var(--text-dim); }
+/* K 線根數徽章 — 緊貼標題,margin-right:auto 把右邊的說明推回最右 */
+.auc-k-days {
+  margin-right: auto;
+  padding: 2px 8px;
+  background: rgba(59,130,246,0.15);
+  border: 1px solid rgba(59,130,246,0.5);
+  border-radius: 12px;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: help;
+  user-select: none;
+  white-space: nowrap;
+}
 .auc-empty { padding: 24px 8px; text-align: center; color: var(--text-dim); font-size: 12px; line-height: 1.7; }
 .auc-modal-body .sep { color: var(--text-dim); margin: 0 4px; }
 
