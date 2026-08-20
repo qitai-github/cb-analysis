@@ -17,7 +17,9 @@ const AuctionView = (() => {
   let page = 'summary';    // 'summary' | 'timeline'
   let chart = null;        // 第 2 頁的 Chart.js 實例
   let kZoom = 1;           // K 線視窗縮放倍率 (滑鼠滾輪,1 = 依事件自動算出的範圍)
+  let kPan = 0;            // K 線視窗左右平移量,單位「根」(負 = 往更早的時間看)
   let kWheelPending = null;
+  let kBarWidth = 8;       // 上次繪製時一根 K 棒的像素寬 — 拖曳換算用
 
   // 事件型別 → 顯示名稱 (對齊 calendar.js 的 EVENT_TYPES)
   const EVENT_LABEL = {
@@ -526,7 +528,7 @@ const AuctionView = (() => {
         <div class="auc-card-head">
           <span class="auc-card-title">現股走勢 ${esc(p.stock.code || '')} ${esc(p.stock.name || '')}</span>
           <span class="auc-k-days" id="auction-k-days" title="滑鼠滾輪可調整時間範圍">–</span>
-          <span class="auc-card-note">K 棒上圓點對應下方事件編號 · 滾輪縮放</span>
+          <span class="auc-card-note">K 棒上圓點對應下方事件編號 · 滾輪縮放 · 拖曳平移</span>
         </div>
         <div class="auc-k-wrap"><canvas id="auction-k-chart"></canvas></div>
       </div>`;
@@ -566,28 +568,70 @@ const AuctionView = (() => {
     return html;
   }
 
-  /** K 線區的滑鼠滾輪縮放 — 跟個股技術分析同樣的手感:
-   *  往上滾 = 縮短時間 (zoom in)、往下滾 = 拉長時間 (看更早歷史)。
-   *  只攔 K 線容器上的滾輪,面板其他地方照常捲動。
-   *  容器每次 paint 都會重畫,所以用 dataset 旗標避免重複綁。 */
-  function bindKWheel(baseSpan, total) {
+  /** K 線區的互動:滾輪縮放 + 拖曳平移 —— 跟個股技術分析同樣的手感。
+   *
+   *  滾輪  : 往上滾 = 縮短時間 (zoom in)、往下滾 = 拉長時間 (看更早歷史)
+   *  拖曳  : 按住往右拖 = 視窗往左移 (看更早),往左拖 = 往後看
+   *  Shift+滾輪 : 也是平移,給不想按住拖的人
+   *
+   *  只攔 K 線容器上的事件,面板其他地方照常捲動。容器每次 paint 都會重畫,
+   *  所以用 dataset 旗標避免重複綁。 */
+  function bindKInteractions(baseSpan, total) {
     const wrap = document.querySelector('.auc-k-wrap');
-    if (!wrap || wrap.dataset.wheelBound === '1') return;
-    wrap.dataset.wheelBound = '1';
+    if (!wrap || wrap.dataset.kBound === '1') return;
+    wrap.dataset.kBound = '1';
+
+    const redraw = () => {
+      if (kWheelPending) cancelAnimationFrame(kWheelPending);
+      kWheelPending = requestAnimationFrame(() => {
+        kWheelPending = null;
+        renderKChart();
+      });
+    };
+
     wrap.addEventListener('wheel', (e) => {
       e.preventDefault();
+      if (e.shiftKey) {                      // Shift+滾輪 → 平移
+        kPan += e.deltaY > 0 ? 3 : -3;
+        redraw();
+        return;
+      }
       const next = kZoom * (e.deltaY > 0 ? 1.15 : 1 / 1.15);
       // 下限 20 根、上限吃滿整段歷史,換算成倍率再夾住
       const lo = 20 / baseSpan, hi = Math.max(1, total / baseSpan);
       const clamped = Math.max(lo, Math.min(hi, next));
       if (Math.abs(clamped - kZoom) < 1e-6) return;
       kZoom = clamped;
-      if (kWheelPending) cancelAnimationFrame(kWheelPending);
-      kWheelPending = requestAnimationFrame(() => {
-        kWheelPending = null;
-        renderKChart();
-      });
+      redraw();
     }, { passive: false });
+
+    // 拖曳平移 — 用 pointer events,滑鼠/觸控板/觸控都吃得到。
+    // 拖曳期間 setPointerCapture,滑出圖表外也不會斷。
+    let dragging = false, startX = 0, startPan = 0;
+    wrap.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      dragging = true;
+      startX = e.clientX;
+      startPan = kPan;
+      wrap.classList.add('is-dragging');
+      wrap.setPointerCapture(e.pointerId);
+    });
+    wrap.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      // 往右拖 (dx>0) = 內容跟著手走 = 視窗往更早的時間退
+      const shift = Math.round((startX - e.clientX) / kBarWidth);
+      if (shift === kPan - startPan) return;   // 還沒跨過一根,不用重畫
+      kPan = startPan + shift;
+      redraw();
+    });
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      wrap.classList.remove('is-dragging');
+      try { wrap.releasePointerCapture(e.pointerId); } catch (_) { /* 已釋放 */ }
+    };
+    wrap.addEventListener('pointerup', endDrag);
+    wrap.addEventListener('pointercancel', endDrag);
   }
 
   /** 現股日 K + 轉換價線 + 競拍期間色塊 + 事件編號圓點 */
@@ -612,17 +656,25 @@ const AuctionView = (() => {
     ei = ei < 0 ? all.length : Math.min(all.length, ei + 25);
     // 事件都擠在近期時視窗會太短、K 棒被拉得很胖 → 至少湊到 50 根
     if (ei - si < 50) si = Math.max(0, ei - 50);
-    // 滾輪縮放:以上面算出來的「事件視窗」當基準倍率 1,往左邊擴/縮;
-    // 左邊到頂了還要放大就往右邊吃 (賣回/到期日那個方向)。
+    // 滾輪縮放:以上面算出來的「事件視窗」當基準倍率 1。
     const baseSpan = Math.max(ei - si, 20);
     const span = Math.max(20, Math.min(all.length, Math.round(baseSpan * kZoom)));
-    si = Math.max(0, ei - span);
-    if (ei - si < span) ei = Math.min(all.length, si + span);
-    const bars = all.slice(si, Math.max(ei, si + 20));
+    // 拖曳平移:kPan 是相對「自動視窗右界」的位移 (根)。夾回合法範圍後寫回
+    // kPan,不然一直往同方向拖會累積成很大的數字,回頭要拖很久才有反應。
+    const autoEnd = ei;
+    let end = Math.min(all.length, Math.max(span, autoEnd + kPan));
+    kPan = end - autoEnd;
+    si = end - span;
+    ei = end;
+    const bars = all.slice(si, ei);
     if (!bars.length) return;
     const daysBadge = document.getElementById('auction-k-days');
-    if (daysBadge) daysBadge.textContent = `${bars.length} 根`;
-    bindKWheel(baseSpan, all.length);
+    if (daysBadge) {
+      const from = String(bars[0].date), to = String(bars[bars.length - 1].date);
+      daysBadge.textContent = `${bars.length} 根`;
+      daysBadge.title = `${ymdSlash(from)} ~ ${ymdSlash(to)}｜滾輪縮放 · 拖曳平移`;
+    }
+    bindKInteractions(baseSpan, all.length);
 
     const dates = bars.map(b => String(b.date));
     const labels = dates.map(d => d.slice(4, 6) + '/' + d.slice(6, 8));
@@ -656,6 +708,8 @@ const AuctionView = (() => {
       id: 'auctionK',
       beforeDatasetsDraw(ch) {
         const { ctx, chartArea, scales } = ch;
+        // 拖曳要把「拖了幾像素」換成「移動幾根」,這裡順手記下當下的每根寬度
+        kBarWidth = Math.max(1, chartArea.width / Math.max(bars.length, 1));
         if (!bandRange || bandRange.from < 0) return;
         const to = bandRange.to >= 0 ? bandRange.to : bandRange.from;
         const x1 = scales.x.getPixelForValue(bandRange.from);
@@ -759,7 +813,7 @@ const AuctionView = (() => {
     cur.derived = derive(payload);
     cur.timeline = buildTimeline();
     if (!opts.keepPage) page = 'summary';
-    kZoom = 1;                 // 換一檔就回到依事件自動算的範圍
+    kZoom = 1; kPan = 0;       // 換一檔就回到依事件自動算的範圍
     document.getElementById('auction-modal-title').textContent =
       `${payload.cbCode} ${payload.cbName || ''} 開標統計表`;
     document.getElementById('auction-modal').classList.add('show');

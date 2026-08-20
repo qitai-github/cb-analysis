@@ -1662,6 +1662,9 @@ body {
 .auc-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
 .auc-card-note { font-size: 11px; color: var(--text-dim); }
 /* K 線根數徽章 — 緊貼標題,margin-right:auto 把右邊的說明推回最右 */
+.auc-k-wrap { cursor: grab; touch-action: pan-y; }
+.auc-k-wrap.is-dragging { cursor: grabbing; }
+
 .auc-k-days {
   margin-right: auto;
   padding: 2px 8px;
