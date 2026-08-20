@@ -853,6 +853,57 @@ body {
   color: #60a5fa;
 }
 
+/* === MOPS 重大訊息 (公開資訊觀測站) === */
+.news-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(234, 124, 23, .15);
+  color: #ea7c17;
+  border: 1px solid rgba(234, 124, 23, .35);
+}
+
+.news-item.is-mops .news-title {
+  color: var(--text);
+  cursor: default;
+}
+
+.news-detail {
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+  flex: 1;
+}
+
+.news-detail > summary {
+  cursor: pointer;
+  color: var(--text);
+  list-style: none;
+}
+
+.news-detail > summary::-webkit-details-marker { display: none; }
+
+.news-detail > summary::before {
+  content: '▸ ';
+  color: var(--text-muted);
+}
+
+.news-detail[open] > summary::before { content: '▾ '; }
+
+.news-detail > pre {
+  margin: 6px 0 2px;
+  padding: 8px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--text-muted);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
 /* === 文字顏色 === */
 .text-up { color: var(--up) !important; }
 .text-down { color: var(--down) !important; }

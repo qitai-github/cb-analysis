@@ -153,6 +153,13 @@ const SheetsAPI = (() => {
               console.warn('[loadAll] stockNews 載入失敗:', e.message);
             }
           }
+          // MOPS 重大訊息 (data/mops_news.json) — 失敗不影響主流程
+          try {
+            const mnResp = await fetchWithTimeout('data/mops_news.json', 10000);
+            data.mopsNews = await mnResp.json();
+          } catch (e) {
+            console.warn('[loadAll] mops_news.json 載入失敗:', e.message);
+          }
           // 企業報告 (Drive 簡易報告 PNG + 完整報告 PDF) 索引 — 失敗不影響主流程
           try {
             const crResp = await fetchWithTimeout('data/company_reports.json', 10000);

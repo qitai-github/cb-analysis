@@ -1,0 +1,64 @@
+name: MOPS 重大訊息
+
+# 證交所 / 櫃買的重大訊息 OpenAPI 只給「最近一個發言日」的快照,
+# 跑一次漏一次就永遠補不回來 → 一天跑三次 (盤中、收盤後、晚間),
+# 週五晚上那班多做一次逐檔補漏,把整週漏掉的抓回來。
+on:
+  schedule:
+    - cron: '0 6 * * 1-6'    # 14:00 Taipei
+    - cron: '0 10 * * 1-6'   # 18:00 Taipei
+    - cron: '0 15 * * 1-6'   # 23:00 Taipei
+  workflow_dispatch:
+    inputs:
+      catchup:
+        description: '逐檔補漏 (慢,約 10 分鐘)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mops-news
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Fetch MOPS news
+        env:
+          PYTHONUTF8: '1'
+          # 週六那班 (UTC 週六 15:00) 或手動勾選時做逐檔補漏
+          CATCHUP: ${{ inputs.catchup }}
+        run: |
+          ARGS=""
+          if [ "$CATCHUP" = "true" ]; then ARGS="--catchup"; fi
+          if [ "$(date -u +%u)" = "6" ] && [ "$(date -u +%H)" = "15" ]; then ARGS="--catchup"; fi
+          python scripts/mops_news.py $ARGS
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/mops_news.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git pull --rebase --autostash || true
+            git commit -m "data: MOPS 重大訊息 @ $(TZ=Asia/Taipei date +%Y-%m-%d\ %H:%M)"
+            git push
+          fi

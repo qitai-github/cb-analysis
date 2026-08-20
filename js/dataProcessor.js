@@ -519,6 +519,34 @@ const DataProcessor = (() => {
       }
     }
 
+    // 6d. MOPS 重大訊息 (data/mops_news.json) — 以「股票代號」對應,不靠股名比對,
+    //     所以不會因為股名不一致 (中文全形/更名/簡稱) 而漏掉。
+    if (rawResults.mopsNews && Array.isArray(rawResults.mopsNews.items)) {
+      for (const it of rawResults.mopsNews.items) {
+        const entry = stockMap.get(String(it.code));
+        if (!entry) continue;
+        if (!entry.news) entry.news = [];
+        entry.news.push({
+          stockName: entry.name || it.name || '',
+          date: it.date,
+          time: it.time || '',
+          title: it.title,
+          detail: it.detail || '',
+          clause: it.clause || '',
+          link: '',
+          source: 'mops'
+        });
+      }
+      // 重訊與新聞混在一起,一律最新在前。兩邊日期格式不同 (重訊 YYYY-MM-DD、
+      // Sheet 新聞可能只有 M/D),統一走 Date 解析,解不出來的沉底。
+      const ts = (d) => { const t = Date.parse(String(d || '').replace(/\//g, '-')); return isNaN(t) ? -Infinity : t; };
+      for (const [, entry] of stockMap) {
+        if (entry.news && entry.news.length > 1) {
+          entry.news.sort((a, b) => ts(b.date) - ts(a.date));
+        }
+      }
+    }
+
     // 7. CB三大法人 (以 cbCode 為 key 的 timeseries)
     let cbBondInstByCode = null;
     if (rawResults.cbBondInstitutional) {

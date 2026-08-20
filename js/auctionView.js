@@ -21,13 +21,14 @@ const AuctionView = (() => {
   const EVENT_LABEL = {
     issue: 'CB 上市櫃日', aso: 'CB 拆解日', bookbuilding: '詢圈期間',
     auction: '競拍期間', board: '董事會公告', maturity: 'CB 到期日',
-    putback: 'CB 賣回日', forcedRedeem: '強制贖回日', resetConv: '重設轉換日'
+    putback: 'CB 賣回日', forcedRedeem: '強制贖回日', resetConv: '重設轉換日',
+    collection: '代收價款公告', auctionNotice: '競拍公告(轉換價公告)'
   };
   const EVENT_COLOR = {
     issue: '#2563eb', aso: '#ea7c17', bookbuilding: '#64748b',
     auction: '#38bdf8', board: '#94a3b8', maturity: '#a855f7',
     putback: '#14b8a6', forcedRedeem: '#ef4444', resetConv: '#eab308',
-    result: '#f59e0b'
+    result: '#f59e0b', collection: '#a78bfa', auctionNotice: '#eab308'
   };
 
   /* ---------- 小工具 ---------- */
@@ -402,9 +403,10 @@ const AuctionView = (() => {
   /** CB 從董事會到拆解的固定七段流程 — 不論有沒有資料都照這個順序排,
    *  抓不到日期的那段留空位顯示「待補」,讓缺口看得出來而不是悄悄消失。
    *
-   *  2 代收價款公告 / 3 競拍公告(轉換價公告) 目前三個來源 (CBAS 日曆、元大、
-   *  富邦初級卡) 都沒有欄位,先留 source:null。日後有資料只要在 fill() 裡
-   *  補上取值即可,版面與編號不用動。 */
+   *  2 代收價款公告 / 3 競拍公告(轉換價公告) 三個初級市場來源 (CBAS 日曆、元大、
+   *  富邦初級卡) 都沒有欄位,改由 MOPS 重大訊息公告抽出 (scripts/mops_news.py →
+   *  parse_and_export Phase 4.75 併進 cbasCalendar.events),所以這裡跟其他段
+   *  一樣直接讀 events。抓不到就仍然留白顯示「尚無資料來源」。 */
   const TIMELINE_SLOTS = [
     { key: 'board', label: '董事會公告', color: '#94a3b8' },
     { key: 'collection', label: '代收價款公告', color: '#a78bfa' },
@@ -426,9 +428,16 @@ const AuctionView = (() => {
         const e = evOf('board');
         return e ? { ymd: toYmd(e.date) } : null;
       },
-      // 尚無資料來源 — 待補
-      collection: () => null,
-      auctionNotice: () => null,
+      // MOPS 重大訊息:「…代收價款行庫及存儲專戶行庫」
+      collection: () => {
+        const e = evOf('collection');
+        return e ? { ymd: toYmd(e.date), note: 'MOPS 公告' } : null;
+      },
+      // MOPS 重大訊息:「…之轉換價格及溢價率」
+      auctionNotice: () => {
+        const e = evOf('auctionNotice');
+        return e ? { ymd: toYmd(e.date), note: 'MOPS 公告' } : null;
+      },
       auction: () => {
         const e = evOf('auction');
         if (e) {
@@ -545,7 +554,7 @@ const AuctionView = (() => {
     }
     html += '</div>';
     if (missing) {
-      html += `<div class="auc-tl-foot">灰色項目目前三個初級市場來源 (CBAS 日曆 / 元大 / 富邦) 都沒有對應欄位,補到資料後會自動帶入</div>`;
+      html += `<div class="auc-tl-foot">灰色項目為該來源 (CBAS 日曆 / 元大 / 富邦 / MOPS 重大訊息) 尚無對應公告,補到資料後會自動帶入</div>`;
     }
     html += '</div>';
     return html;

@@ -16,6 +16,8 @@ const Calendar = (() => {
     { key: 'bookbuilding', label: 'CB詢圈期間', color: '#64748b', def: false },
     { key: 'auction',      label: 'CB競拍期間', color: '#38bdf8', def: false },
     { key: 'board',        label: '董事會公告日', color: '#475569', def: false },
+    { key: 'collection',   label: '代收價款公告', color: '#a78bfa', def: false },
+    { key: 'auctionNotice',label: '轉換價公告',   color: '#eab308', def: false },
     { key: 'maturity',     label: 'CB到期日',   color: '#a855f7', def: false },
     { key: 'putback',      label: 'CB賣回日',   color: '#14b8a6', def: false },
     { key: 'forcedRedeem', label: '強制贖回日', color: '#ef4444', def: false },

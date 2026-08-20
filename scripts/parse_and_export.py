@@ -518,6 +518,40 @@ def fetch_cbas_calendar(trade_date: str, all_data: dict, *,
         return {"status": "fail", "error": str(e)}
 
 
+# ── Phase 4.75: MOPS 重大訊息抽出的 CB 事件併入日曆 ────────────────────
+def merge_mops_cb_events(all_data: dict) -> dict:
+    """把 data/mops_news.json 的 cbEvents (代收價款公告 / 轉換價公告) 併進
+    cbasCalendar.events。這兩段 CBAS / 元大 / 富邦三個來源都沒有欄位,只有
+    公開資訊觀測站的重大訊息公告得到 → 走 mops_news.py 產生的檔案。
+
+    同 (cbCode, type) 只留最早那筆 (公告日),重跑不會累積重複。"""
+    src = Path(__file__).resolve().parent.parent / "data" / "mops_news.json"
+    if not src.exists():
+        log("  - 沒有 data/mops_news.json,跳過 (先跑 scripts/mops_news.py)")
+        return {"status": "skip"}
+    try:
+        cb_events = json.loads(src.read_text(encoding="utf-8")).get("cbEvents") or []
+    except Exception as e:  # noqa: BLE001
+        log(f"  ⚠️  mops_news.json 讀取失敗 (不擋主流程): {e}")
+        return {"status": "fail", "error": str(e)}
+
+    cal = all_data.setdefault("cbasCalendar", {})
+    events = cal.setdefault("events", [])
+    have = {(str(e.get("cbCode")), e.get("type")) for e in events}
+    added = 0
+    for ev in sorted(cb_events, key=lambda e: e.get("date") or ""):
+        key = (str(ev.get("cbCode")), ev.get("type"))
+        if not key[0] or key in have:
+            continue
+        events.append({"date": ev["date"], "type": ev["type"],
+                       "cbCode": ev["cbCode"], "cbName": ev.get("cbName") or "",
+                       "source": "mops"})
+        have.add(key)
+        added += 1
+    log(f"  ✓ MOPS CB 事件 {len(cb_events)} 筆 → 併入 {added} 筆 (events={len(events):,})")
+    return {"status": "ok", "candidates": len(cb_events), "added": added}
+
+
 # ── Phase 4.5: 個股狀態 sheet (VCP / 三線開花) ─────────────────────────
 def fetch_status_sheets(trade_date: str, all_data: dict, *,
                         record_db: bool) -> list[dict]:
@@ -687,6 +721,10 @@ def main(argv=None) -> int:
             log("[Phase 4.7] 抓 統一 CBAS 日曆 xlsx → cbasCalendar")
             summary["cbas_calendar"] = fetch_cbas_calendar(
                 trade_date, all_data, record_db=record_db)
+
+        # Phase 4.75: MOPS 重大訊息的 CB 事件 (代收價款 / 轉換價公告) → 事件軸
+        log("[Phase 4.75] 併入 MOPS CB 事件")
+        summary["mops_cb_events"] = merge_mops_cb_events(all_data)
 
         # Phase 4.8: 把當日白名單聯集寫到 Google Sheet (留歷史軌跡)
         if args.skip_sheet:

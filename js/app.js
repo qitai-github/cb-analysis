@@ -1621,6 +1621,12 @@ const App = (() => {
     return html;
   }
 
+  /** 重大訊息是外部文字,直接塞進 innerHTML 之前一律轉義 */
+  function esc(v) {
+    return String(v ?? '').replace(/[&<>"]/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
   function buildNewsHTML(stock) {
     const news = stock.news;
     if (!news || news.length === 0) {
@@ -1630,6 +1636,18 @@ const App = (() => {
     let html = '<div class="news-list">';
     for (const item of news) {
       const dateStr = item.date || '';
+      // MOPS 重大訊息沒有外部連結,但有公告說明全文 → 點標題就地展開
+      if (item.source === 'mops') {
+        const detail = item.detail
+          ? `<details class="news-detail"><summary>${esc(item.title)}</summary><pre>${esc(item.detail)}</pre></details>`
+          : `<span class="news-title">${esc(item.title)}</span>`;
+        html += `<div class="news-item is-mops">
+          <span class="news-date">${esc(dateStr)}</span>
+          <span class="news-badge">重訊</span>
+          ${detail}
+        </div>`;
+        continue;
+      }
       html += `<div class="news-item">
         <span class="news-date">${dateStr}</span>
         <a class="news-title" href="${item.link}" target="_blank" rel="noopener">${item.title}</a>

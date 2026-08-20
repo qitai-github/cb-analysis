@@ -108,7 +108,7 @@
   - **CB開標統計表** 按鈕 (有 auction PDF 才出現)
   - **得標預估價** 框 (有開標資料就顯示,**掛牌後仍保留**): 截標日前 5 交易日 MA5 / 轉換價 × 100 × {1.20,1.25,1.30,1.35}。截標日優先取開標「投標期間」末日,初級市場卡無 auction 時退回 polling 字串解析。轉換價用發行時原始價 (`issueConvPrice`)。實作 `_buildEstimateHtml` / `_auctionEndYmd`
   - **初級市場資訊**: CBAS 為主、元大次之、富邦第三,單一 CB 只顯示最新階段卡 (近期掛牌 > 近期生效 > 董事會公告),備註合併三方 [統一]/[元大]/[富邦]
-- **新聞資訊** (近期股票相關)
+- **新聞資訊** (近期股票相關) + **MOPS 重大訊息**(橘色「重訊」標籤,點標題就地展開公告全文;以股票代號比對,不靠股名)
 - **投資重點儀表板** — 連結到 `investing.0099914.xyz/companies/<code>/`
 
 ---
@@ -369,8 +369,8 @@ data/strength.json  ──commit + push──▶ 觸發 GH Pages rebuild ──�
   | # | 節點 | 來源 |
   |---|---|---|
   | 1 | 董事會公告 | `cbasCalendar` board 事件 (含 `data/cb_board_dates.json` 存檔回填) |
-  | 2 | 代收價款公告 | **尚無來源** — `fill.collection` 留 null 待補 |
-  | 3 | 競拍公告(轉換價公告) | **尚無來源** — `fill.auctionNotice` 留 null 待補 |
+  | 2 | 代收價款公告 | MOPS 重大訊息「…代收價款行庫及存儲專戶行庫」(`scripts/mops_news.py`) |
+  | 3 | 競拍公告(轉換價公告) | MOPS 重大訊息「…之轉換價格及溢價率」(`scripts/mops_news.py`) |
   | 4 | 競拍期間 | 日曆 auction 事件,沒有就用 twsa「投標期間」 |
   | 5 | 競拍結果公告 | twsa 開標日期 (帶均價/張數/轉換價) |
   | 6 | CB 上市櫃日 | 日曆 issue 事件 |
@@ -394,6 +394,46 @@ CBAS 的董事會公告日只出現在「董事會公告 / 近期生效」兩張
 
 ⚠️ 這是**往後累積**的機制:2026-08-16 用當時日曆上的 81 筆 board 事件做初始
 seed,更早就已經掛牌的 CB(含 32191 倚強科一)追不回來,那一格會顯示「尚無資料來源」。
+
+### 8.2.2 MOPS 重大訊息 → 事件軸第 2/3 段 (`scripts/mops_news.py`, 2026-08-20)
+
+CBAS / 元大 / 富邦三個初級市場來源都沒有「代收價款公告」「轉換價公告」欄位,
+但發債公司一定會在公開資訊觀測站發這兩則重大訊息:
+
+```
+公告本公司國內第四次有擔保轉換公司債之轉換價格及溢價率      → auctionNotice
+公告本公司國內第四次有擔保轉換公司債代收價款行庫及存儲專戶行庫 → collection
+```
+
+**期次 → CB 代號**:「第四次」→ 4 → `3149` + `4` = `31494`(第 10 次以上用
+A/B/C…)。抽不出期次的公告不收,因為掛不到特定一檔 CB。
+海外(ECB)、以及掛牌後的**轉換價「調整」/重設/停止轉換**都排除 — 那是既有 CB
+的事件,不是發行流程的一站,收進來會把發行時的公告日蓋掉。
+
+流向:`mops_news.py` → `data/mops_news.json` 的 `cbEvents` →
+`parse_and_export.py` Phase 4.75 併進 `cbasCalendar.events` → 前端 `fill.collection`
+/ `fill.auctionNotice` 直接 `evOf()` 讀。同 (cbCode, type) 只留最早那筆,重跑不重複。
+
+⚠️ 一樣是**往後累積**:OpenAPI 只給最近一個發言日,2026-08-20 之前的公告補不回來
+(MOPS 逐檔查詢也只回最近數則),舊 CB 那兩格仍會顯示「尚無資料來源」。
+
+### 8.2.3 怎麼做到不漏抓
+
+| 層 | 來源 | 覆蓋 |
+|---|---|---|
+| 主 | `openapi.twse.com.tw/v1/opendata/t187ap04_L` | 全上市當日重大訊息(含說明全文) |
+| 主 | `www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O` | 全上櫃當日重大訊息(含說明全文) |
+| 補 | `mopsov.twse.com.tw/mops/web/ajax_t05st01` | 單一公司最近數則(無說明全文) |
+
+- 兩個 OpenAPI 都只是**當日快照**,漏跑一天就永久缺 → `mops-news.yml` 一天跑三次
+  (14:00 / 18:00 / 23:00 TPE),盤後公告最多延遲幾小時就進檔。
+- `--catchup` 對白名單個股逐檔打 MOPS 查詢頁,把 API 沒收到 / 那天沒跑到的補回來;
+  週六晚班自動跑一次。手動:`python scripts/mops_news.py --catchup`
+  或只補幾檔 `--codes 3149,2330`。
+- 比對一律用**股票代號**,不用股名 — 舊的 Google Sheet 新聞是用股名對 code,
+  遇到更名/簡稱不一致就整檔漏掉,這是原本「常錯過」的主因之一。
+- `items` 只留白名單個股(否則 JSON 太大瀏覽器扛不動)、保留 180 天,45 天以上
+  只留標題丟掉說明全文;`cbEvents` 不看白名單、永久保留。
 
 ### 8.3 資料補充 (2026-08-16)
 
@@ -479,6 +519,7 @@ _meta                pipeline 時間戳
 - `data/twsa.json` — 競拍資料 (`scripts/twsa_scraper.py`)
 - `data/etf-holdings.json` — ETF 持股 (`scripts/parse_etf.py`)
 - `data/vcp.json` — VCP 選股 (`scripts/vcp_scanner.py`)
+- `data/mops_news.json` — MOPS 重大訊息 + CB 發行事件 (`scripts/mops_news.py`)
 - Supabase — 公用追蹤清單 (`SUPABASE_URL` in config.js)
 
 ---
@@ -495,6 +536,7 @@ _meta                pipeline 時間戳
 | `scripts/vcp_scanner.py` | VCP 選股 |
 | `scripts/twsa_scraper.py` | 競拍資料 |
 | `scripts/build_universe.py` | 全市場標的清單 |
+| `scripts/mops_news.py` | MOPS 重大訊息 → `data/mops_news.json` (含 CB 發行事件抽取) |
 
 ### 11.2 Backfill 工具
 
@@ -514,6 +556,7 @@ _meta                pipeline 時間戳
 | `margin-late.yml` | 19:30 TPE 延遲抓融資融券 |
 | `vcp-scan.yml` | 19:35 TPE VCP 選股 → data/vcp.json |
 | `strength-scan.yml` | ~~19:40 TPE 強勢股 → data/strength.json~~ **已停用排程 (2026-08-14 封存)**, 只剩手動觸發 |
+| `mops-news.yml` | 每日 14:00 / 18:00 / 23:00 TPE 抓重大訊息 → data/mops_news.json (週六晚班加逐檔補漏) |
 | `pages-rebuild.yml` | 手動觸發 Pages 重建 (空 commit) |
 
 ### 11.4 環境變數 (`scripts/.env`)
