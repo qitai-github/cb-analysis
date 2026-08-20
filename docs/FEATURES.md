@@ -341,6 +341,13 @@ data/strength.json  ──commit + push──▶ 觸發 GH Pages rebuild ──�
 
 ## 8. CB 開標統計表 Modal ([js/auctionView.js](../js/auctionView.js))
 
+**上一檔 / 下一檔** (2026-08-20): 標題列右側 `◀ 59/60 ▶`,或直接按 `←` `→`
+(`App.onAuctionKey`,輸入框聚焦時不攔)。順序 = `twsa.json` 的 `auction` 陣列排列
+(序號 115001、115002… 依開標先後),與進入畫面無關;頭尾不繞回去。
+⚠️ `showAuctionModal` 的現股**必須用 cbCode 前 4 碼查 stockMap**,不能用
+`selectedStock` — 切檔後 selectedStock 還停在原本那檔,會畫錯 K 線。
+`AuctionView.open(payload, {keepPage:true})` 讓切檔時留在目前分頁。
+
 從 CB 卡按鈕 / CB 日曆側欄 row 點擊觸發 (`App.showAuctionModal(cbCode)`)。
 **兩頁式**:同一個 modal,上方 pill tab 切換,資料由 app.js 組好 payload 丟進
 `AuctionView.open()`(cbCode / auction 原始列 / stock.ohlcv / convPrice / tcri / events)。
