@@ -519,6 +519,18 @@ const DataProcessor = (() => {
       }
     }
 
+    // 6c-2. 全上市櫃股本 (data/stock_capital.json,單位億元) — 來源是 MOPS t187ap03
+    //       公司基本資料的「實收資本額」,涵蓋全上市櫃 (~1985 檔),比元大 CB 發行
+    //       案件彙整表 (只有近期案件、約 40 檔) 完整,且是最新值。
+    if (rawResults.stockCapital && rawResults.stockCapital.data) {
+      for (const [code, info] of Object.entries(rawResults.stockCapital.data)) {
+        const entry = stockMap.get(String(code));
+        if (!entry) continue;
+        entry.capital = info.capital;
+        entry.issuedShares = info.shares;
+      }
+    }
+
     // 6d. MOPS 重大訊息 (data/mops_news.json) — 以「股票代號」對應,不靠股名比對,
     //     所以不會因為股名不一致 (中文全形/更名/簡稱) 而漏掉。
     if (rawResults.mopsNews && Array.isArray(rawResults.mopsNews.items)) {

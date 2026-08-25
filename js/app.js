@@ -1108,6 +1108,18 @@ const App = (() => {
 
       const f = (label, val, extra) => `<div class="info-item"><span class="info-label">${label}</span><span class="info-value${extra ? ' ' + extra : ''}">${val ?? '-'}</span></div>`;
 
+      // 股本(億) — 主來源 data/stock_capital.json (MOPS t187ap03 實收資本額,全上市櫃
+      // 皆有且為最新值)。抓不到才退回元大「CB發行案件彙整」的股本欄 (只有近期案件,
+      // 且是送件當時的股本):先比對同一檔 CB,再退回同股票其他發行案。
+      const capital = (() => {
+        if (stock.capital != null) return stock.capital;
+        const pm = stock.primaryMarket;
+        if (!pm) return null;
+        const hit = pm.find(it => it.cbCode === cb.cbCode && it.capital != null)
+                 || pm.find(it => it.capital != null);
+        return hit ? hit.capital : null;
+      })();
+
       const balChgCls = cb.balChange > 0 ? 'text-down' : cb.balChange < 0 ? 'text-up' : '';
       const balChg = cb.balChange != null
         ? (cb.balChange > 0 ? '+' : '') + cb.balChange.toLocaleString()
@@ -1139,6 +1151,7 @@ const App = (() => {
             ${f('最近賣回日', cb.nearestPutDate)}
             ${f('賣回日', cb.nextPutDate)}
             ${f('擔保', cb.guarantee)}
+            ${capital != null ? f('股本', capital.toLocaleString(undefined, { maximumFractionDigits: 2 }) + '億') : ''}
 
             ${cb.business ? `<div class="info-item info-item-wide"><span class="info-label">經營項目</span><span class="info-value" style="font-size:11px">${cb.business}</span></div>` : ''}
           </div>

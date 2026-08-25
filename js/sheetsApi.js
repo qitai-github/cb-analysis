@@ -160,6 +160,13 @@ const SheetsAPI = (() => {
           } catch (e) {
             console.warn('[loadAll] mops_news.json 載入失敗:', e.message);
           }
+          // 全上市櫃股本 (data/stock_capital.json) — 失敗不影響主流程
+          try {
+            const scResp = await fetchWithTimeout('data/stock_capital.json', 10000);
+            data.stockCapital = await scResp.json();
+          } catch (e) {
+            console.warn('[loadAll] stock_capital.json 載入失敗:', e.message);
+          }
           // 企業報告 (Drive 簡易報告 PNG + 完整報告 PDF) 索引 — 失敗不影響主流程
           try {
             const crResp = await fetchWithTimeout('data/company_reports.json', 10000);

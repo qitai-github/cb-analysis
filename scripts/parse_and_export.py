@@ -842,6 +842,25 @@ def main(argv=None) -> int:
                 summary["company_reports"] = {"status": "fail",
                                               "error": str(e)}
 
+        # Phase 4.95: 全上市櫃股本 (MOPS t187ap03 實收資本額) → data/stock_capital.json
+        #             股本只有增減資才會動,但成本很低 (兩支 OpenAPI),每天跑一次即可。
+        if args.skip_json:
+            log("[Phase 4.95] --skip-json,股本抓取跳過")
+            summary["stock_capital"] = {"status": "skip"}
+        else:
+            log("[Phase 4.95] 抓 全上市櫃股本 → data/stock_capital.json")
+            try:
+                import build_stock_capital as _bsc
+                _bsc.main()
+                summary["stock_capital"] = {"status": "ok"}
+                _record(trade_date, "stock_capital", "export", "ok",
+                        enabled=record_db)
+            except Exception as e:  # noqa: BLE001
+                log(f"  ⚠️  股本抓取失敗 (不擋主流程,沿用既有檔): {e}")
+                summary["stock_capital"] = {"status": "fail", "error": str(e)}
+                _record(trade_date, "stock_capital", "export", "fail",
+                        error=str(e), enabled=record_db)
+
         # Phase 5: 寫回 JSON
         if args.skip_json:
             log("[Phase 5] --skip-json,JSON 寫回跳過")
