@@ -1108,10 +1108,22 @@ body {
   color: #93c5fd;
   font-size: 12px;
   font-weight: 600;
-  cursor: help;
+  cursor: pointer;
   user-select: none;
   white-space: nowrap;
 }
+/* 視窗被左右移開最新一天時,badge 轉成琥珀色並可點擊歸位 */
+.tech-days-badge.is-panned {
+  background: rgba(245,158,11,0.15);
+  border-color: rgba(245,158,11,0.55);
+  color: #fbbf24;
+}
+.tech-days-badge:hover { filter: brightness(1.2); }
+
+/* 技術分析 modal 的圖面可拖曳左右平移 */
+.tech-modal-body .chart-container { cursor: grab; }
+.tech-modal-body.tech-panning,
+.tech-modal-body.tech-panning .chart-container { cursor: grabbing; }
 /* 比 .tech-modal-content 的 920px 大 33% (≈1224px) */
 #company-report-modal .auction-modal-content {
   max-width: 1224px;

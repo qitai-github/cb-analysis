@@ -636,7 +636,7 @@ const Charts = (() => {
       _emptyChart_(canvas, '無交易資料');
       return;
     }
-    const recent = ohlcv.slice(-APP_CONFIG.techAnalysisDays);
+    const recent = techSlice(ohlcv);
     const recentDates = recent.map(r => r.date);
     const labels = recentDates.map(d => formatDateLabel(d));
 
@@ -761,7 +761,7 @@ const Charts = (() => {
     }
 
     const key = which + '買賣超';
-    const recentDates = dates.slice(-APP_CONFIG.techAnalysisDays);
+    const recentDates = techSlice(dates);
     const labels = recentDates.map(d => formatDateLabel(d));
     const toLots = v => v != null ? Math.round(v / 1000) : null;
 
@@ -880,7 +880,7 @@ const Charts = (() => {
 
     const changeKey = which + '增減';
     const balanceKey = which + '餘額';
-    const recentDates = dates.slice(-APP_CONFIG.techAnalysisDays);
+    const recentDates = techSlice(dates);
     const labels = recentDates.map(d => formatDateLabel(d));
     const changeData  = recentDates.map(d => stock.margin[changeKey]?.[d] ?? null);
     const balanceData = recentDates.map(d => stock.margin[balanceKey]?.[d] ?? null);
@@ -974,7 +974,7 @@ const Charts = (() => {
       _emptyChart_(canvas, '無交易資料');
       return { bias5: null, bias10: null, bias20: null };
     }
-    const recent = ohlcv.slice(-APP_CONFIG.techAnalysisDays);
+    const recent = techSlice(ohlcv);
     const labels = recent.map(r => formatDateLabel(r.date));
     const closes = recent.map(r => r.close);
     const ma5 = calcMAArray(closes, 5);
@@ -1053,7 +1053,7 @@ const Charts = (() => {
     const ohlcvMap = new Map(ohlcv.map(r => [r.date, r]));
     const axisDates = sharedDates && sharedDates.length
       ? sharedDates
-      : ohlcv.slice(-APP_CONFIG.techAnalysisDays).map(r => r.date);
+      : techSlice(ohlcv).map(r => r.date);
     const recent = axisDates.map(d => ohlcvMap.get(d) || { date: d, open: null, high: null, low: null, close: null, volume: null });
     const labels = axisDates.map(formatDateLabel);
     const openData = recent.map(r => r.open);
@@ -1167,7 +1167,7 @@ const Charts = (() => {
     const key = which + '買賣超';
     const recentDates = sharedDates && sharedDates.length
       ? sharedDates
-      : dates.slice(-APP_CONFIG.techAnalysisDays);
+      : techSlice(dates);
     const labels = recentDates.map(d => formatDateLabel(d));
     // CB 法人資料源單位已是「張」,不需要 /1000 (stock-level 才需要)
     const toLots = v => v != null ? Math.round(v) : null;
@@ -1256,7 +1256,7 @@ const Charts = (() => {
       const ohlcvMap = new Map(ohlcv.map(r => [r.date, r]));
       const axisDates = sharedDates && sharedDates.length
         ? sharedDates
-        : ohlcv.slice(-APP_CONFIG.techAnalysisDays).map(r => r.date);
+        : techSlice(ohlcv).map(r => r.date);
       const labels = axisDates.map(formatDateLabel);
       const premiums = axisDates.map(d => {
         const r = ohlcvMap.get(d);
@@ -1339,7 +1339,7 @@ const Charts = (() => {
       const ohlcv = cb.ohlcv || [];
       const axisDates = sharedDates && sharedDates.length
         ? sharedDates
-        : ohlcv.slice(-APP_CONFIG.techAnalysisDays).map(r => r.date);
+        : techSlice(ohlcv).map(r => r.date);
       if (axisDates.length === 0) {
         _emptyChart_(canvas, '無 CB 交易日期可對齊');
         return { latest: { thisWeek, lastWeek, change } };

@@ -111,3 +111,26 @@ const APP_CONFIG = {
     accent: '#3b82f6'
   }
 };
+
+// ── 技術分析 modal 的時間視窗 ────────────────────────────────────────
+// techAnalysisDays   視窗長度 (滑鼠滾輪縮放, 20~240)
+// techAnalysisOffset 視窗右緣距離最新一筆的根數 (0 = 貼齊最新, 越大越往左看歷史)
+//
+// 個股 K / CB K / 法人 / 資券 所有 sub-chart 都吃同一組參數,
+// 一律用 techSlice() 取窗,避免各處 slice(-days) 各自為政。
+APP_CONFIG.techAnalysisOffset = 0;
+
+/** 依目前的視窗長度 + 左右位移取出陣列片段 (arr 需為由舊到新排序) */
+function techSlice(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return [];
+  const days = APP_CONFIG.techAnalysisDays;
+  const off = Math.max(0, Math.min(APP_CONFIG.techAnalysisOffset || 0,
+                                   Math.max(0, arr.length - days)));
+  const end = arr.length - off;
+  return arr.slice(Math.max(0, end - days), end);
+}
+
+/** offset 的合法上限 (資料長度 - 視窗長度),不足一個視窗就是 0 */
+function techMaxOffset(len) {
+  return Math.max(0, (len || 0) - APP_CONFIG.techAnalysisDays);
+}

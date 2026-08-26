@@ -624,6 +624,7 @@ const App = (() => {
 
   function openTechModal() {
     if (!selectedStock) return;
+    APP_CONFIG.techAnalysisOffset = 0;   // 每次開窗都從最新一天看起
     document.getElementById('tech-modal').classList.add('show');
     bindTechFolderTabs();
     bindTechWheel();
@@ -633,7 +634,12 @@ const App = (() => {
     refreshTechModalForCurrentStock();
   }
 
-  // ── 滑鼠滾輪縮放時間範圍 (個股 + CB tech modal 共用 APP_CONFIG.techAnalysisDays) ──
+  // ── 技術分析 modal 的時間視窗操作 ────────────────────────────────
+  //   滾輪         縮放視窗長度 (APP_CONFIG.techAnalysisDays, 20~240)
+  //   Shift+滾輪   左右平移
+  //   拖曳圖面     左右平移 (往右拖 = 看更早的歷史)
+  //   ← / →        左右平移 (按住 Shift 一次半個視窗)
+  //   個股 / CB 兩個 modal 共用同一組參數,所以並排時會同步移動。
   let _techWheelPending = null;
   function bindTechWheel() {
     for (const id of ['tech-modal', 'cbtech-modal']) {
@@ -641,19 +647,40 @@ const App = (() => {
       if (!modal || modal.dataset.wheelBound === '1') continue;
       modal.dataset.wheelBound = '1';
       modal.addEventListener('wheel', onTechWheel, { passive: false });
+      bindTechDrag(modal);
+    }
+    if (!document.body.dataset.techKeyBound) {
+      document.body.dataset.techKeyBound = '1';
+      document.addEventListener('keydown', onTechKey);
     }
   }
-  function onTechWheel(e) {
-    e.preventDefault();
-    const cur = APP_CONFIG.techAnalysisDays;
-    // scroll up (deltaY<0) → 縮短時間 (zoom in)
-    // scroll down (deltaY>0) → 拉長時間 (zoom out,看更早歷史)
-    const ratio = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-    let next = Math.round(cur * ratio);
-    next = Math.max(20, Math.min(240, next));
-    if (next === cur) return;
-    APP_CONFIG.techAnalysisDays = next;
+
+  /** 目前顯示中那組資料的長度 — 用來夾住 offset 不讓視窗滑出資料範圍 */
+  function _techDataLen() {
+    let len = 0;
+    if (document.getElementById('tech-modal')?.classList.contains('show')) {
+      len = Math.max(len, selectedStock?.ohlcv?.length || 0);
+    }
+    if (document.getElementById('cbtech-modal')?.classList.contains('show')) {
+      const cb = (selectedStock?.cbs || []).find(c => c.cbCode === selectedCBTab);
+      len = Math.max(len, (cb?.ohlcv || selectedStock?.cbOhlcv || []).length);
+    }
+    return len;
+  }
+
+  /** 平移 n 根 K 棒 (n>0 = 往過去看) */
+  function panTechWindow(n) {
+    const max = techMaxOffset(_techDataLen());
+    const cur = APP_CONFIG.techAnalysisOffset || 0;
+    const next = Math.max(0, Math.min(max, cur + n));
+    if (next === cur) return false;
+    APP_CONFIG.techAnalysisOffset = next;
     updateTechDaysBadge();
+    scheduleTechRedraw();
+    return true;
+  }
+
+  function scheduleTechRedraw() {
     if (_techWheelPending) cancelAnimationFrame(_techWheelPending);
     _techWheelPending = requestAnimationFrame(() => {
       _techWheelPending = null;
@@ -665,12 +692,116 @@ const App = (() => {
       }
     });
   }
+
+  /** 一根 K 棒的像素寬 — 優先讀 Chart.js 實際的繪圖區,拿不到才用容器估算 */
+  function _techBarWidth(container) {
+    const canvas = container.querySelector('canvas');
+    const ch = canvas && typeof Chart !== 'undefined' ? Chart.getChart(canvas) : null;
+    const n = ch?.data?.labels?.length;
+    if (ch?.chartArea && n) return Math.max(1, ch.chartArea.width / n);
+    return Math.max(2, container.getBoundingClientRect().width / APP_CONFIG.techAnalysisDays);
+  }
+
+  /** 拖曳平移 — pointer events + setPointerCapture,滑出圖外也不會斷
+   *  (跟開標統計表「發行事件軸」那張 K 線同一套操作邏輯) */
+  function bindTechDrag(modal) {
+    let dragging = false, startX = 0, startOffset = 0, pxPerBar = 8;
+    const body = modal.querySelector('.auction-modal-body') || modal;
+
+    body.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      // 只在圖表區域啟動,避免壓到 folder tab / 額度勾選框
+      const box = e.target.closest('.chart-container');
+      if (!box) return;
+      pxPerBar = _techBarWidth(box);
+      dragging = true;
+      startX = e.clientX;
+      startOffset = APP_CONFIG.techAnalysisOffset || 0;
+      body.classList.add('tech-panning');
+      try { body.setPointerCapture(e.pointerId); } catch (_) { /* 不支援就算了 */ }
+      e.preventDefault();
+    });
+
+    body.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      // 往右拖 (dx>0) = 內容跟著手走 = 視窗往更早的時間退 → offset 變大
+      const bars = Math.round((e.clientX - startX) / pxPerBar);
+      const max = techMaxOffset(_techDataLen());
+      const next = Math.max(0, Math.min(max, startOffset + bars));
+      if (next === (APP_CONFIG.techAnalysisOffset || 0)) return;
+      APP_CONFIG.techAnalysisOffset = next;
+      updateTechDaysBadge();
+      scheduleTechRedraw();
+    });
+
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      body.classList.remove('tech-panning');
+      try { body.releasePointerCapture(e.pointerId); } catch (_) { /* 已釋放 */ }
+    };
+    body.addEventListener('pointerup', endDrag);
+    body.addEventListener('pointercancel', endDrag);
+  }
+
+  function onTechKey(e) {
+    const open = document.getElementById('tech-modal')?.classList.contains('show') ||
+                 document.getElementById('cbtech-modal')?.classList.contains('show');
+    if (!open) return;
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    const step = e.shiftKey ? Math.max(1, Math.round(APP_CONFIG.techAnalysisDays / 2)) : 1;
+    if (e.key === 'ArrowLeft') { if (panTechWindow(step)) e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { if (panTechWindow(-step)) e.preventDefault(); }
+  }
+
+  /** 回到最新 (offset 歸零) */
+  function resetTechWindow() {
+    if (!APP_CONFIG.techAnalysisOffset) return;
+    APP_CONFIG.techAnalysisOffset = 0;
+    updateTechDaysBadge();
+    scheduleTechRedraw();
+  }
+  function onTechWheel(e) {
+    e.preventDefault();
+    // Shift + 滾輪 → 左右平移 (一次四分之一個視窗)
+    if (e.shiftKey) {
+      // 方向對齊「發行事件軸」那張 K 線:往下捲 = 往新的一端,往上捲 = 往舊的一端
+      const step = Math.max(1, Math.round(APP_CONFIG.techAnalysisDays / 4));
+      panTechWindow(e.deltaY > 0 ? -step : step);
+      return;
+    }
+    const cur = APP_CONFIG.techAnalysisDays;
+    // scroll up (deltaY<0) → 縮短時間 (zoom in)
+    // scroll down (deltaY>0) → 拉長時間 (zoom out,看更早歷史)
+    const ratio = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+    let next = Math.round(cur * ratio);
+    next = Math.max(20, Math.min(240, next));
+    if (next === cur) return;
+    APP_CONFIG.techAnalysisDays = next;
+    // 視窗拉長後 offset 可能超出上限,夾回來,不然右邊會空一段
+    const max = techMaxOffset(_techDataLen());
+    if ((APP_CONFIG.techAnalysisOffset || 0) > max) APP_CONFIG.techAnalysisOffset = max;
+    updateTechDaysBadge();
+    scheduleTechRedraw();
+  }
   function updateTechDaysBadge() {
-    const txt = `${APP_CONFIG.techAnalysisDays} 日`;
-    const b1 = document.getElementById('tech-days-badge');
-    const b2 = document.getElementById('cbtech-days-badge');
-    if (b1) b1.textContent = txt;
-    if (b2) b2.textContent = txt;
+    const off = APP_CONFIG.techAnalysisOffset || 0;
+    const txt = off > 0
+      ? `${APP_CONFIG.techAnalysisDays} 日 · \u2190${off}`
+      : `${APP_CONFIG.techAnalysisDays} 日`;
+    for (const id of ['tech-days-badge', 'cbtech-days-badge']) {
+      const b = document.getElementById(id);
+      if (!b) continue;
+      b.textContent = txt;
+      b.classList.toggle('is-panned', off > 0);
+      b.title = off > 0
+        ? `已往左移 ${off} 根 — 點一下回到最新`
+        : '滾輪縮放 (20~240 日);拖曳圖面 / Shift+滾輪 / \u2190 \u2192 可左右移動';
+      if (b.dataset.resetBound !== '1') {
+        b.dataset.resetBound = '1';
+        b.addEventListener('click', resetTechWindow);
+      }
+    }
   }
 
   function bindTechFolderTabs() {
@@ -866,6 +997,9 @@ const App = (() => {
       selectedCBTab = selectedStock.mainCB?.cbCode || cbs[0].cbCode;
     }
 
+    if (!document.getElementById('tech-modal')?.classList.contains('show')) {
+      APP_CONFIG.techAnalysisOffset = 0;   // 單開 CB 窗時歸位;並排開啟則沿用個股窗的位移
+    }
     document.getElementById('cbtech-modal').classList.add('show');
     bindCBTechFolderTabs();
     bindTechWheel();
@@ -915,7 +1049,7 @@ const App = (() => {
       if (cbDateSet.has(d)) intersectDates.push(d);
     }
     intersectDates.sort();
-    cbTechSharedDates = intersectDates.slice(-APP_CONFIG.techAnalysisDays);
+    cbTechSharedDates = techSlice(intersectDates);
 
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
       try {
