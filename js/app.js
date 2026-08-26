@@ -114,6 +114,19 @@ const App = (() => {
     const panel = document.getElementById('filter-panel');
     panel.innerHTML = '';
 
+    // CBAS 追價計算機 (置頂,盤中最常用)
+    if (typeof CBASCalc !== 'undefined') {
+      CBASCalc.init({
+        getStock: (code) => (stockMap ? stockMap.get(String(code)) : null),
+        listStocks: () => (stockMap
+          ? [...stockMap.values()]
+              .filter(s => s.cbs && s.cbs.length > 0)
+              .map(s => ({ code: s.code, name: s.name || '' }))
+          : [])
+      });
+      CBASCalc.render(panel);
+    }
+
     const groups = {};
     for (const [key, def] of Object.entries(Filters.filterDefs)) {
       const group = def.group || '基本';

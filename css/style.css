@@ -2631,3 +2631,138 @@ input[type="number"] { -moz-appearance: textfield; }
   border-radius: 999px; color: var(--text-muted); font-size: 12px; cursor: pointer; }
 .crm-ver-btn:hover { background: var(--bg-hover); color: var(--text); }
 .crm-ver-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+/* ── CBAS 追價計算機 (左側面板置頂) ────────────────────────── */
+.calc-panel {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.calc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-hover);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.calc-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.calc-toggle:hover { color: var(--accent); }
+
+.calc-body { padding: 10px; }
+
+.calc-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.calc-inputs input {
+  width: 100%;
+  padding: 7px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.calc-inputs input:focus { border-color: var(--accent); }
+.calc-inputs input::placeholder { color: var(--text-dim); font-size: 12px; }
+
+.calc-stockline {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.calc-card {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  margin-bottom: 6px;
+}
+
+.calc-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.calc-cb { font-size: 12px; font-weight: 600; color: var(--text); }
+.calc-conv { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+
+.calc-ceiling {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.calc-ceiling-label { font-size: 11px; color: var(--text-muted); }
+
+.calc-ceiling-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+.calc-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.calc-dim { color: var(--text-dim); }
+
+.calc-now {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px dashed var(--border-light);
+}
+
+.calc-ok { color: var(--down); font-weight: 600; }
+.calc-no { color: var(--up); font-weight: 600; }
+
+.calc-warn {
+  font-size: 11px;
+  color: var(--up);
+  margin-top: 3px;
+}
+
+.calc-empty {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 6px 0;
+}
+
+.calc-rule {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.calc-rule summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  outline: none;
+}
+
+.calc-rule > div { margin-top: 4px; line-height: 1.6; }
