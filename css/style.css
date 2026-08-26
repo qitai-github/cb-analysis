@@ -853,6 +853,41 @@ body {
   color: #60a5fa;
 }
 
+/* === 增資進度 (MOPS 重大訊息辨識) === */
+/* 專案沒有全域 .hidden (只有 .tech-folder-panel.hidden),這裡自己宣告 */
+#detail-raise-section.hidden { display: none; }
+
+.raise-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.raise-kpi-item {
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.raise-kpi-label { font-size: 11px; color: var(--text-muted); }
+.raise-kpi-value { font-size: 14px; font-weight: 700; color: #fbbf24; }
+.raise-kpi-value.is-empty { color: var(--text-dim); font-weight: 400; }
+
+.raise-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.raise-item { padding: 6px 0; border-bottom: 1px solid var(--border-light); }
+.raise-item:last-child { border-bottom: none; }
+.raise-item-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.raise-date { font-size: 11px; color: var(--text-muted); }
+.raise-stage {
+  font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  background: rgba(251,191,36,.15); color: #fbbf24;
+  border: 1px solid rgba(251,191,36,.35);
+}
+.raise-nodetail { font-size: 10px; color: var(--text-dim); }
+.raise-title { font-size: 12px; color: var(--text); line-height: 1.4; word-break: break-word; }
+.raise-bits { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
 /* === MOPS 重大訊息 (公開資訊觀測站) === */
 .news-badge {
   flex-shrink: 0;
@@ -2766,3 +2801,153 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 
 .calc-rule > div { margin-top: 4px; line-height: 1.6; }
+
+/* === 分布圖分頁 (ScatterView) === */
+.scatter-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 0 var(--radius) var(--radius) var(--radius);
+  padding: 14px 16px 10px;
+}
+
+.scatter-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+
+.scatter-slider { min-width: 240px; flex: 1 1 240px; }
+
+.scatter-slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.scatter-slider-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.scatter-slider-val   { font-size: 13px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* 雙滑軌:兩個 range 疊在同一條軌道上,只有 thumb 可點 */
+.scatter-slider-track {
+  position: relative;
+  height: 22px;
+}
+.scatter-slider-track::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+}
+.scatter-slider-fill {
+  position: absolute;
+  top: 9px; height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.scatter-slider-track input[type=range] {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.scatter-slider-track input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-card);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.scatter-slider-track input[type=range]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-card);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.scatter-slider-track input[type=range]::-moz-range-track { background: none; }
+
+.scatter-count {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding-bottom: 3px;
+  white-space: nowrap;
+}
+
+.scatter-reset {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.scatter-reset:hover { color: var(--text); border-color: var(--accent); }
+
+/* 產業圖例:一個產業一顆 chip,點擊切換顯示 */
+.scatter-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 2px 0 8px;
+}
+
+.scatter-lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 2px 9px 2px 6px;
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.6;
+}
+.scatter-lg:hover { border-color: var(--accent); }
+.scatter-lg.off { opacity: 0.4; text-decoration: line-through; }
+.scatter-lg-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.scatter-lg-n { color: var(--text-dim); font-size: 10.5px; }
+
+.scatter-canvas-wrap {
+  position: relative;
+  height: calc(100vh - 300px);
+  min-height: 320px;
+}
+
+.scatter-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.scatter-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  .scatter-controls { gap: 12px; }
+  .scatter-slider { flex: 1 1 100%; }
+  .scatter-canvas-wrap { height: 55vh; }
+  .scatter-legend { max-height: 70px; overflow-y: auto; }
+}

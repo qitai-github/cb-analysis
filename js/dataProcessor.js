@@ -559,6 +559,16 @@ const DataProcessor = (() => {
       }
     }
 
+    // 6e. 增資事件 (MOPS 重大訊息辨識出來的現金增資/私募流程)
+    if (rawResults.mopsNews && Array.isArray(rawResults.mopsNews.capitalRaise)) {
+      for (const cr of rawResults.mopsNews.capitalRaise) {
+        const entry = stockMap.get(String(cr.code));
+        if (!entry) continue;
+        if (!entry.capitalRaise) entry.capitalRaise = [];
+        entry.capitalRaise.push(cr);
+      }
+    }
+
     // 7. CB三大法人 (以 cbCode 為 key 的 timeseries)
     let cbBondInstByCode = null;
     if (rawResults.cbBondInstitutional) {

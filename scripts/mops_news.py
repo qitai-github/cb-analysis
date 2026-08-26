@@ -40,6 +40,9 @@ from pathlib import Path
 
 import requests
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib import capital_raise  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "data" / "mops_news.json"
 ALL_DATA = ROOT / "data" / "all-data.json"
@@ -164,13 +167,48 @@ def fetch_mops_company(code: str, market: str, session) -> list:
         date = roc_to_iso(d)
         if not date or not title:
             continue
-        out.append({
+        rec = {
             "code": c, "name": name, "market": market,
             "date": date, "time": t if re.fullmatch(r"[\d:]+", t) else "",
             "title": clean(title),
             "clause": "", "factDate": "", "detail": "", "src": "mops",
-        })
+        }
+        # 細節頁要 spoke_date / spoke_time / seq_no,這三個值只在該列的 onclick JS 裡
+        km = _KEY_RE.search(tr)
+        if km:
+            rec["_seq"] = km.group(1)
+            rec["_spokeTime"] = km.group(2)
+            rec["_spokeDate"] = km.group(3)
+        out.append(rec)
     return out
+
+
+_KEY_RE = re.compile(r"seq_no\.value='(\d+)';.*?spoke_time\.value='(\d+)';"
+                     r".*?spoke_date\.value='(\d+)'", re.S)
+
+
+def fetch_mops_detail(rec: dict, session) -> str:
+    """抓單一則重訊的「說明」全文。逐檔補漏的列表頁只有主旨,增資的繳款期限、
+    定價都在說明裡 → 對疑似增資的公告才補抓,不然要打太多次。"""
+    if not rec.get("_seq"):
+        return ""
+    r = session.post(MOPS_AJAX, timeout=30,
+                     headers={"User-Agent": UA,
+                              "Content-Type": "application/x-www-form-urlencoded"},
+                     data={"firstin": "true", "step": "2", "off": "1",
+                           "TYPEK": "sii" if rec["market"] == "sii" else "otc",
+                           "co_id": rec["code"], "seq_no": rec["_seq"],
+                           "spoke_date": rec["_spokeDate"],
+                           "spoke_time": rec["_spokeTime"]})
+    r.raise_for_status()
+    html = r.content.decode("utf-8", errors="replace")
+    if html.count("�") > 20:
+        html = r.content.decode("big5", errors="replace")
+    # 說明是表格最後一格,先轉純文字再從「說明」切到頁尾聲明
+    txt = re.sub(r"<[^>]+>", "\n", html).replace("&nbsp;", " ")
+    txt = re.sub(r"\n{2,}", "\n", txt)
+    m = re.search(r"\n\s*說明\s*\n(.+?)(?:以上資料均由各公司|$)", txt, re.S)
+    return clean(m.group(1)) if m else ""
 
 
 # ── CB 事件抽取 ──────────────────────────────────────────────────────
@@ -250,15 +288,16 @@ def extract_cb_event(rec: dict):
 # ── 合併 / 落檔 ──────────────────────────────────────────────────────
 def load_prev() -> dict:
     if not OUTPUT.exists():
-        return {"items": [], "cbEvents": []}
+        return {"items": [], "cbEvents": [], "capitalRaise": []}
     try:
         d = json.loads(OUTPUT.read_text(encoding="utf-8"))
         d.setdefault("items", [])
         d.setdefault("cbEvents", [])
+        d.setdefault("capitalRaise", [])
         return d
     except Exception as e:            # 壞檔不該讓當天的抓取整個失敗
         log(f"  ! 舊 mops_news.json 讀取失敗,視為空檔:{e}")
-        return {"items": [], "cbEvents": []}
+        return {"items": [], "cbEvents": [], "capitalRaise": []}
 
 
 def whitelist_codes() -> set:
@@ -301,6 +340,9 @@ def merge(prev: dict, fresh: list, white: set) -> dict:
             old.update(r)                  # MOPS 補漏那筆沒說明,之後 OpenAPI 補上
 
     items = [r for r in by_key.values() if r["date"] >= keep_from]
+    for r in items:                      # 細節頁用的暫時欄位不落檔
+        for k in [k for k in r if k.startswith("_")]:
+            r.pop(k, None)
     for r in items:
         if r["date"] < detail_from:
             r["detail"] = ""
@@ -321,13 +363,36 @@ def merge(prev: dict, fresh: list, white: set) -> dict:
     cb_events = sorted(ev_by_key.values(), key=lambda e: (e["date"], e["cbCode"]))
 
     latest = max((r["date"] for r in items), default="")
-    log(f"  新增 {added:,} 則重大訊息、{ev_added} 筆 CB 事件 "
-        f"(留存 items={len(items):,} / cbEvents={len(cb_events):,})")
+    # ── 增資事件 ──
+    # 跟 cbEvents 一樣不看白名單 (全市場都掃),但只留有抽到東西的,免得整片雜訊。
+    # 說明全文之後會被 DETAIL_DAYS 清掉,所以抽出來的結果要獨立存,不能事後重算。
+    cr_by_key = {(e.get("code"), e.get("date"), e.get("time"), e.get("stage")): e
+                 for e in prev.get("capitalRaise", [])}
+    cr_added = 0
+    for r in fresh:
+        ev = capital_raise.build_event(r)
+        if not ev:
+            continue
+        if not (ev["payDeadline"] or ev["chaseDeadline"] or ev["listingDate"]
+                or ev["price"] or ev["stage"] != "other"):
+            continue
+        k = (ev["code"], ev["date"], ev["time"], ev["stage"])
+        old = cr_by_key.get(k)
+        # 之後補抓到說明全文時,用資訊比較多的那筆覆蓋
+        if old is None or (not old.get("hasDetail") and ev["hasDetail"]):
+            cr_by_key[k] = ev
+            cr_added += 1
+    cap = sorted(cr_by_key.values(),
+                 key=lambda e: (e.get("date") or "", e.get("time") or ""), reverse=True)
+
+    log(f"  新增 {added:,} 則重大訊息、{ev_added} 筆 CB 事件、{cr_added} 筆增資事件 "
+        f"(留存 items={len(items):,} / cbEvents={len(cb_events):,} / 增資={len(cap):,})")
     return {
         "updatedAt": datetime.now(TZ8).isoformat(timespec="seconds"),
         "latestDate": latest,
         "items": items,
         "cbEvents": cb_events,
+        "capitalRaise": cap,
     }
 
 
@@ -338,6 +403,10 @@ def main() -> int:
     ap.add_argument("--codes", default="",
                     help="只補這幾檔 (逗號分隔),隱含 --catchup")
     ap.add_argument("--sleep", type=float, default=0.6, help="補漏查詢間隔秒數")
+    ap.add_argument("--rebuild", action="store_true",
+                    help="把已存的 items 全部重掃一次增資事件 (改了抽取規則後用)")
+    ap.add_argument("--details", type=int, default=80,
+                    help="補漏時最多補抓幾則「疑似增資」公告的說明全文")
     args = ap.parse_args()
 
     white = whitelist_codes()
@@ -359,6 +428,7 @@ def main() -> int:
         log(f"[3/3] MOPS 逐檔補漏 {len(targets):,} 檔")
         s = requests.Session()
         ok = fail = 0
+        detail_budget = args.details
         for i, code in enumerate(targets, 1):
             got = []
             for market in ("sii", "otc"):
@@ -369,6 +439,18 @@ def main() -> int:
                 if got:
                     break
             if got:
+                # 增資的關鍵日期全在說明裡,列表頁沒有 → 只對疑似增資的補抓細節頁
+                for rec in got:
+                    if detail_budget <= 0 or rec.get("detail"):
+                        continue
+                    if not capital_raise.is_capital_raise(rec["title"]):
+                        continue
+                    try:
+                        rec["detail"] = fetch_mops_detail(rec, s)
+                        detail_budget -= 1
+                        time.sleep(args.sleep)
+                    except Exception:
+                        pass
                 fresh += got
                 ok += 1
             else:
@@ -384,7 +466,13 @@ def main() -> int:
         log("!! 沒抓到任何資料,保留舊檔不動")
         return 1
 
-    out = merge(load_prev(), fresh, white)
+    prev = load_prev()
+    if args.rebuild:
+        # 抽取規則改過之後,舊資料要用新規則重算一次;說明還在的才重算得出來
+        log(f"[rebuild] 重掃已存的 {len(prev.get('items', [])):,} 則")
+        prev["capitalRaise"] = []
+        fresh = list(prev.get("items", [])) + fresh
+    out = merge(prev, fresh, white)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")),
                       encoding="utf-8")

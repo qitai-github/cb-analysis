@@ -510,6 +510,7 @@ const App = (() => {
     document.getElementById('detail-price-info').innerHTML = buildPriceInfoHTML(stock);
     document.getElementById('detail-cb-info').innerHTML = buildCBInfoHTML(stock);
     document.getElementById('detail-news-info').innerHTML = buildNewsHTML(stock);
+    renderCapitalRaise(stock);
 
     // 預設選的 CB (給 CB 技術分析 Modal 用)
     const tabCBs = (stock.cbs || []).filter(cb => cb.cbCode);
@@ -1652,6 +1653,61 @@ const App = (() => {
   function esc(v) {
     return String(v ?? '').replace(/[&<>"]/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  /* ── 增資進度 ────────────────────────────────────────────────────
+   * 資料是 scripts/lib/capital_raise.py 從 MOPS 重大訊息「說明」抽出來的,
+   * 抓不到的欄位一律留白不猜 → 這裡也就照實顯示「-」。
+   * 同一案會有多則公告 (董事會決議 → 定價 → 催繳 → 收足 → 上市櫃),
+   * 一律最新在上,把最新一則的關鍵日期放大成摘要。 */
+  const RAISE_STAGE = {
+    board: '董事會決議', pricing: '定價/認股基準日', chase: '催繳/特定人',
+    paidIn: '收足股款', listing: '新股上市櫃', other: '其他'
+  };
+
+  function renderCapitalRaise(stock) {
+    const sec = document.getElementById('detail-raise-section');
+    const box = document.getElementById('detail-raise-info');
+    if (!sec || !box) return;
+    const list = (stock.capitalRaise || []).slice()
+      .sort((a, b) => String(b.announcedAt).localeCompare(String(a.announcedAt)));
+    if (!list.length) { sec.classList.add('hidden'); box.innerHTML = ''; return; }
+    sec.classList.remove('hidden');
+
+    // 摘要:各欄位取「最近一則有值的」,因為定價在定價公告、上市櫃日在收足公告
+    const pick = (k) => (list.find(e => e[k]) || {})[k] || '';
+    const kpi = [
+      ['增資定價', pick('price') ? pick('price') + ' 元' : '-'],
+      ['最後繳費期限', pick('payDeadline') || '-'],
+      [(list.find(e => e.chaseDeadline)?.chaseKind || '催繳/特定人') + '期限',
+        pick('chaseDeadline') || '-'],
+      ['新股上市櫃', pick('listingDate') || '-']
+    ];
+    let html = '<div class="raise-kpi">' + kpi.map(([k, v]) =>
+      `<div class="raise-kpi-item"><span class="raise-kpi-label">${esc(k)}</span>` +
+      `<span class="raise-kpi-value${v === '-' ? ' is-empty' : ''}">${esc(v)}</span></div>`
+    ).join('') + '</div>';
+
+    html += '<div class="raise-list">';
+    for (const e of list) {
+      const bits = [
+        e.price ? `定價 ${e.price}` : null,
+        e.payDeadline ? `繳款至 ${e.payDeadline}` : null,
+        e.chaseDeadline ? `${e.chaseKind || '催繳'} 至 ${e.chaseDeadline}` : null,
+        e.listingDate ? `上市櫃 ${e.listingDate}` : null
+      ].filter(Boolean).join('　');
+      html += `<div class="raise-item">
+        <div class="raise-item-head">
+          <span class="raise-date">${esc(e.announcedAt || e.date || '')}</span>
+          <span class="raise-stage">${esc(RAISE_STAGE[e.stage] || e.stage)}</span>
+          ${e.hasDetail ? '' : '<span class="raise-nodetail" title="這則只抓到主旨,說明全文還沒補到">無說明</span>'}
+        </div>
+        <div class="raise-title">${esc(e.title || '')}</div>
+        ${bits ? `<div class="raise-bits">${esc(bits)}</div>` : ''}
+      </div>`;
+    }
+    html += '</div>';
+    box.innerHTML = html;
   }
 
   function buildNewsHTML(stock) {
