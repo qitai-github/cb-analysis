@@ -29,6 +29,7 @@ const ScatterView = (() => {
     { label: 'CB ≥ 130',   test: v => v >= 130,            color: '#ef4444' }
   ];
 
+  let industryFilter = '';      // '' = 全部產業;否則只畫該產業的 CB
   let colorMode = 'industry';   // 'industry' | 'price' — 分色依據,切換後記住
   let groups = [];              // [{ key, color, shape, n }] — 由資料+模式算出
 
@@ -132,6 +133,7 @@ const ScatterView = (() => {
     // === 版面 ===
     panel.innerHTML =
       '<div class="scatter-controls">' +
+        industrySelectHtml(pts) +
         sliderHtml('price', 'CB 價格', pMin, pMax, 1, priceRange, '') +
         sliderHtml('prem', '溢價率', rMin, rMax, 1, premiumRange, '%') +
         '<div class="scatter-mode">' +
@@ -144,7 +146,15 @@ const ScatterView = (() => {
       '</div>' +
       '<div class="scatter-legend" id="scatter-legend"></div>' +
       '<div class="scatter-canvas-wrap"><canvas id="scatter-canvas"></canvas></div>' +
-      '<div class="scatter-hint">點擊任一點可開啟該檔 CB 對應個股的詳情面板;點上方圖例可隱藏/顯示該分組;「分色」可切換依產業或依 CB 價格帶上色。</div>';
+      '<div class="scatter-hint">「產業」下拉可只看單一產業;點擊任一點可開啟該檔 CB 對應個股的詳情面板;點上方圖例可隱藏/顯示該分組;「分色」可切換依產業或依 CB 價格帶上色。</div>';
+
+    const indSel = panel.querySelector('#scatter-industry');
+    if (indSel) {
+      indSel.addEventListener('change', () => {
+        industryFilter = indSel.value;
+        update(pts, panel);
+      });
+    }
 
     bindSlider(panel, 'price', () => update(pts, panel));
     bindSlider(panel, 'prem',  () => update(pts, panel));
@@ -153,6 +163,8 @@ const ScatterView = (() => {
       premiumRange = { min: rMin, max: rMax };
       setSlider(panel, 'price', priceRange);
       setSlider(panel, 'prem', premiumRange);
+      industryFilter = '';
+      if (indSel) indSel.value = '';
       groups.forEach((g, i) => chart && chart.setDatasetVisibility(i, true));
       renderLegend(panel);
       update(pts, panel);
@@ -172,6 +184,26 @@ const ScatterView = (() => {
     buildChart(panel, options);
     renderLegend(panel);
     update(pts, panel);
+  }
+
+  /** 產業下拉:選項 = 這批資料裡有的產業別 (依檔數排序,含檔數) */
+  function industrySelectHtml(pts) {
+    const count = new Map();
+    for (const p of pts) {
+      const k = industryOf(p.cb);
+      count.set(k, (count.get(k) || 0) + 1);
+    }
+    const list = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    // 上次選的產業這批資料沒有 → 退回全部
+    if (industryFilter && !count.has(industryFilter)) industryFilter = '';
+    const opts = ['<option value="">— 全部產業 (' + pts.length + ') —</option>']
+      .concat(list.map(([k, n]) =>
+        '<option value="' + k + '"' + (k === industryFilter ? ' selected' : '') + '>' + k + ' (' + n + ')</option>'));
+    return '' +
+      '<div class="scatter-ind">' +
+        '<span class="scatter-ind-label">產業</span>' +
+        '<select id="scatter-industry" class="scatter-ind-select">' + opts.join('') + '</select>' +
+      '</div>';
   }
 
   /** 雙滑軌(兩個 range input 疊在同一條軌道上)*/
@@ -338,7 +370,8 @@ const ScatterView = (() => {
     if (!chart) return;
     const inRange = pts.filter(p =>
       p.x >= priceRange.min && p.x <= priceRange.max &&
-      p.y >= premiumRange.min && p.y <= premiumRange.max);
+      p.y >= premiumRange.min && p.y <= premiumRange.max &&
+      (!industryFilter || industryOf(p.cb) === industryFilter));
 
     const buckets = groups.map(() => []);
     for (const p of inRange) {
