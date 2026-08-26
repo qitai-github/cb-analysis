@@ -33,17 +33,17 @@ _EXCLUDE = re.compile(r"新增資金貸與|資金貸與|背書保證|增資子�
 _INCLUDE = re.compile(r"現金增資|現增|私募普通股|私募有價證券|募集發行新股|"
                       r"增資發行新股|股款繳納憑證")
 # CB / 員工認股權轉換普通股的「增資基準日」是換股不是募資
-_CB_CONV = re.compile(r"轉換公司債.{0,12}轉換普通股|員工認股權憑證轉換|限制員工權利新股")
+_CB_CONV = re.compile(r"轉換公司債.{0,12}轉換普通股|員工認股權憑證轉換|限制員工權利新股", re.S)
 
 STAGES = [
     ("listing",  re.compile(r"股款繳納憑證.{0,6}(上市|上櫃)|增資新股.{0,6}(上市|上櫃)|"
-                            r"新股.{0,6}(上市|上櫃)買賣|股票發放")),
+                            r"新股.{0,6}(上市|上櫃)買賣|股票發放", re.S)),
     ("chase",    re.compile(r"催繳")),
     ("paidIn",   re.compile(r"收足股款|股款.{0,6}收足|繳足")),
     ("pricing",  re.compile(r"認股基準日|訂定.{0,10}(發行|認購)價格|定價相關事宜|"
-                            r"(發行|認購)價格.{0,10}(訂為|為|訂定)|增資基準日")),
+                            r"(發行|認購)價格.{0,10}(訂為|為|訂定)|增資基準日", re.S)),
     ("board",    re.compile(r"董事會決議.{0,12}(辦理|發行|通過).{0,10}(現金增資|增資|新股)|"
-                            r"董事會決議.{0,20}私募")),
+                            r"董事會決議.{0,20}私募", re.S)),
 ]
 
 STAGE_LABEL = {
@@ -135,8 +135,20 @@ def _sentence(text: str, start: int, width: int) -> str:
     return seg[: m.start()] if m else seg
 
 
+def _clause_before(text: str, pos: int, back: int) -> str:
+    """關鍵詞前面「同一子句」的文字:往前 back 字,再砍到最近的句尾/欄位編號。
+    給「115年09月08日劃撥至集保帳戶」這種日期寫在關鍵詞前面的句型用 ——
+    不砍到子句邊界的話會撈到上一格的日期。"""
+    if back <= 0:
+        return ""
+    pre = text[max(0, pos - back): pos]
+    cuts = [m.end() for m in _SENT_END.finditer(pre)]
+    return pre[cuts[-1]:] if cuts else pre
+
+
 def _window(text: str, pat: re.Pattern, width: int = 120,
-            require: str = "", exclude: str = "", back: int = 0) -> str:
+            require: str = "", exclude: str = "", back: int = 0,
+            date_back: bool = False) -> str:
     """沒有編號欄位時的退路:掃過關鍵詞的每一次出現,取句內日期最晚的那段。
     (公告常有「原訂…順延至…」兩句,要的是比較晚那個)
 
@@ -150,12 +162,17 @@ def _window(text: str, pat: re.Pattern, width: int = 120,
         # 日期只從關鍵詞往後取(往前那段拿來切句會把欄位編號當句尾,整段被砍掉);
         # require / exclude 則連同前文一起判斷,才看得到「原特定人…調整繳款期間」
         seg = _sentence(text, m.start(), width)
-        ctx = text[max(0, m.start() - back): m.start()] + seg
+        pre = _clause_before(text, m.start(), back)
+        ctx = pre + seg
         if require and require not in ctx:
             continue
         if ex and ex.search(ctx):
             continue
+        # 預設只從關鍵詞往後取日期(往前那段拿來切句會把欄位編號當句尾);
+        # date_back=True 時才允許回頭在同一子句裡找 —— 「…09月08日劃撥至集保」
         d = _last_date(seg)
+        if not d and date_back:
+            d, seg = _last_date(pre), pre + seg
         if d and d > best_date:
             best_seg, best_date = seg, d
     return best_seg
@@ -164,8 +181,9 @@ def _window(text: str, pat: re.Pattern, width: int = 120,
 _P_PAY = re.compile(r"認股繳款期[間限]|股款繳納期[間限]|繳款期[間限]|繳納股款期[間限]")
 _P_CHASE = re.compile(r"催繳")
 _P_SPEC = re.compile(r"特定人")
+# re.S 必要:MOPS 會在句中硬斷行(「劃撥至該股 / 東及員工之集保帳戶」),不跨行就配不到
 _P_LIST = re.compile(r"股款繳納憑證.{0,8}(?:上市|上櫃)|(?:增資)?新股.{0,8}(?:上市|上櫃)|"
-                     r"劃撥.{0,24}集保|撥券")
+                     r"劃撥.{0,24}集保|撥券", re.S)
 _P_PRICE = re.compile(r"(?:每股)?(?:認購|發行|承購)價(?:格|為)?(?:訂為|為|:|：)?\s*"
                       r"(?:新台幣|新臺幣|NT\$?|NTD)?\s*([\d,]+(?:\.\d+)?)\s*元")
 
@@ -234,7 +252,7 @@ def extract(title: str, detail: str) -> dict:
     if fval:
         listing, list_ev = _first_date(fval), f"{fname}:{fval}".strip()[:60]
     else:
-        seg = _window(body, _P_LIST, 90, back=40)
+        seg = _window(body, _P_LIST, 90, back=60, date_back=True)
         if seg:
             listing, list_ev = _first_date(seg), re.sub(r"\s+", "", seg)[:60]
 
