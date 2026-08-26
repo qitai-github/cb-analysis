@@ -5,7 +5,7 @@ const Table = (() => {
   let currentSort = { key: 'code', asc: true };
   let currentPage = 0;
   let onRowClick = null;
-  let currentTab = 'stock';   // 'stock' | 'cb'
+  let currentTab = 'stock';   // 'stock' | 'cb' | 'scatter'
   let currentContainerId = 'main-table';
 
   // 「個股」分頁:每一列 = 一檔個股
@@ -48,8 +48,9 @@ const Table = (() => {
     { key: 'nearestPutDate', label: '最近賣回日', width: '95px', format: 'date_roc' }
   ];
 
+  // 分布圖分頁跟 CB 分頁吃同一份列 (逐檔 CB),欄位定義也共用,sort key 才不會被重置
   function activeColumns() {
-    return currentTab === 'cb' ? CB_COLUMNS : STOCK_COLUMNS;
+    return currentTab === 'stock' ? STOCK_COLUMNS : CB_COLUMNS;
   }
 
   // 給外部讀 (updateInstDays) — 只動股票欄位
@@ -73,11 +74,12 @@ const Table = (() => {
     if (options.onRowClick) onRowClick = options.onRowClick;
 
     const container = document.getElementById(containerId);
+    if (typeof ScatterView !== 'undefined') ScatterView.destroy();
     container.innerHTML = '';
 
-    // === CB 分頁攤平,股票分頁保持原樣 ===
+    // === CB / 分布圖分頁攤平成逐檔 CB,股票分頁保持原樣 ===
     const cols = activeColumns();
-    const rows = currentTab === 'cb' ? cbRows(data) : data;
+    const rows = currentTab === 'stock' ? data : cbRows(data);
 
     // === 工具列:左邊 folder-tab,右邊 共 N 檔標的 ===
     const toolbar = document.createElement('div');
@@ -85,7 +87,7 @@ const Table = (() => {
 
     const tabs = document.createElement('div');
     tabs.className = 'table-folder-tabs';
-    for (const t of [{ k: 'stock', label: '個股' }, { k: 'cb', label: '可轉債' }]) {
+    for (const t of [{ k: 'stock', label: '個股' }, { k: 'cb', label: '可轉債' }, { k: 'scatter', label: '分布圖' }]) {
       const btn = document.createElement('button');
       btn.className = 'table-folder-tab' + (currentTab === t.k ? ' active' : '');
       btn.textContent = t.label;
@@ -95,10 +97,21 @@ const Table = (() => {
 
     const stats = document.createElement('div');
     stats.className = 'table-stats';
-    stats.textContent = `共 ${rows.length} 檔${currentTab === 'cb' ? '可轉債' : '標的'}`;
+    stats.textContent = `共 ${rows.length} 檔${currentTab === 'stock' ? '標的' : '可轉債'}`;
 
     toolbar.append(tabs, stats);
     container.appendChild(toolbar);
+
+    // === 分布圖分頁:同一個資料夾版面,內容換成散布圖 ===
+    if (currentTab === 'scatter') {
+      const panel = document.createElement('div');
+      panel.className = 'table-folder-panel scatter-wrapper';
+      container.appendChild(panel);
+      if (typeof ScatterView !== 'undefined') {
+        ScatterView.render(panel, rows, { onRowClick: (item) => onRowClick && onRowClick(item) });
+      }
+      return;
+    }
 
     const wrapper = document.createElement('div');
     wrapper.className = 'table-wrapper table-folder-panel';
@@ -168,7 +181,7 @@ const Table = (() => {
     // 切換後 sort key 可能不在新欄位 → 重置
     const validKeys = new Set(activeColumns().map(c => c.key));
     if (!validKeys.has(currentSort.key)) {
-      currentSort = { key: tab === 'cb' ? 'cbCode' : 'code', asc: true };
+      currentSort = { key: tab === 'stock' ? 'code' : 'cbCode', asc: true };
       currentData = Filters.sortResults(currentData, currentSort.key, true);
     }
     currentPage = 0;

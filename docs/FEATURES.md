@@ -107,7 +107,11 @@
 
 當日全市場 CB 收盤的散布圖：**橫軸 = CB 收盤價，縱軸 = CB 溢價率(%)**，一點 = 一檔 CB。
 
-- Chart.js `type:'scatter'`，**依產業別上色**：`industryCategory` 只取第一段 (「電機機械、CoWoS概念股…」→ 電機機械)，
+- **分色可切換** (`分色: 產業 / 價格帶`，狀態記在模組內)：
+  - `價格帶`：<100 綠 / 100–110 藍 / 110–130 橘 / ≥130 紅
+  - `產業`：見下
+  - 切換走 `regroup()` — 只換 datasets 不重建 chart，滑軌/座標軸不動，並把所有分組的顯示狀態重設為顯示
+- Chart.js `type:'scatter'`，**產業模式下依產業別上色**：`industryCategory` 只取第一段 (「電機機械、CoWoS概念股…」→ 電機機械)，
   依檔數由多到少取前 16 個產業配色，其餘併成「其他」(灰)；顏色用完後再用 pointStyle 形狀區分
 - 圖例是外部 HTML chip (`.scatter-legend`，非 canvas 內建 legend，產業多不會被裁掉)，顯示產業名 + 檔數，點擊切換顯示/隱藏
 - **雙滑軌**：`CB 價格` 與 `溢價率` 各一組 (兩個 `input[type=range]` 疊在同一軌道，`pointer-events` 只開在 thumb)，

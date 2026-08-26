@@ -1,0 +1,366 @@
+/* scatterView.js — 「分布圖」分頁:每日 CB 收盤結果的散布圖
+ * 橫軸 = CB 收盤價,縱軸 = CB 溢價率(%),一點 = 一檔可轉債。
+ * 可用雙滑軌篩選 CB 價格 / 溢價率範圍,點擊點會開該檔 CB 對應個股的詳情面板。
+ */
+const ScatterView = (() => {
+  let chart = null;
+  // 使用者拉過的範圍(null = 尚未設定,套用資料全距)
+  let priceRange = null;    // { min, max }
+  let premiumRange = null;
+  let lastBounds = null;    // 資料全距 { pMin, pMax, rMin, rMax }
+
+  // 依「產業別」分色。industryCategory 是「電機機械、CoWoS概念股、…」這種串,
+  // 第一段才是真正的產業別,後面是概念股標籤 → 只取第一段。
+  const PALETTE = [
+    '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4',
+    '#ec4899', '#84cc16', '#f97316', '#14b8a6', '#8b5cf6', '#eab308',
+    '#f43f5e', '#10b981', '#0ea5e9', '#d946ef'
+  ];
+  // 顏色重複時用不同形狀再區分一次
+  const SHAPES = ['circle', 'triangle', 'rect', 'rectRot', 'star', 'crossRot'];
+  const OTHER = '其他';
+  const MAX_GROUPS = 16;   // 超過的併入「其他」
+
+  // CB 價格分帶(分色模式 = price 時用)
+  const BANDS = [
+    { label: 'CB < 100',   test: v => v < 100,             color: '#22c55e' },
+    { label: 'CB 100–110', test: v => v >= 100 && v < 110, color: '#3b82f6' },
+    { label: 'CB 110–130', test: v => v >= 110 && v < 130, color: '#f59e0b' },
+    { label: 'CB ≥ 130',   test: v => v >= 130,            color: '#ef4444' }
+  ];
+
+  let colorMode = 'industry';   // 'industry' | 'price' — 分色依據,切換後記住
+  let groups = [];              // [{ key, color, shape, n }] — 由資料+模式算出
+
+  function industryOf(cb) {
+    const s = cb && cb.industryCategory;
+    if (!s) return OTHER;
+    return String(s).split('、')[0].trim() || OTHER;
+  }
+
+  /** 依目前 colorMode 建立分組,並在每個點寫上所屬分組 index (p.gi) */
+  function buildGroups(pts) {
+    if (colorMode === 'price') return buildPriceGroups(pts);
+    return buildIndustryGroups(pts);
+  }
+
+  /** 價格帶分組 */
+  function buildPriceGroups(pts) {
+    groups = BANDS.map(b => ({ key: b.label, color: b.color, shape: 'circle', n: 0 }));
+    for (const p of pts) {
+      const i = BANDS.findIndex(b => b.test(p.x));
+      p.gi = i;
+      if (i >= 0) groups[i].n++;
+    }
+  }
+
+  /** 依出現檔數由多到少建立產業分組(尾巴併成「其他」)*/
+  function buildIndustryGroups(pts) {
+    const count = new Map();
+    for (const p of pts) {
+      const k = industryOf(p.cb);
+      count.set(k, (count.get(k) || 0) + 1);
+    }
+    const sorted = [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    const keep = sorted.filter(k => k !== OTHER).slice(0, MAX_GROUPS);
+    const hasOther = sorted.length > keep.length;
+    const keys = hasOther ? keep.concat([OTHER]) : keep;
+    const keepSet = new Set(keep);
+    groups = keys.map((k, i) => (k === OTHER
+      ? { key: OTHER, color: '#64748b', shape: 'circle', n: 0 }
+      : { key: k, color: PALETTE[i % PALETTE.length], shape: SHAPES[Math.floor(i / PALETTE.length) % SHAPES.length], n: count.get(k) || 0 }));
+    // 每個點先算好所屬分組 index,update() 只要比對數字
+    const idx = new Map(groups.map((g, i) => [g.key, i]));
+    const otherIdx = idx.has(OTHER) ? idx.get(OTHER) : -1;
+    for (const p of pts) {
+      const k = industryOf(p.cb);
+      p.gi = keepSet.has(k) ? idx.get(k) : otherIdx;
+      if (p.gi === otherIdx && otherIdx >= 0 && !keepSet.has(k)) groups[otherIdx].n++;
+    }
+  }
+
+  const num = v => (v == null || v === '' || isNaN(Number(v))) ? null : Number(v);
+
+  /** 取出同時有收盤價 + 溢價率的 CB 列 */
+  function validPoints(cbRows) {
+    const out = [];
+    for (const cb of cbRows || []) {
+      const x = num(cb.close), y = num(cb.premiumRate);
+      if (x === null || y === null) continue;
+      out.push({ x, y, cb });
+    }
+    return out;
+  }
+
+  const roundDown = (v, step) => Math.floor(v / step) * step;
+  const roundUp   = (v, step) => Math.ceil(v / step) * step;
+
+  /**
+   * @param {HTMLElement} panel  要塞內容的容器 (已在 DOM 上)
+   * @param {Array} cbRows       已套過篩選的逐檔 CB
+   * @param {Object} options     { onRowClick }
+   */
+  function render(panel, cbRows, options = {}) {
+    destroy();
+    panel.innerHTML = '';
+    panel.classList.add('scatter-panel');
+
+    const pts = validPoints(cbRows);
+    if (!pts.length) {
+      panel.innerHTML = '<div class="scatter-empty">目前篩選條件下沒有可畫的 CB(需同時有收盤價與溢價率)</div>';
+      return;
+    }
+
+    // === 資料全距(滑軌上下限)===
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    const pMin = roundDown(Math.min(...xs), 5);
+    const pMax = roundUp(Math.max(...xs), 5);
+    const rMin = roundDown(Math.min(...ys), 10);
+    const rMax = roundUp(Math.max(...ys), 10);
+    const bounds = { pMin, pMax, rMin, rMax };
+
+    // 資料全距變了(換篩選 / 換日期)→ 重設滑軌;否則沿用使用者拉的範圍
+    const same = lastBounds && ['pMin', 'pMax', 'rMin', 'rMax'].every(k => lastBounds[k] === bounds[k]);
+    if (!same) { priceRange = null; premiumRange = null; }
+    lastBounds = bounds;
+    if (!priceRange)   priceRange   = { min: pMin, max: pMax };
+    if (!premiumRange) premiumRange = { min: rMin, max: rMax };
+    // 夾回合法區間
+    priceRange   = { min: Math.max(pMin, Math.min(priceRange.min, pMax)),   max: Math.min(pMax, Math.max(priceRange.max, pMin)) };
+    premiumRange = { min: Math.max(rMin, Math.min(premiumRange.min, rMax)), max: Math.min(rMax, Math.max(premiumRange.max, rMin)) };
+
+    // === 版面 ===
+    panel.innerHTML =
+      '<div class="scatter-controls">' +
+        sliderHtml('price', 'CB 價格', pMin, pMax, 1, priceRange, '') +
+        sliderHtml('prem', '溢價率', rMin, rMax, 1, premiumRange, '%') +
+        '<div class="scatter-mode">' +
+          '<span class="scatter-mode-label">分色</span>' +
+          '<button type="button" class="scatter-mode-btn" data-mode="industry">產業</button>' +
+          '<button type="button" class="scatter-mode-btn" data-mode="price">價格帶</button>' +
+        '</div>' +
+        '<div class="scatter-count" id="scatter-count"></div>' +
+        '<button class="scatter-reset" id="scatter-reset" type="button">重設範圍</button>' +
+      '</div>' +
+      '<div class="scatter-legend" id="scatter-legend"></div>' +
+      '<div class="scatter-canvas-wrap"><canvas id="scatter-canvas"></canvas></div>' +
+      '<div class="scatter-hint">點擊任一點可開啟該檔 CB 對應個股的詳情面板;點上方圖例可隱藏/顯示該分組;「分色」可切換依產業或依 CB 價格帶上色。</div>';
+
+    bindSlider(panel, 'price', () => update(pts, panel));
+    bindSlider(panel, 'prem',  () => update(pts, panel));
+    panel.querySelector('#scatter-reset').addEventListener('click', () => {
+      priceRange = { min: pMin, max: pMax };
+      premiumRange = { min: rMin, max: rMax };
+      setSlider(panel, 'price', priceRange);
+      setSlider(panel, 'prem', premiumRange);
+      groups.forEach((g, i) => chart && chart.setDatasetVisibility(i, true));
+      renderLegend(panel);
+      update(pts, panel);
+    });
+
+    panel.querySelectorAll('.scatter-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.mode === colorMode) return;
+        colorMode = btn.dataset.mode;
+        paintModeBtns(panel);
+        regroup(pts, panel);
+      });
+    });
+    paintModeBtns(panel);
+
+    buildGroups(pts);
+    buildChart(panel, options);
+    renderLegend(panel);
+    update(pts, panel);
+  }
+
+  /** 雙滑軌(兩個 range input 疊在同一條軌道上)*/
+  function sliderHtml(id, label, min, max, step, cur, unit) {
+    return '' +
+      '<div class="scatter-slider" data-slider="' + id + '" data-min="' + min + '" data-max="' + max + '" data-unit="' + unit + '">' +
+        '<div class="scatter-slider-head">' +
+          '<span class="scatter-slider-label">' + label + '</span>' +
+          '<span class="scatter-slider-val" id="scatter-' + id + '-val">' + cur.min + unit + ' ~ ' + cur.max + unit + '</span>' +
+        '</div>' +
+        '<div class="scatter-slider-track">' +
+          '<div class="scatter-slider-fill" id="scatter-' + id + '-fill"></div>' +
+          '<input type="range" id="scatter-' + id + '-lo" min="' + min + '" max="' + max + '" step="' + step + '" value="' + cur.min + '">' +
+          '<input type="range" id="scatter-' + id + '-hi" min="' + min + '" max="' + max + '" step="' + step + '" value="' + cur.max + '">' +
+        '</div>' +
+      '</div>';
+  }
+
+  function bindSlider(panel, id, onChange) {
+    const lo = panel.querySelector('#scatter-' + id + '-lo');
+    const hi = panel.querySelector('#scatter-' + id + '-hi');
+    const handler = (which) => {
+      let a = Number(lo.value), b = Number(hi.value);
+      if (a > b) {
+        if (which === 'lo') { a = b; lo.value = a; } else { b = a; hi.value = b; }
+      }
+      const range = { min: a, max: b };
+      if (id === 'price') priceRange = range; else premiumRange = range;
+      paintSlider(panel, id, range);
+      onChange();
+    };
+    lo.addEventListener('input', () => handler('lo'));
+    hi.addEventListener('input', () => handler('hi'));
+    paintSlider(panel, id, id === 'price' ? priceRange : premiumRange);
+  }
+
+  function setSlider(panel, id, range) {
+    panel.querySelector('#scatter-' + id + '-lo').value = range.min;
+    panel.querySelector('#scatter-' + id + '-hi').value = range.max;
+    paintSlider(panel, id, range);
+  }
+
+  function paintSlider(panel, id, range) {
+    const box = panel.querySelector('.scatter-slider[data-slider="' + id + '"]');
+    if (!box) return;
+    const min = Number(box.dataset.min), max = Number(box.dataset.max), unit = box.dataset.unit || '';
+    const span = (max - min) || 1;
+    const fill = panel.querySelector('#scatter-' + id + '-fill');
+    if (fill) {
+      fill.style.left = ((range.min - min) / span * 100) + '%';
+      fill.style.right = ((max - range.max) / span * 100) + '%';
+    }
+    const val = panel.querySelector('#scatter-' + id + '-val');
+    if (val) val.textContent = range.min + unit + ' ~ ' + range.max + unit;
+  }
+
+  function buildChart(panel, options) {
+    const canvas = panel.querySelector('#scatter-canvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+    chart = new Chart(canvas.getContext('2d'), {
+      type: 'scatter',
+      data: {
+        datasets: datasetsFromGroups()
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        onClick: (evt, els) => {
+          if (!els.length || !options.onRowClick) return;
+          const p = chart.data.datasets[els[0].datasetIndex].data[els[0].index];
+          if (p && p.cb) options.onRowClick(p.cb.stockRef || p.cb);
+        },
+        onHover: (evt, els) => {
+          if (evt.native && evt.native.target) evt.native.target.style.cursor = els.length ? 'pointer' : 'default';
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'CB 收盤價', color: '#94a3b8' },
+            ticks: { color: '#94a3b8' },
+            grid: { color: 'rgba(71,85,105,0.25)' }
+          },
+          y: {
+            title: { display: true, text: 'CB 溢價率 (%)', color: '#94a3b8' },
+            ticks: { color: '#94a3b8', callback: v => v + '%' },
+            grid: { color: 'rgba(71,85,105,0.25)' }
+          }
+        },
+        plugins: {
+          legend: { display: false },   // 用外部 HTML 圖例 (產業多,canvas 內會被裁掉)
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const cb = (ctx.raw && ctx.raw.cb) || {};
+                const lines = [
+                  (cb.cbCode || '') + ' ' + (cb.cbName || ''),
+                  'CB 收盤 ' + ctx.parsed.x.toFixed(2),
+                  '溢價率 ' + ctx.parsed.y.toFixed(2) + '%'
+                ];
+                if (cb.conversionPrice != null) lines.push('轉換價 ' + Number(cb.conversionPrice).toFixed(2));
+                if (cb.volume != null) lines.push('成交量 ' + Number(cb.volume).toLocaleString() + ' 張');
+                if (cb.industryCategory) lines.push(String(cb.industryCategory).split('、')[0]);
+                return lines;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function paintModeBtns(panel) {
+    panel.querySelectorAll('.scatter-mode-btn').forEach(b =>
+      b.classList.toggle('on', b.dataset.mode === colorMode));
+  }
+
+  /** 切換分色依據:重算分組後換掉 datasets(不重建 chart,座標軸/滑軌都不動) */
+  function regroup(pts, panel) {
+    buildGroups(pts);
+    if (!chart) return;
+    chart.data.datasets = datasetsFromGroups();
+    chart.update('none');
+    // dataset 顯示狀態是按 index 記的,換過分組後一律全部顯示,避免沿用到別組的隱藏狀態
+    chart.data.datasets.forEach((_, i) => chart.setDatasetVisibility(i, true));
+    renderLegend(panel);
+    update(pts, panel);
+  }
+
+  /** 由 groups 產生 Chart.js datasets(空資料,由 update() 填) */
+  function datasetsFromGroups() {
+    return groups.map(g => ({
+      label: g.key,
+      data: [],
+      backgroundColor: g.color + 'cc',
+      borderColor: g.color,
+      borderWidth: 1,
+      pointStyle: g.shape,
+      pointRadius: g.shape === 'circle' ? 4 : 5,
+      pointHoverRadius: g.shape === 'circle' ? 7 : 8
+    }));
+  }
+
+  /** 外部 HTML 圖例:一個產業一顆 chip,點擊切換顯示/隱藏 */
+  function renderLegend(panel) {
+    const box = panel.querySelector('#scatter-legend');
+    if (!box || !chart) return;
+    box.innerHTML = groups.map((g, i) =>
+      '<button type="button" class="scatter-lg' + (chart.isDatasetVisible(i) ? '' : ' off') + '" data-i="' + i + '">' +
+        '<span class="scatter-lg-dot" style="background:' + g.color + '"></span>' +
+        g.key + ' <span class="scatter-lg-n">' + g.n + '</span>' +
+      '</button>').join('');
+    box.querySelectorAll('.scatter-lg').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.dataset.i);
+        chart.setDatasetVisibility(i, !chart.isDatasetVisible(i));
+        btn.classList.toggle('off', !chart.isDatasetVisible(i));
+        chart.update();
+      });
+    });
+  }
+
+  /** 套用滑軌範圍 → 依產業分組餵給各 dataset */
+  function update(pts, panel) {
+    if (!chart) return;
+    const inRange = pts.filter(p =>
+      p.x >= priceRange.min && p.x <= priceRange.max &&
+      p.y >= premiumRange.min && p.y <= premiumRange.max);
+
+    const buckets = groups.map(() => []);
+    for (const p of inRange) {
+      if (p.gi >= 0) buckets[p.gi].push(p);
+    }
+    groups.forEach((g, i) => { chart.data.datasets[i].data = buckets[i]; });
+    // X/Y 軸跟著滑軌走(留一點邊)
+    const padX = Math.max(1, (priceRange.max - priceRange.min) * 0.03);
+    const padY = Math.max(1, (premiumRange.max - premiumRange.min) * 0.03);
+    chart.options.scales.x.min = priceRange.min - padX;
+    chart.options.scales.x.max = priceRange.max + padX;
+    chart.options.scales.y.min = premiumRange.min - padY;
+    chart.options.scales.y.max = premiumRange.max + padY;
+    chart.update();
+
+    const countEl = panel.querySelector('#scatter-count');
+    if (countEl) countEl.textContent = '顯示 ' + inRange.length + ' / ' + pts.length + ' 檔';
+  }
+
+  function destroy() {
+    if (chart) { chart.destroy(); chart = null; }
+  }
+
+  return { render, destroy };
+})();
