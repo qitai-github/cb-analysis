@@ -3,13 +3,14 @@ name: TDCC Shareholding Weekly
 # 集保股權分散表 (大戶明細) 每週更新。
 #
 # 分工 (為什麼要拆兩半):
-#   - **Drive 存檔** 由 GAS `TdccShareholding.gs` 負責 (每週五 20:00 台北)。
-#     每週檔名都是新的,而 Service Account 沒有 Drive 儲存配額、不能在
-#     「我的雲端硬碟」建新檔,只有 GAS (跑在你自己帳號下) 建得出來。
-#   - **網頁 JSON** 由這支 workflow 負責:抓同一份 CSV,用 repo 裡現有的
+#   - **GAS `TdccShareholding.gs`** 每週五 19:xx 先在 Drive 建好當週的**空檔**
+#     TDCC_OD_1-5_YYYYMMDD.csv (同 CreatePlaceholders.gs 的作法) —
+#     Service Account 沒有 Drive 儲存配額,只能覆蓋既存檔、不能建新檔。
+#   - **這支 workflow** 抓 CSV → SA 覆蓋那個空檔 → 再用 repo 裡現有的
 #     data/shareholding.json 當歷史基底做增量,commit 回 main。
+#     空檔沒建成只會少一份 Drive 備份,不會擋掉 JSON 更新。
 #
-# 20:20 TPE = 12:20 UTC 週五 (排在 GAS 那班後面 20 分鐘,兩邊互不依賴)。
+# 20:20 TPE = 12:20 UTC 週五 (要排在 GAS 建空檔那班後面)。
 # 集保 OpenData 每週更新一次,週五晚上抓到的是**上一個週五**那筆資料。
 
 on:
@@ -42,6 +43,9 @@ jobs:
         run: pip install -r scripts/requirements-stocks.txt
 
       - name: Fetch TDCC + merge into data/shareholding.json
+        env:
+          # SA 用來覆蓋 GAS 預建的空檔;沒設就只更新 JSON、跳過 Drive 存檔
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: python scripts/fetch_tdcc.py --cloud
 
       - name: Commit & push

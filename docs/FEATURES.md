@@ -709,21 +709,28 @@ _meta                pipeline 時間戳
 ## 10.5 集保股權分散表 (大戶明細) pipeline
 
 ```
-                    opendata.tdcc.com.tw/getOD.ashx?id=1-5  (全市場最新一週, ~2.3MB)
-                                    │
-        ┌───────────────────────────┴───────────────────────────┐
-        │ GAS TdccShareholding.gs                               │ GitHub Actions
-        │ 每週五 20:00 TPE (自己帳號有配額,建得出新檔)          │ tdcc-shareholding.yml
-        ▼                                                       │ 每週五 20:20 TPE
-Drive 股權分散表/TDCC_OD_1-5_YYYYMMDD.csv  (存檔備查)            │ python fetch_tdcc.py --cloud
-                                                                ▼
+        GAS TdccShareholding.gs (每週五 19:xx)          GitHub Actions tdcc-shareholding.yml
+        runWeeklyTdccPlaceholder                        (每週五 20:20 TPE)
+                │                                                │
+                │ 查 TDCC 查詢頁第一個 <option> 拿資料日期        │ 抓 opendata 1-5 CSV
+                ▼                                                ▼
+   Drive 股權分散表/TDCC_OD_1-5_YYYYMMDD.csv  ◀── SA 覆蓋內容 ──┤ (fetch_tdcc.py --cloud)
+                (空檔,0 bytes)                                   │
+                                                                 ▼
                               build_shareholding.py --merge (現有 JSON 當歷史基底)
-                                                                ▼
+                                                                 ▼
 data/shareholding.json ─commit─▶ 前端 sheetsApi.loadAll → dataProcessor §6c-3 → stock.holders
 ```
 
-**為什麼拆成兩條**:每週檔名都是新的,SA 沒儲存配額建不了新檔 → Drive 存檔只有 GAS
-做得到;而網頁 JSON 要 commit 進 repo → 只有 GHA 方便。兩邊互不依賴,一邊掛了另一邊照跑。
+**為什麼要 GAS 先建空檔**:Service Account 沒有 Drive 儲存配額,**只能覆蓋既存檔、
+不能建新檔**,而股權分散表每週檔名都是新的 → 同 `CreatePlaceholders.gs` 的作法,
+GAS (跑在個人帳號、有配額) 先建 0 bytes 空檔,SA 再覆蓋內容。
+空檔沒建成只是少一份 Drive 備份,`--cloud` 會警告但照樣更新 JSON。
+
+⚠️ **空檔的日期不能用「上一個週五」硬算**:遇到假日集保會順延/提前
+(實際看過 20260709(四)、20260618、20261023…),所以 GAS 是去 TDCC 查詢頁
+(55KB) 讀日期下拉的第一個 option。集保 OpenData 那個 CSV 網址不支援 Range,
+要拿日期就得整包 2.3MB 抓下來,所以才繞查詢頁。
 
 **本機備援** (原本的做法,仍保留):Windows 工作排程 `TDCC-Shareholding-Weekly`
 每週五 20:00 跑 `scripts/run_tdcc_weekly.bat` → `fetch_tdcc.py` 寫本機 Drive 同步資料夾

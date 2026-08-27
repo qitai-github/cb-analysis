@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
-"""每週抓集保「股權分散表」(TDCC OpenData 1-5) → Google Drive 股權分散表資料夾。
+r"""每週抓集保「股權分散表」(TDCC OpenData 1-5) → Google Drive 股權分散表資料夾。
 
 來源: https://opendata.tdcc.com.tw/getOD.ashx?id=1-5
       每週更新一次 (資料日期 = 上一個週五),欄位:
       資料日期,證券代號,持股分級,人數,股數,占集保庫存數比例%
       持股分級 1~15 = 級距,16 = 差異數調整,17 = 合計。
 
-存檔位置 (二擇一,預設走本機同步路徑):
-  1. 本機 Google Drive 同步資料夾 (預設)
-     Y:\\我的雲端硬碟\\Telegram Bot\\股權分散表\\TDCC_OD_1-5_YYYYMMDD.csv
-     ⚠️ Service Account 沒有 Drive 儲存配額,**不能在「我的雲端硬碟」建新檔**,
-        每週都是新檔名 → 只能靠本機同步資料夾寫入 (見 docs/FEATURES.md §13)
-  2. `--drive-api`:走 Service Account (只有在 Drive 上已存在同名檔時能覆蓋)
+存檔位置:
+  1. 本機 (預設):Google Drive 桌面版同步資料夾
+     Y:\我的雲端硬碟\Telegram Bot\股權分散表\TDCC_OD_1-5_YYYYMMDD.csv
+  2. GitHub Actions (`--cloud`):走 Service Account 覆蓋 **GAS 預建的空檔**
+     — SA 沒有 Drive 儲存配額,不能建新檔,只能覆蓋既存檔;空檔由
+     GoogleAppScript/統一監控Phase1/TdccShareholding.gs 每週五 19:xx 先建好
+     (同 CreatePlaceholders.gs 的作法)。空檔沒建成只會少一份備份,不擋 JSON 更新。
+  3. `--drive-api`:同 2,但不做 JSON 增量 (單純補存檔用)
 
 環境變數:
   TDCC_LOCAL_DIR      覆寫本機同步資料夾路徑
   TDCC_DRIVE_FOLDER   Drive folder id (預設 133xYbjvZXpj7cFLMWIjzkRfYBnipe1VE)
-  GOOGLE_CREDENTIALS  只有 --drive-api 才需要
+  GOOGLE_CREDENTIALS  --cloud / --drive-api 才需要 (Service Account JSON)
 
 用法:
   python fetch_tdcc.py              # 本機:抓最新一週 → 存 Drive 同步資料夾 → 重建 JSON
   python fetch_tdcc.py --no-build   # 只存檔,不重建 JSON
   python fetch_tdcc.py --force      # 已存在同名檔也覆蓋
-  python fetch_tdcc.py --cloud      # GitHub Actions:不碰 Drive,增量併進現有 JSON
-                                    #   (Drive 存檔那半由 GAS TdccShareholding.gs 負責)
+  python fetch_tdcc.py --cloud      # GitHub Actions:SA 覆蓋 GAS 空檔 + 增量併進現有 JSON
 """
 from __future__ import annotations
 
@@ -130,7 +131,7 @@ def main() -> int:
     ap.add_argument("--no-build", action="store_true",
                     help="不重建 data/shareholding.json")
     ap.add_argument("--cloud", action="store_true",
-                    help="雲端模式:不寫 Drive,直接把這份 CSV 增量併進現有 JSON")
+                    help="雲端模式:SA 覆蓋 GAS 預建空檔 + 把這份 CSV 增量併進現有 JSON")
     args = ap.parse_args()
 
     print("🗂️  下載集保股權分散表 (TDCC OpenData 1-5) ...", flush=True)
@@ -141,12 +142,22 @@ def main() -> int:
 
     tmp_csv = None
     if args.cloud:
-        # 雲端沒有 Drive 同步磁碟,SA 又不能建新檔 → 這裡只管 JSON,
-        # Drive 存檔交給 GAS (GoogleAppScript/統一監控Phase1/TdccShareholding.gs.txt)
+        # 雲端沒有 Drive 同步磁碟 → CSV 先落地暫存檔,等等給 build_shareholding 併。
         fd, tmp_csv = tempfile.mkstemp(prefix="tdcc_", suffix=".csv")
         with os.fdopen(fd, "wb") as f:
             f.write(raw)
-        print(f"☁️ 雲端模式:不寫 Drive,暫存 {tmp_csv}")
+        # Drive 那份走 SA 覆蓋 GAS 預建的空檔 (TdccShareholding.gs runWeeklyTdccPlaceholder)。
+        # 空檔還沒建好就只是少一份備份,不該擋掉網頁 JSON 更新 → 失敗只警告。
+        if os.environ.get("GOOGLE_CREDENTIALS", "").strip():
+            try:
+                save_drive_api(raw, filename)
+            except Exception as e:  # noqa: BLE001
+                print(f"⚠️ Drive 存檔失敗 (不擋 JSON 更新): {str(e)[:200]}",
+                      file=sys.stderr, flush=True)
+                print("   → 檢查 GAS runWeeklyTdccPlaceholder 是否已建好 "
+                      f"{filename} 空檔 (SA 不能自己建新檔)", file=sys.stderr)
+        else:
+            print("ℹ️ 沒有 GOOGLE_CREDENTIALS,跳過 Drive 存檔")
     elif args.drive_api:
         save_drive_api(raw, filename)
     else:
