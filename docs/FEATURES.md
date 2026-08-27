@@ -709,15 +709,27 @@ _meta                pipeline 時間戳
 ## 10.5 集保股權分散表 (大戶明細) pipeline
 
 ```
-opendata.tdcc.com.tw/getOD.ashx?id=1-5   (全市場最新一週, ~2.3MB)
-  │ scripts/fetch_tdcc.py — Windows 工作排程「TDCC-Shareholding-Weekly」每週五 20:00
-  ▼
-Y:\我的雲端硬碟\Telegram Bot\股權分散表\TDCC_OD_1-5_YYYYMMDD.csv   (Drive 同步)
-  │ scripts/build_shareholding.py  (fetch 完自動接著跑)
-  │   + scripts/cache/tdcc/{code}.json  ← scripts/backfill_tdcc.py 的歷史回補
-  ▼
-data/shareholding.json  ──▶ 前端 sheetsApi.loadAll → dataProcessor §6c-3 → stock.holders
+                    opendata.tdcc.com.tw/getOD.ashx?id=1-5  (全市場最新一週, ~2.3MB)
+                                    │
+        ┌───────────────────────────┴───────────────────────────┐
+        │ GAS TdccShareholding.gs                               │ GitHub Actions
+        │ 每週五 20:00 TPE (自己帳號有配額,建得出新檔)          │ tdcc-shareholding.yml
+        ▼                                                       │ 每週五 20:20 TPE
+Drive 股權分散表/TDCC_OD_1-5_YYYYMMDD.csv  (存檔備查)            │ python fetch_tdcc.py --cloud
+                                                                ▼
+                              build_shareholding.py --merge (現有 JSON 當歷史基底)
+                                                                ▼
+data/shareholding.json ─commit─▶ 前端 sheetsApi.loadAll → dataProcessor §6c-3 → stock.holders
 ```
+
+**為什麼拆成兩條**:每週檔名都是新的,SA 沒儲存配額建不了新檔 → Drive 存檔只有 GAS
+做得到;而網頁 JSON 要 commit 進 repo → 只有 GHA 方便。兩邊互不依賴,一邊掛了另一邊照跑。
+
+**本機備援** (原本的做法,仍保留):Windows 工作排程 `TDCC-Shareholding-Weekly`
+每週五 20:00 跑 `scripts/run_tdcc_weekly.bat` → `fetch_tdcc.py` 寫本機 Drive 同步資料夾
+`Y:\我的雲端硬碟\Telegram Bot\股權分散表\` 並重建 JSON (同名檔已存在會跳過,不會打架)。
+歷史回補快取 `scripts/cache/tdcc/{code}.json` 只在本機 (gitignore),
+所以**全量重建一定要在本機跑**,雲端那班只會做增量。
 
 - **存 Drive 只能走本機同步資料夾**:每週都是新檔名,而 Service Account 沒有儲存配額
   不能在「我的雲端硬碟」建新檔 (§13)。`--drive-api` 只有在 Drive 上已有同名檔時能覆蓋。
@@ -732,7 +744,7 @@ data/shareholding.json  ──▶ 前端 sheetsApi.loadAll → dataProcessor §6
 - **SYNCHRONIZER_TOKEN 是一次性的**:每次 POST 的回應裡會帶新 token,要接著用;
   沿用舊 token 會回一張空表 (不是錯誤碼)
 - **TDCC 憑證缺 Subject Key Identifier** → 同 TPEx,要 `verify=False`
-- `data/shareholding.json` 要 commit 才會上線 (414 檔 × 51 週 ≈ 5MB)
+- `data/shareholding.json` 雲端那班會自己 commit;本機全量重建後要自己 commit (414 檔 × 51 週 ≈ 0.6MB)
 
 ---
 
@@ -773,6 +785,7 @@ data/shareholding.json  ──▶ 前端 sheetsApi.loadAll → dataProcessor §6
 | `vcp-scan.yml` | 19:35 TPE VCP 選股 → data/vcp.json |
 | `strength-scan.yml` | ~~19:40 TPE 強勢股 → data/strength.json~~ **已停用排程 (2026-08-14 封存)**, 只剩手動觸發 |
 | `mops-news.yml` | 每日 14:00 / 18:00 / 23:00 TPE 抓重大訊息 → data/mops_news.json (週六晚班加逐檔補漏) |
+| `tdcc-shareholding.yml` | **每週五 20:20 TPE** 集保股權分散表 → data/shareholding.json (增量 + 自動 commit) |
 | `pages-rebuild.yml` | 手動觸發 Pages 重建 (空 commit) |
 
 ### 11.4 環境變數 (`scripts/.env`)
