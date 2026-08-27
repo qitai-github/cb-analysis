@@ -1,0 +1,63 @@
+name: TDCC Shareholding Weekly
+
+# 集保股權分散表 (大戶明細) 每週更新。
+#
+# 分工 (為什麼要拆兩半):
+#   - **Drive 存檔** 由 GAS `TdccShareholding.gs` 負責 (每週五 20:00 台北)。
+#     每週檔名都是新的,而 Service Account 沒有 Drive 儲存配額、不能在
+#     「我的雲端硬碟」建新檔,只有 GAS (跑在你自己帳號下) 建得出來。
+#   - **網頁 JSON** 由這支 workflow 負責:抓同一份 CSV,用 repo 裡現有的
+#     data/shareholding.json 當歷史基底做增量,commit 回 main。
+#
+# 20:20 TPE = 12:20 UTC 週五 (排在 GAS 那班後面 20 分鐘,兩邊互不依賴)。
+# 集保 OpenData 每週更新一次,週五晚上抓到的是**上一個週五**那筆資料。
+
+on:
+  schedule:
+    - cron: '20 12 * * 5'
+  workflow_dispatch:
+
+# 同時只跑一個,避免兩次觸發同時 push 打架
+concurrency:
+  group: tdcc-shareholding
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements-stocks.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements-stocks.txt
+
+      - name: Fetch TDCC + merge into data/shareholding.json
+        run: python scripts/fetch_tdcc.py --cloud
+
+      - name: Commit & push
+        run: |
+          if git diff --quiet -- data/shareholding.json; then
+            echo "沒有變動 (可能集保還沒更新這週),跳過 commit"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/shareholding.json
+          git commit -m "data: 集保股權分散表 @ $(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M')"
+          # main 每天有其他 workflow 在推 (all-data.json 等),先 rebase 再推
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            echo "push 失敗,重試 $i"
+            sleep 10
+          done
+          exit 1

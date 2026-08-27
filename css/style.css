@@ -3030,3 +3030,93 @@ input[type="number"] { -moz-appearance: textfield; }
   .scatter-canvas-wrap { height: 55vh; }
   .scatter-legend { max-height: 70px; overflow-y: auto; }
 }
+
+/* ── 技術分析 Modal: 大戶明細 tab (集保股權分散表) ─────────────── */
+.holder-controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 2px 2px 4px 2px;
+}
+.holder-ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.holder-ctrl-label {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.holder-ctrl-label.big { color: #f97316; }
+.holder-ctrl-label.small { color: #10b981; }
+.holder-ctrl-unit {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.holder-ctrl-meta {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.holder-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.holder-seg-btn {
+  background: rgba(30,41,59,0.5);
+  border: none;
+  border-right: 1px solid var(--border-light);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 2px 9px;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.holder-seg-btn:last-child { border-right: none; }
+.holder-seg-btn:hover { background: rgba(51,65,85,0.8); color: var(--text); }
+.holder-seg-btn.big.active { background: #f97316; color: #0f172a; font-weight: 700; }
+.holder-seg-btn.small.active { background: #10b981; color: #0f172a; font-weight: 700; }
+
+/* 比例圖給高一點,人數圖與明細表次之 */
+.tech-folder-panel[data-panel="holders"] .holder-chart-main { flex: 1.5 1 0; }
+.holder-table-sub { flex: 1 1 0; }
+.holder-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.holder-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.holder-table th {
+  position: sticky;
+  top: 0;
+  background: #1e293b;
+  color: var(--text-dim);
+  font-weight: 600;
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+.holder-table td {
+  padding: 2px 6px;
+  border-bottom: 1px solid rgba(71,85,105,0.25);
+  white-space: nowrap;
+}
+.holder-table td.num, .holder-table th.num { text-align: right; }
+.holder-table tbody tr:hover { background: rgba(51,65,85,0.5); }
+.holder-empty {
+  padding: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}

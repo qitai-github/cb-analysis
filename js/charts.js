@@ -1020,6 +1020,180 @@ const Charts = (() => {
     return { bias5: last(bias5), bias10: last(bias10), bias20: last(bias20) };
   }
 
+  // ── 大戶明細 (集保股權分散表) ────────────────────────────────────
+  // 資料是「每週五」一筆,跟日 K 的時間軸對不上,所以這兩張圖**不吃 techSlice**,
+  // 自己用 APP_CONFIG.holderWeeks 取最近 N 週。
+
+  /** 把某幾個級距的比例/人數加總;整段都是 null 就回 null (缺資料 ≠ 0) */
+  function _sumLevels(arr, idx) {
+    let sum = 0, has = false;
+    for (const i of idx) {
+      const v = arr?.[i];
+      if (v == null) continue;
+      sum += v; has = true;
+    }
+    return has ? sum : null;
+  }
+
+  /** 取集保資料日 (通常是週五) 當天或之前最近一個交易日收盤 */
+  function _closeAtOrBefore(ohlcv, date) {
+    let out = null;
+    for (const r of ohlcv) {
+      if (r.date > date) break;
+      if (r.close != null) out = r.close;
+    }
+    return out;
+  }
+
+  /** 依目前門檻整理出大戶明細序列 (兩張圖 + 明細表共用) */
+  function buildHolderSeries(stock) {
+    const rec = stock && stock.holders;
+    if (!rec || !Array.isArray(rec.dates) || rec.dates.length === 0) return null;
+    const weeks = APP_CONFIG.holderWeeks || 52;
+    const n = rec.dates.length;
+    const from = Math.max(0, n - weeks);
+    const dates = rec.dates.slice(from);
+    const bigIdx = holderBigIdx(APP_CONFIG.holderBigLots);
+    const smallIdx = holderSmallIdx(APP_CONFIG.holderSmallLots);
+    const ohlcv = stock.ohlcv || [];
+
+    const big = [], small = [], bigPeople = [], smallPeople = [], price = [];
+    for (let i = from; i < n; i++) {
+      big.push(_sumLevels(rec.ratio?.[i], bigIdx));
+      small.push(_sumLevels(rec.ratio?.[i], smallIdx));
+      bigPeople.push(_sumLevels(rec.people?.[i], bigIdx));
+      smallPeople.push(_sumLevels(rec.people?.[i], smallIdx));
+      price.push(_closeAtOrBefore(ohlcv, rec.dates[i]));
+    }
+    const bigChg = big.map((v, i) => (i === 0 || v == null || big[i - 1] == null)
+      ? null : v - big[i - 1]);
+    return { dates, big, small, bigPeople, smallPeople, price, bigChg };
+  }
+
+  /**
+   * 大戶 / 散戶 張數比例圖
+   *   左軸 = 大戶持股% (橘)、右軸 = 散戶持股% (綠)、隱藏軸 = 股價 (灰)
+   */
+  function renderTechHolderChart(canvasId, stock) {
+    const canvas = _claimTechSubCanvas(canvasId);
+    if (!canvas) return null;
+    const s = buildHolderSeries(stock);
+    if (!s) {
+      _emptyChart_(canvas, '無集保股權分散資料');
+      return null;
+    }
+    const labels = s.dates.map(d => formatDateLabel(d));
+    const chart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: '大戶%', data: s.big, borderColor: '#f97316', backgroundColor: 'transparent',
+            borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 3, tension: 0.15,
+            yAxisID: 'yBig', spanGaps: true, order: 1 },
+          { label: '散戶%', data: s.small, borderColor: '#10b981', backgroundColor: 'transparent',
+            borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 3, tension: 0.15,
+            yAxisID: 'ySmall', spanGaps: true, order: 2 },
+          { label: '股價', data: s.price, borderColor: 'rgba(203,213,225,0.85)',
+            backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0,
+            pointHoverRadius: 3, tension: 0.15, yAxisID: 'yPrice', spanGaps: true, order: 3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => s.dates[items[0].dataIndex],
+              label: (ctx) => {
+                const v = ctx.raw;
+                if (v == null) return `${ctx.dataset.label}: -`;
+                return ctx.dataset.label === '股價'
+                  ? `股價: ${Number(v).toFixed(2)}`
+                  : `${ctx.dataset.label}: ${Number(v).toFixed(2)}%`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45, autoSkipPadding: 12 },
+               grid: { color: 'rgba(71,85,105,0.3)' } },
+          // 大戶比例常常一整年只動 1~2%,刻度要到小數第 2 位才不會整排一樣
+          yBig: { position: 'left',
+                  ticks: { color: '#f97316', font: { size: 10 }, callback: v => v.toFixed(2) },
+                  grid: { color: 'rgba(71,85,105,0.3)' } },
+          ySmall: { position: 'right',
+                    ticks: { color: '#10b981', font: { size: 10 }, callback: v => v.toFixed(2) },
+                    grid: { display: false } },
+          yPrice: { display: false }
+        }
+      }
+    });
+    _setTechSub(canvasId, chart);
+    const i = s.dates.length - 1;
+    return {
+      date: s.dates[i], big: s.big[i], small: s.small[i],
+      bigChg: s.bigChg[i], price: s.price[i], series: s
+    };
+  }
+
+  /** 大戶 / 散戶「持股人數」圖 (左軸大戶人數、右軸散戶人數) */
+  function renderTechHolderPeopleChart(canvasId, stock) {
+    const canvas = _claimTechSubCanvas(canvasId);
+    if (!canvas) return null;
+    const s = buildHolderSeries(stock);
+    if (!s) {
+      _emptyChart_(canvas, '無集保股權分散資料');
+      return null;
+    }
+    const labels = s.dates.map(d => formatDateLabel(d));
+    const chart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: '大戶人數', data: s.bigPeople, borderColor: '#f97316',
+            backgroundColor: 'rgba(249,115,22,0.12)', borderWidth: 1.5, pointRadius: 0,
+            pointHoverRadius: 3, tension: 0.15, fill: true, yAxisID: 'yBig', spanGaps: true },
+          { label: '散戶人數', data: s.smallPeople, borderColor: '#10b981',
+            backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0,
+            pointHoverRadius: 3, tension: 0.15, yAxisID: 'ySmall', spanGaps: true }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => s.dates[items[0].dataIndex],
+              label: (ctx) => ctx.raw == null ? `${ctx.dataset.label}: -`
+                : `${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString()} 人`
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45, autoSkipPadding: 12 },
+               grid: { color: 'rgba(71,85,105,0.3)' } },
+          yBig: { position: 'left',
+                  ticks: { color: '#f97316', font: { size: 10 }, precision: 0,
+                           callback: v => v.toLocaleString() },
+                  grid: { color: 'rgba(71,85,105,0.3)' } },
+          ySmall: { position: 'right',
+                    ticks: { color: '#10b981', font: { size: 10 }, precision: 0,
+                             callback: v => v.toLocaleString() },
+                    grid: { display: false } }
+        }
+      }
+    });
+    _setTechSub(canvasId, chart);
+    const i = s.dates.length - 1;
+    return { date: s.dates[i], bigPeople: s.bigPeople[i], smallPeople: s.smallPeople[i], series: s };
+  }
+
   function destroyTech() {
     if (techPriceChart)  { techPriceChart.destroy();  techPriceChart = null; }
     _destroyTechSubs();
@@ -1439,6 +1613,7 @@ const Charts = (() => {
   return {
     renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, renderMarginChart,
     renderTechPriceChart, renderTechInstChart, renderTechMarginChart, renderTechBiasChart,
+    renderTechHolderChart, renderTechHolderPeopleChart, buildHolderSeries,
     destroyTech,
     renderCBTechPriceChart, renderCBTechInstChart, renderCBTechExtraChart, destroyCBTech,
     destroy

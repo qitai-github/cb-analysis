@@ -164,6 +164,7 @@
 |---|---|
 | 法人買賣 | 外資 / 投信 / 自營商 (bar=當日買賣超,line=累積持股,左軸=張,右軸=累積) |
 | 資券 | 乖離率 5/10/20 三線 + 融資 (bar=增減,line=餘額) + 融券 |
+| 大戶明細 | 張數比例 (大戶%/散戶%/股價) + 持股人數 + 週明細表 — 見 §3.1b |
 
 時間軸: 預設 **60 個交易日** (`APP_CONFIG.techAnalysisDays`)
 
@@ -191,6 +192,38 @@
 - 徽章 offset > 0 時轉琥珀色並顯示 `←N`;開窗時 offset 歸零
   (並排時開 CB 窗不歸零,才不會把個股窗已拉好的位置洗掉)
 - 滾輪拉長視窗後 offset 可能超過上限 → 夾回 `techMaxOffset()`,否則右側會空一段
+
+### 3.1b 大戶明細 tab (集保股權分散表)
+
+資料來源 = **集保 TDCC 股權分散表**,每週五一筆 (跟日 K 對不上,所以這個 tab
+**不吃 `techSlice()`**,自己取最近 `APP_CONFIG.holderWeeks` 週,預設 52 週)。
+
+**門檻列** (兩組 segment,狀態存在 `APP_CONFIG`,個股/CB modal 共用):
+
+| 控制 | 選項 (張) | 對應集保持股分級 |
+|---|---|---|
+| `大戶持股>` (`holderBigLots`, 預設 1000) | 200 / 400 / 600 / 800 / **1000** | 11-15 / 12-15 / 13-15 / 14-15 / **15** |
+| `散戶持股<` (`holderSmallLots`, 預設 50) | 10 / **50** / 100 / 200 / 400 | 1-3 / **1-9** / 1-9+10 … 依級距邊界 |
+
+- 門檻選項**必須落在集保級距邊界上**,不然級距切不乾淨 → 選項寫死在
+  [js/config.js](../js/config.js) `HOLDER_BIG_THRESHOLDS` / `HOLDER_SMALL_THRESHOLDS`,
+  加總靠 `holderBigIdx()` / `holderSmallIdx()` 由 `HOLDER_LEVELS` 的 loLots/hiLots 推
+- 散戶預設 <50 張 = **分級 1-9** (使用者定義的散戶)
+- 每個按鈕的 tooltip 會標它涵蓋哪幾個分級
+
+**3 個 sub-chart** ([js/charts.js](../js/charts.js) `renderTechHolderChart` /
+`renderTechHolderPeopleChart`,序列由 `buildHolderSeries()` 統一組):
+
+| 區塊 | 內容 |
+|---|---|
+| 張數比例 | 左軸 大戶% (橘) / 右軸 散戶% (綠) / 隱藏軸 股價 (灰) |
+| 持股人數 | 左軸 大戶人數 (橘,填色) / 右軸 散戶人數 (綠) |
+| 週明細表 | 日期 / 大戶持股% / 大戶增減% / 散戶持股% / 大戶人數 / 股價,新到舊,可捲動 |
+
+- 股價取「集保資料日(週五)當天或之前最近一個交易日收盤」(`_closeAtOrBefore`),
+  遇到週五休市不會開天窗
+- 某級距整段沒資料回 `null` 不回 0 (缺資料 ≠ 0)
+- 比例軸刻度到小數第 2 位 — 大戶比例常常一整年只動 1~2%,`toFixed(1)` 會整排一樣
 
 ### 3.2 CB 技術分析
 
@@ -673,6 +706,36 @@ _meta                pipeline 時間戳
 
 ---
 
+## 10.5 集保股權分散表 (大戶明細) pipeline
+
+```
+opendata.tdcc.com.tw/getOD.ashx?id=1-5   (全市場最新一週, ~2.3MB)
+  │ scripts/fetch_tdcc.py — Windows 工作排程「TDCC-Shareholding-Weekly」每週五 20:00
+  ▼
+Y:\我的雲端硬碟\Telegram Bot\股權分散表\TDCC_OD_1-5_YYYYMMDD.csv   (Drive 同步)
+  │ scripts/build_shareholding.py  (fetch 完自動接著跑)
+  │   + scripts/cache/tdcc/{code}.json  ← scripts/backfill_tdcc.py 的歷史回補
+  ▼
+data/shareholding.json  ──▶ 前端 sheetsApi.loadAll → dataProcessor §6c-3 → stock.holders
+```
+
+- **存 Drive 只能走本機同步資料夾**:每週都是新檔名,而 Service Account 沒有儲存配額
+  不能在「我的雲端硬碟」建新檔 (§13)。`--drive-api` 只有在 Drive 上已有同名檔時能覆蓋。
+  Drive 資料夾 `股權分散表` = `133xYbjvZXpj7cFLMWIjzkRfYBnipe1VE`
+- **資料日期是「上一個週五」**:集保 OpenData 每週更新,週五晚上跑抓到的是上週五那筆
+- **持股分級**:1-15 級距、16 差異數調整 (通常 0)、17 合計 (總股東人數/總股數)。
+  ⚠️ 但 TDCC **網頁版**沒有差異數調整那列時,合計會變成第 16 列 →
+  `backfill_tdcc.parse_result` 一律**看分級名稱**判斷合計/差異數,不看序號
+- **歷史只能逐檔逐週爬**:OpenData 只給最新一週,TDCC 網站保留約 51 週。
+  `backfill_tdcc.py` 一次請求 = 一檔一週 (414 × 51 ≈ 2 萬次),結果寫
+  `scripts/cache/tdcc/{code}.json`,**可中斷可續跑**;要加速就開多個視窗跑不同 `--codes`
+- **SYNCHRONIZER_TOKEN 是一次性的**:每次 POST 的回應裡會帶新 token,要接著用;
+  沿用舊 token 會回一張空表 (不是錯誤碼)
+- **TDCC 憑證缺 Subject Key Identifier** → 同 TPEx,要 `verify=False`
+- `data/shareholding.json` 要 commit 才會上線 (414 檔 × 51 週 ≈ 5MB)
+
+---
+
 ## 11. 後端 Pipeline / 腳本
 
 ### 11.1 主流程
@@ -687,6 +750,8 @@ _meta                pipeline 時間戳
 | `scripts/build_universe.py` | 全市場標的清單 |
 | `scripts/mops_news.py` | MOPS 重大訊息 → `data/mops_news.json` (含 CB 發行事件抽取) |
 | `scripts/import_cb_announcements.py` | 人工彙整的 `CB重大訊息彙整.xlsx` → cbEvents (補 2026-08 前的歷史) |
+| `scripts/fetch_tdcc.py` | **每週五** 抓集保股權分散表 → Drive + 重建 `data/shareholding.json` |
+| `scripts/build_shareholding.py` | 週 CSV + 歷史快取 → `data/shareholding.json` (只留網頁 414 檔) |
 
 ### 11.2 Backfill 工具
 
@@ -696,6 +761,7 @@ _meta                pipeline 時間戳
 | `scripts/backfill_primary_market.py` | 補抓初級市場標的:沒列的整段 append;有列但「歷史幾乎全 0」的新進股(`forward_only_stocks`)自動就地 refill |
 | `scripts/backfill_margin.py` | 融資融券歷史回填 |
 | `scripts/backfill_source.py` | 補抓某天某來源 raw CSV |
+| `scripts/backfill_tdcc.py` | 集保股權分散表歷史回補 (逐檔逐週查 TDCC 網站,可中斷續跑) |
 
 ### 11.3 GitHub Actions
 
@@ -750,6 +816,8 @@ GitHub Actions 對應同名 Secret (改本機 .env 不會影響雲端,反之亦�
 - **TWSE 量太小那天會把 OHLC 標 `--`** → parser 視為 None,前端 fallback 用前一日 close 畫平頂蠟燭 (`buildOHLCVArray`)
 - **CB 法人資料單位是「張」,不是「股」** → `renderCBTechInstChart` 不能除 1000
 - **`timeseries_merge.py` 補抓日期會 append 到末尾** (非排序) → 前端 `parseTimeSeries` 回傳前 sort dates 修補
+- **集保 TDCC 的 SYNCHRONIZER_TOKEN 一次性** → 每次 POST 都要換成回應裡的新 token,舊的回空表
+- **集保網頁版 16/17 列數不固定** → 合計看分級名稱判斷,不能用序號
 - **Chart.js v4「Canvas already in use」** → sub-charts 用 Map 管理,`_claimTechSubCanvas` helper 在 `new Chart()` 前 destroy 舊的
 
 ---

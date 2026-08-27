@@ -531,6 +531,17 @@ const DataProcessor = (() => {
       }
     }
 
+    // 6c-3. 集保股權分散表 (data/shareholding.json) — 每週五一筆,15 個持股分級的
+    //       占集保庫存比例 + 人數。前端「大戶明細」tab 用門檻 (大戶>N張 / 散戶<N張)
+    //       把級距加總,所以這裡原封不動掛上去,不先算大戶/散戶。
+    if (rawResults.shareholding && rawResults.shareholding.stocks) {
+      for (const [code, rec] of Object.entries(rawResults.shareholding.stocks)) {
+        const entry = stockMap.get(String(code));
+        if (!entry || !rec || !Array.isArray(rec.dates) || rec.dates.length === 0) continue;
+        entry.holders = rec;
+      }
+    }
+
     // 6d. MOPS 重大訊息 (data/mops_news.json) — 以「股票代號」對應,不靠股名比對,
     //     所以不會因為股名不一致 (中文全形/更名/簡稱) 而漏掉。
     if (rawResults.mopsNews && Array.isArray(rawResults.mopsNews.items)) {

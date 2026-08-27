@@ -167,6 +167,13 @@ const SheetsAPI = (() => {
           } catch (e) {
             console.warn('[loadAll] stock_capital.json 載入失敗:', e.message);
           }
+          // 集保股權分散表 (data/shareholding.json,每週五資料) — 失敗不影響主流程
+          try {
+            const shResp = await fetchWithTimeout('data/shareholding.json', 20000);
+            data.shareholding = await shResp.json();
+          } catch (e) {
+            console.warn('[loadAll] shareholding.json 載入失敗:', e.message);
+          }
           // 企業報告 (Drive 簡易報告 PNG + 完整報告 PDF) 索引 — 失敗不影響主流程
           try {
             const crResp = await fetchWithTimeout('data/company_reports.json', 10000);

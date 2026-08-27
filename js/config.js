@@ -134,3 +134,44 @@ function techSlice(arr) {
 function techMaxOffset(len) {
   return Math.max(0, (len || 0) - APP_CONFIG.techAnalysisDays);
 }
+
+// ── 集保股權分散表 (大戶明細) ────────────────────────────────────────
+// data/shareholding.json 的 15 個持股分級,單位「張」(1 張 = 1000 股)。
+// hiLots = null 代表無上限。順序必須與 JSON 的 ratio / people 陣列一致
+// (build_shareholding.py 的 LEVELS)。
+const HOLDER_LEVELS = [
+  { n: 1,  label: '1-999 股',   loLots: 0,    hiLots: 1 },
+  { n: 2,  label: '1-5 張',     loLots: 1,    hiLots: 5 },
+  { n: 3,  label: '5-10 張',    loLots: 5,    hiLots: 10 },
+  { n: 4,  label: '10-15 張',   loLots: 10,   hiLots: 15 },
+  { n: 5,  label: '15-20 張',   loLots: 15,   hiLots: 20 },
+  { n: 6,  label: '20-30 張',   loLots: 20,   hiLots: 30 },
+  { n: 7,  label: '30-40 張',   loLots: 30,   hiLots: 40 },
+  { n: 8,  label: '40-50 張',   loLots: 40,   hiLots: 50 },
+  { n: 9,  label: '50-100 張',  loLots: 50,   hiLots: 100 },
+  { n: 10, label: '100-200 張', loLots: 100,  hiLots: 200 },
+  { n: 11, label: '200-400 張', loLots: 200,  hiLots: 400 },
+  { n: 12, label: '400-600 張', loLots: 400,  hiLots: 600 },
+  { n: 13, label: '600-800 張', loLots: 600,  hiLots: 800 },
+  { n: 14, label: '800-1000 張',loLots: 800,  hiLots: 1000 },
+  { n: 15, label: '1000 張以上',loLots: 1000, hiLots: null }
+];
+
+// 大戶 / 散戶門檻選項 (必須落在級距邊界上,否則切不乾淨)
+const HOLDER_BIG_THRESHOLDS = [200, 400, 600, 800, 1000];
+const HOLDER_SMALL_THRESHOLDS = [10, 50, 100, 200, 400];
+
+// 目前選的門檻 (大戶 > N 張 / 散戶 < N 張),兩個 modal 共用
+APP_CONFIG.holderBigLots = 1000;
+APP_CONFIG.holderSmallLots = 50;   // 分級 1-9 (集保定義的散戶)
+// 大戶明細顯示幾週 (集保每週一筆)
+APP_CONFIG.holderWeeks = 52;
+
+/** 大戶 = loLots >= N 的級距 index;散戶 = hiLots <= N 的級距 index */
+function holderBigIdx(lots) {
+  return HOLDER_LEVELS.map((l, i) => [l, i]).filter(([l]) => l.loLots >= lots).map(([, i]) => i);
+}
+function holderSmallIdx(lots) {
+  return HOLDER_LEVELS.map((l, i) => [l, i])
+    .filter(([l]) => l.hiLots != null && l.hiLots <= lots).map(([, i]) => i);
+}

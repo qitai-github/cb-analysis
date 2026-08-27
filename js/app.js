@@ -841,6 +841,9 @@ const App = (() => {
       renderTechBias();
       renderTechMarginSub('tech-margin-chart', '融資', 'tech-margin-meta');
       renderTechMarginSub('tech-short-chart',  '融券', 'tech-short-meta');
+      // 大戶明細 tab (集保股權分散表,每週一筆)
+      buildHolderSegs();
+      renderTechHolders();
     }, 60)));
   }
 
@@ -876,6 +879,116 @@ const App = (() => {
     if (!meta) { el.textContent = ''; return; }
     const fmt = (v) => v == null ? '-' : `<strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
     el.innerHTML = `5日 ${fmt(meta.bias5)} &middot; 10日 ${fmt(meta.bias10)} &middot; 20日 ${fmt(meta.bias20)}`;
+  }
+
+  // ── 大戶明細 tab (集保股權分散表) ──────────────────────────────
+  // 資料每週五一筆 (集保 OpenData 1-5 + 歷史回補),門檻選項一定要落在
+  // 集保級距邊界上 (見 config.js HOLDER_LEVELS),不然級距切不乾淨。
+
+  function buildHolderSegs() {
+    const defs = [
+      ['holder-seg-big', HOLDER_BIG_THRESHOLDS, 'holderBigLots', 'big'],
+      ['holder-seg-small', HOLDER_SMALL_THRESHOLDS, 'holderSmallLots', 'small']
+    ];
+    for (const [hostId, opts, key, kind] of defs) {
+      const host = document.getElementById(hostId);
+      if (!host) continue;
+      if (host.dataset.bound !== '1') {
+        host.dataset.bound = '1';
+        host.innerHTML = opts.map(v =>
+          `<button type="button" class="holder-seg-btn ${kind}" data-lots="${v}"` +
+          ` title="集保持股分級 ${holderLevelRange(kind, v)}">${v}</button>`
+        ).join('');
+        host.addEventListener('click', (e) => {
+          const btn = e.target.closest('.holder-seg-btn');
+          if (!btn) return;
+          const lots = Number(btn.dataset.lots);
+          if (!lots || APP_CONFIG[key] === lots) return;
+          APP_CONFIG[key] = lots;
+          syncHolderSegs();
+          renderTechHolders();
+        });
+      }
+    }
+    syncHolderSegs();
+  }
+
+  // 門檻對應到哪幾個集保分級 (提示用):大戶 >1000 張 = 分級 15、散戶 <50 張 = 分級 1-9
+  function holderLevelRange(kind, lots) {
+    const idx = kind === 'big' ? holderBigIdx(lots) : holderSmallIdx(lots);
+    if (idx.length === 0) return '-';
+    const a = HOLDER_LEVELS[idx[0]].n, b = HOLDER_LEVELS[idx[idx.length - 1]].n;
+    return a === b ? `${a}` : `${a}-${b}`;
+  }
+
+  function syncHolderSegs() {
+    document.querySelectorAll('#holder-seg-big .holder-seg-btn').forEach(b =>
+      b.classList.toggle('active', Number(b.dataset.lots) === APP_CONFIG.holderBigLots));
+    document.querySelectorAll('#holder-seg-small .holder-seg-btn').forEach(b =>
+      b.classList.toggle('active', Number(b.dataset.lots) === APP_CONFIG.holderSmallLots));
+  }
+
+  function renderTechHolders() {
+    if (!selectedStock) return;
+    const main = Charts.renderTechHolderChart('tech-holder-chart', selectedStock);
+    const people = Charts.renderTechHolderPeopleChart('tech-holder-people-chart', selectedStock);
+
+    const metaEl = document.getElementById('tech-holder-meta');
+    const srcEl = document.getElementById('holder-source-meta');
+    const peopleEl = document.getElementById('tech-holder-people-meta');
+    const tblMeta = document.getElementById('tech-holder-table-meta');
+    const wrap = document.getElementById('holder-table-wrap');
+
+    if (!main) {
+      if (metaEl) metaEl.textContent = '';
+      if (peopleEl) peopleEl.textContent = '';
+      if (tblMeta) tblMeta.textContent = '';
+      if (srcEl) srcEl.textContent = '集保股權分散表 · 無此標的資料';
+      if (wrap) wrap.innerHTML = '<div class="holder-empty">無集保股權分散資料</div>';
+      return;
+    }
+
+    const pct = (v) => v == null ? '-' : `${v.toFixed(2)}%`;
+    const chg = (v) => v == null ? '-'
+      : `<strong class="${cc(v)}">${v > 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
+    if (metaEl) {
+      metaEl.innerHTML = `大戶 <strong style="color:#f97316">${pct(main.big)}</strong>`
+        + ` (${chg(main.bigChg)}) &middot; 散戶 <strong style="color:#10b981">${pct(main.small)}</strong>`;
+    }
+    if (peopleEl && people) {
+      const n = (v) => v == null ? '-' : v.toLocaleString();
+      peopleEl.innerHTML = `大戶 <strong style="color:#f97316">${n(people.bigPeople)}</strong> 人`
+        + ` &middot; 散戶 <strong style="color:#10b981">${n(people.smallPeople)}</strong> 人`;
+    }
+    if (srcEl) {
+      srcEl.textContent = `集保 · 資料日 ${fmtHolderDate(main.date)}`;
+    }
+
+    const s = main.series;
+    if (tblMeta) tblMeta.textContent = `近 ${s.dates.length} 週`;
+    if (wrap) {
+      const rows = [];
+      for (let i = s.dates.length - 1; i >= 0; i--) {
+        rows.push(
+          `<tr><td>${fmtHolderDate(s.dates[i])}</td>` +
+          `<td class="num" style="color:#f97316">${pct(s.big[i])}</td>` +
+          `<td class="num">${chg(s.bigChg[i])}</td>` +
+          `<td class="num" style="color:#10b981">${pct(s.small[i])}</td>` +
+          `<td class="num">${s.bigPeople[i] == null ? '-' : s.bigPeople[i].toLocaleString()}</td>` +
+          `<td class="num">${s.price[i] == null ? '-' : s.price[i].toFixed(2)}</td></tr>`
+        );
+      }
+      wrap.innerHTML =
+        '<table class="holder-table"><thead><tr>' +
+        `<th>日期</th><th class="num">大戶持股%</th><th class="num">大戶增減%</th>` +
+        `<th class="num">散戶持股%</th><th class="num">大戶人數</th><th class="num">股價</th>` +
+        '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+    }
+  }
+
+  function fmtHolderDate(d) {
+    if (!d || d.length < 8) return d || '-';
+    return `${d.slice(0, 4)}/${d.slice(4, 6)}/${d.slice(6, 8)}`;
   }
 
   // 技術分析 Modal 標題:◀ ☆ 股號 股名 ▶ — 串接主畫面 filteredData 前後切換

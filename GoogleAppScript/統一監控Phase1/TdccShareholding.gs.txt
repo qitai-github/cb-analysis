@@ -1,0 +1,91 @@
+/**
+ * ============================================================
+ * 每週抓集保「股權分散表」→ Drive「股權分散表」資料夾
+ * ============================================================
+ * 為什麼由 GAS 做而不是 GitHub Actions:
+ *   每週的檔名都是新的 (TDCC_OD_1-5_YYYYMMDD.csv),而 Service Account
+ *   沒有 Drive storage quota,**只能覆蓋既存檔、不能建新檔**。
+ *   GAS 用你個人帳號跑,有配額,建得出來。
+ *   (網頁用的 data/shareholding.json 由 GitHub Actions
+ *    .github/workflows/tdcc-shareholding.yml 每週五 20:20 另外更新)
+ *
+ * 觸發器設法 (Apps Script → ⏰ Triggers → Add Trigger):
+ *   函式: runWeeklyTdccShareholding
+ *   事件來源: 時間驅動 → 週計時器 → 每週五 → 晚上 8 點到 9 點
+ *
+ * 注意:集保 OpenData 每週更新一次,資料日期是**上一個週五**,
+ *      週五晚上跑抓到的就是上週五那筆 (不是當天)。
+ * ============================================================
+ */
+
+// Drive「股權分散表」資料夾 (Telegram Bot/股權分散表)
+// Config.gs 有設 CFG.DRIVE.TDCC_SHAREHOLDING 就優先用那個
+var TDCC_FOLDER_ID_FALLBACK = '133xYbjvZXpj7cFLMWIjzkRfYBnipe1VE';
+var TDCC_OD_URL = 'https://opendata.tdcc.com.tw/getOD.ashx?id=1-5';
+var TDCC_MIN_BYTES = 500000;  // 全市場 ~4000 檔 × 17 級距,正常 2MB 以上
+
+function runWeeklyTdccShareholding() {
+  try {
+    var r = fetchTdccShareholdingToDrive();
+    Logger.log(JSON.stringify(r));
+    return r;
+  } catch (e) {
+    if (typeof sendTelegramAlert === 'function') {
+      sendTelegramAlert('❌ 集保股權分散表週抓失敗: ' + e.message);
+    }
+    throw e;
+  }
+}
+
+/** 主邏輯:抓 CSV → 取資料日期 → 存進 Drive (同名就覆蓋內容) */
+function fetchTdccShareholdingToDrive() {
+  var folderId = (typeof CFG !== 'undefined' && CFG.DRIVE && CFG.DRIVE.TDCC_SHAREHOLDING)
+    ? CFG.DRIVE.TDCC_SHAREHOLDING : TDCC_FOLDER_ID_FALLBACK;
+
+  var resp = UrlFetchApp.fetch(TDCC_OD_URL, {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    validateHttpsCertificates: false,  // TDCC 憑證缺 Subject Key Identifier
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+  });
+
+  var code = resp.getResponseCode();
+  if (code !== 200) throw new Error('HTTP ' + code);
+
+  var text = resp.getContentText('UTF-8');
+  if (text.length < TDCC_MIN_BYTES) throw new Error('內容過短 len=' + text.length);
+  if (text.indexOf('證券代號') < 0) throw new Error('缺欄位「證券代號」');
+
+  // 資料日期:第 2 列 (第 1 列是表頭) 的第 1 欄,整份都同一天
+  var firstRow = text.split('\n')[1] || '';
+  var dateStr = (firstRow.split(',')[0] || '').trim();
+  if (!/^\d{8}$/.test(dateStr)) throw new Error('取不到資料日期: ' + firstRow.slice(0, 60));
+
+  var name = 'TDCC_OD_1-5_' + dateStr + '.csv';
+  var folder = DriveApp.getFolderById(folderId);
+  var it = folder.getFilesByName(name);
+  var action;
+  if (it.hasNext()) {
+    // 同名檔已存在 (例如本機那班已經抓過) → 覆蓋內容,不再建一個重複檔
+    it.next().setContent(text);
+    action = 'overwritten';
+  } else {
+    folder.createFile(name, text, 'text/csv');
+    action = 'created';
+  }
+
+  var summary = '集保股權分散表 ' + dateStr + ' ' + action +
+                ' (' + Math.round(text.length / 1024) + ' KB)';
+  Logger.log('✅ ' + summary);
+  if (typeof sendTelegramAlert === 'function') {
+    sendTelegramAlert('📊 ' + summary);
+  }
+  return { date: dateStr, name: name, action: action, bytes: text.length };
+}
+
+/** 手動測試入口 (Apps Script 編輯器選此函式 → ▶ Run,看 Logger) */
+function testTdccShareholding() {
+  var r = fetchTdccShareholdingToDrive();
+  Logger.log(JSON.stringify(r));
+  return r;
+}

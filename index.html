@@ -127,6 +127,7 @@
           <div class="tech-folder-tabs">
             <button class="tech-folder-tab active" data-folder="inst">法人買賣</button>
             <button class="tech-folder-tab" data-folder="margin">資券</button>
+            <button class="tech-folder-tab" data-folder="holders">大戶明細</button>
           </div>
 
           <!-- Panel A: 法人買賣 (外資 / 投信 / 自營商) -->
@@ -194,6 +195,59 @@
               <div class="chart-container tech-chart-container">
                 <canvas id="tech-short-chart"></canvas>
               </div>
+            </div>
+          </div>
+
+          <!-- Panel C: 大戶明細 (集保股權分散表, 每週五資料) -->
+          <div class="tech-folder-panel hidden" data-panel="holders">
+            <div class="holder-controls">
+              <div class="holder-ctrl-row">
+                <span class="holder-ctrl-label big">大戶持股&gt;</span>
+                <span class="holder-seg" id="holder-seg-big"></span>
+                <span class="holder-ctrl-unit">張</span>
+              </div>
+              <div class="holder-ctrl-row">
+                <span class="holder-ctrl-label small">散戶持股&lt;</span>
+                <span class="holder-seg" id="holder-seg-small"></span>
+                <span class="holder-ctrl-unit">張</span>
+              </div>
+              <span class="holder-ctrl-meta" id="holder-source-meta"></span>
+            </div>
+            <div class="tech-chart-sub holder-chart-main">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">張數比例
+                  <span class="tech-legend">
+                    <span class="legend-chip" style="--c:#f97316">大戶</span>
+                    <span class="legend-chip" style="--c:#10b981">散戶</span>
+                    <span class="legend-chip" style="--c:#cbd5e1">股價</span>
+                  </span>
+                </span>
+                <span class="tech-chart-meta" id="tech-holder-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-holder-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">持股人數
+                  <span class="tech-legend">
+                    <span class="legend-chip" style="--c:#f97316">大戶</span>
+                    <span class="legend-chip" style="--c:#10b981">散戶</span>
+                  </span>
+                </span>
+                <span class="tech-chart-meta" id="tech-holder-people-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-holder-people-chart"></canvas>
+              </div>
+            </div>
+            <div class="tech-chart-sub holder-table-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">週明細</span>
+                <span class="tech-chart-meta" id="tech-holder-table-meta"></span>
+              </div>
+              <div class="holder-table-wrap" id="holder-table-wrap"></div>
             </div>
           </div>
         </div>
