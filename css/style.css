@@ -2943,6 +2943,25 @@ input[type="number"] { -moz-appearance: textfield; }
   font-weight: 600;
 }
 
+/* 點樣式切換 (小點 / 氣泡),跟分色鈕同一套外觀 */
+.scatter-pt-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.scatter-pt-btn:first-of-type { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.scatter-pt-btn:last-of-type  { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-left: -1px; }
+.scatter-pt-btn:hover { color: var(--text); }
+.scatter-pt-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
 .scatter-count {
   font-size: 13px;
   color: var(--text-muted);

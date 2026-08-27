@@ -29,6 +29,9 @@ const ScatterView = (() => {
     { label: 'CB ≥ 130',   test: v => v >= 130,            color: '#ef4444' }
   ];
 
+  let pointMode = 'dot';        // 'dot' | 'bubble' — 小點 or 依發行總額的氣泡(圈內標 CB 代號/名稱)
+  let amtStats = null;          // { min, max } 發行總額(百萬),算氣泡半徑用
+  const BUBBLE_R = { min: 7, max: 34 };   // 氣泡半徑範圍 (px)
   let industryFilter = '';      // '' = 全部產業;否則只畫該產業的 CB
   let colorMode = 'industry';   // 'industry' | 'price' — 分色依據,切換後記住
   let groups = [];              // [{ key, color, shape, n }] — 由資料+模式算出
@@ -93,6 +96,33 @@ const ScatterView = (() => {
     return out;
   }
 
+  /** 發行總額 (百萬元)。元大 basicInfo 的 actualTotal 為主,沒有就退回 issueTotal */
+  function issueAmount(cb) {
+    const a = num(cb && cb.actualTotal);
+    if (a !== null && a > 0) return a;
+    const b = num(cb && cb.issueTotal);
+    return (b !== null && b > 0) ? b : null;
+  }
+
+  /** 依發行總額算氣泡半徑:用 sqrt 讓「面積」正比於金額,不然大案子會大得太誇張 */
+  function bubbleRadius(amt) {
+    if (!amtStats || amt == null) return BUBBLE_R.min;
+    const { min, max } = amtStats;
+    if (!(max > min)) return (BUBBLE_R.min + BUBBLE_R.max) / 2;
+    const t = Math.sqrt((amt - min) / (max - min));
+    return BUBBLE_R.min + t * (BUBBLE_R.max - BUBBLE_R.min);
+  }
+
+  /** 每個點先算好兩種模式要用的半徑 */
+  function computeRadii(pts) {
+    const amts = pts.map(p => issueAmount(p.cb)).filter(a => a !== null);
+    amtStats = amts.length ? { min: Math.min(...amts), max: Math.max(...amts) } : null;
+    for (const p of pts) {
+      p.amt = issueAmount(p.cb);
+      p.r = p.amt == null ? BUBBLE_R.min : bubbleRadius(p.amt);
+    }
+  }
+
   const roundDown = (v, step) => Math.floor(v / step) * step;
   const roundUp   = (v, step) => Math.ceil(v / step) * step;
 
@@ -137,6 +167,11 @@ const ScatterView = (() => {
         sliderHtml('price', 'CB 價格', pMin, pMax, 1, priceRange, '') +
         sliderHtml('prem', '溢價率', rMin, rMax, 1, premiumRange, '%') +
         '<div class="scatter-mode">' +
+          '<span class="scatter-mode-label">樣式</span>' +
+          '<button type="button" class="scatter-pt-btn" data-pt="dot">小點</button>' +
+          '<button type="button" class="scatter-pt-btn" data-pt="bubble">氣泡</button>' +
+        '</div>' +
+        '<div class="scatter-mode">' +
           '<span class="scatter-mode-label">分色</span>' +
           '<button type="button" class="scatter-mode-btn" data-mode="industry">產業</button>' +
           '<button type="button" class="scatter-mode-btn" data-mode="price">價格帶</button>' +
@@ -146,7 +181,7 @@ const ScatterView = (() => {
       '</div>' +
       '<div class="scatter-legend" id="scatter-legend"></div>' +
       '<div class="scatter-canvas-wrap"><canvas id="scatter-canvas"></canvas></div>' +
-      '<div class="scatter-hint">「產業」下拉可只看單一產業;點擊任一點可開啟該檔 CB 對應個股的詳情面板;點上方圖例可隱藏/顯示該分組;「分色」可切換依產業或依 CB 價格帶上色。</div>';
+      '<div class="scatter-hint">「產業」下拉可只看單一產業;點擊任一點可開啟該檔 CB 對應個股的詳情面板;點上方圖例可隱藏/顯示該分組;「分色」可切換依產業或依 CB 價格帶上色;「樣式」切到氣泡時,圈圈大小 = 發行總額,圈內直接標 CB 代號與名稱。</div>';
 
     const indSel = panel.querySelector('#scatter-industry');
     if (indSel) {
@@ -178,8 +213,20 @@ const ScatterView = (() => {
         regroup(pts, panel);
       });
     });
+    panel.querySelectorAll('.scatter-pt-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.pt === pointMode) return;
+        pointMode = btn.dataset.pt;
+        paintModeBtns(panel);
+        if (chart) {
+          chart.data.datasets = datasetsFromGroups();
+          update(pts, panel);
+        }
+      });
+    });
     paintModeBtns(panel);
 
+    computeRadii(pts);
     buildGroups(pts);
     buildChart(panel, options);
     renderLegend(panel);
@@ -260,11 +307,74 @@ const ScatterView = (() => {
     if (val) val.textContent = range.min + unit + ' ~ ' + range.max + unit;
   }
 
+  /** 氣泡模式:在圈圈裡畫兩行字 (上 = CB 代號,下 = CB 名稱)。
+   *  圈太小塞不下就不畫;字寬超過直徑先縮字、再退成只畫代號;
+   *  重疊時大圈優先,會撞到已畫標籤的就跳過。 */
+  const bubbleLabelPlugin = {
+    id: 'scatterBubbleLabel',
+    afterDatasetsDraw(c) {
+      if (pointMode !== 'bubble') return;
+      const ctx = c.ctx;
+
+      // 先把所有可見的點收起來,由大到小畫標籤;疊在一起時大的優先,
+      // 小的如果會撞到已畫的字就跳過 (不然密集區會糊成一團看不懂)
+      const cands = [];
+      for (let di = 0; di < c.data.datasets.length; di++) {
+        if (!c.isDatasetVisible(di)) continue;
+        const els = c.getDatasetMeta(di).data || [];
+        const raws = c.data.datasets[di].data || [];
+        for (let i = 0; i < els.length; i++) {
+          const el = els[i], raw = raws[i];
+          if (!el || !raw || el.skip) continue;
+          const cb = raw.cb || {};
+          if (!cb.cbCode && !cb.cbName) continue;
+          cands.push({ x: el.x, y: el.y, r: raw.r || BUBBLE_R.min, code: String(cb.cbCode || ''), name: String(cb.cbName || '') });
+        }
+      }
+      cands.sort((a, b) => b.r - a.r);
+
+      const taken = [];
+      const hits = (box) => taken.some(t =>
+        box.x1 < t.x2 && box.x2 > t.x1 && box.y1 < t.y2 && box.y2 > t.y1);
+
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const p of cands) {
+        if (p.r < 10) continue;                       // 圈太小塞不下字
+        let size = Math.max(8, Math.min(13, Math.round(p.r * 0.52)));
+        const maxW = p.r * 1.75;
+        const longest = p.name.length > p.code.length ? p.name : p.code;
+        const widthOf = (txt, sz) => { ctx.font = '600 ' + sz + 'px sans-serif'; return ctx.measureText(txt).width; };
+        while (size > 8 && widthOf(longest, size) > maxW) size--;
+        const twoLines = p.r >= 13 && widthOf(p.name, size) <= maxW && !!p.name;
+        const w = Math.max(widthOf(p.code, size), twoLines ? widthOf(p.name, size) : 0);
+        const h = twoLines ? size * 2.2 : size * 1.2;
+        const box = { x1: p.x - w / 2 - 1, x2: p.x + w / 2 + 1, y1: p.y - h / 2 - 1, y2: p.y + h / 2 + 1 };
+        if (hits(box)) continue;
+        taken.push(box);
+        ctx.font = '600 ' + size + 'px sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.shadowColor = 'rgba(15,23,42,0.95)';
+        ctx.shadowBlur = 3;
+        if (twoLines) {
+          ctx.fillText(p.code, p.x, p.y - size * 0.55);
+          ctx.fillText(p.name, p.x, p.y + size * 0.6);
+        } else {
+          ctx.fillText(p.code, p.x, p.y);
+        }
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+    }
+  };
+
   function buildChart(panel, options) {
     const canvas = panel.querySelector('#scatter-canvas');
     if (!canvas || typeof Chart === 'undefined') return;
     chart = new Chart(canvas.getContext('2d'), {
       type: 'scatter',
+      plugins: [bubbleLabelPlugin],
       data: {
         datasets: datasetsFromGroups()
       },
@@ -304,6 +414,7 @@ const ScatterView = (() => {
                   '溢價率 ' + ctx.parsed.y.toFixed(2) + '%'
                 ];
                 if (cb.conversionPrice != null) lines.push('轉換價 ' + Number(cb.conversionPrice).toFixed(2));
+                if (ctx.raw && ctx.raw.amt != null) lines.push('發行總額 ' + Number(ctx.raw.amt).toLocaleString() + ' 百萬');
                 if (cb.volume != null) lines.push('成交量 ' + Number(cb.volume).toLocaleString() + ' 張');
                 if (cb.industryCategory) lines.push(String(cb.industryCategory).split('、')[0]);
                 return lines;
@@ -318,6 +429,8 @@ const ScatterView = (() => {
   function paintModeBtns(panel) {
     panel.querySelectorAll('.scatter-mode-btn').forEach(b =>
       b.classList.toggle('on', b.dataset.mode === colorMode));
+    panel.querySelectorAll('.scatter-pt-btn').forEach(b =>
+      b.classList.toggle('on', b.dataset.pt === pointMode));
   }
 
   /** 切換分色依據:重算分組後換掉 datasets(不重建 chart,座標軸/滑軌都不動) */
@@ -334,15 +447,22 @@ const ScatterView = (() => {
 
   /** 由 groups 產生 Chart.js datasets(空資料,由 update() 填) */
   function datasetsFromGroups() {
+    const bubble = pointMode === 'bubble';
     return groups.map(g => ({
       label: g.key,
       data: [],
-      backgroundColor: g.color + 'cc',
+      // 氣泡會互相蓋到,底色調淡一點才看得出重疊
+      backgroundColor: g.color + (bubble ? '66' : 'cc'),
       borderColor: g.color,
-      borderWidth: 1,
-      pointStyle: g.shape,
-      pointRadius: g.shape === 'circle' ? 4 : 5,
-      pointHoverRadius: g.shape === 'circle' ? 7 : 8
+      borderWidth: bubble ? 1.5 : 1,
+      // 氣泡模式一律圓形 (要在圈內塞兩行字)
+      pointStyle: bubble ? 'circle' : g.shape,
+      pointRadius: bubble
+        ? (ctx) => (ctx.raw && ctx.raw.r) || BUBBLE_R.min
+        : (g.shape === 'circle' ? 4 : 5),
+      pointHoverRadius: bubble
+        ? (ctx) => ((ctx.raw && ctx.raw.r) || BUBBLE_R.min) + 2
+        : (g.shape === 'circle' ? 7 : 8)
     }));
   }
 
@@ -377,6 +497,8 @@ const ScatterView = (() => {
     for (const p of inRange) {
       if (p.gi >= 0) buckets[p.gi].push(p);
     }
+    // 氣泡模式:同一組內大的先畫 (畫在底層),小的才不會被整個蓋掉
+    if (pointMode === 'bubble') buckets.forEach(b => b.sort((p, q) => (q.r || 0) - (p.r || 0)));
     groups.forEach((g, i) => { chart.data.datasets[i].data = buckets[i]; });
     // X/Y 軸跟著滑軌走(留一點邊)
     const padX = Math.max(1, (priceRange.max - priceRange.min) * 0.03);
