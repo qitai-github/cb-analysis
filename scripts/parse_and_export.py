@@ -601,10 +601,10 @@ def merge_mops_cb_events(all_data: dict) -> dict:
     return {"status": "ok", "candidates": len(cb_events), "added": added}
 
 
-# ── Phase 4.5: 個股狀態 sheet (VCP / 三線開花) ─────────────────────────
+# ── Phase 4.5: 個股狀態 (新高 / 強勢 / 三線開花) ───────────────────────
 def fetch_status_sheets(trade_date: str, all_data: dict, *,
                         record_db: bool) -> list[dict]:
-    """抓 VCP / 三線開花 公開 xlsx,挑最新 worksheet,寫入 all_data['stockStatus']。
+    """抓 新高 / 強勢 / 三線開花 (ZF_TrendPicking),寫入 all_data['stockStatus']。
 
     回傳 list of {key, name, status, rows}。任一失敗不影響另一個,也不影響
     主 pipeline (呼叫端只把摘要送 TG)。
@@ -613,12 +613,12 @@ def fetch_status_sheets(trade_date: str, all_data: dict, *,
     bucket: dict[str, dict] = {}
     for key, spec in status_sheets.SOURCES.items():
         name = spec["name"]
-        log(f"  ↓ 狀態 sheet {name} ({key})")
+        log(f"  ↓ 狀態 {name} ({key})")
         try:
             res = status_sheets.fetch_one(key)
             bucket[key] = res
             n = len(res.get("stocks") or {})
-            log(f"     ✓ tab={res['date']}, stocks={n:,}")
+            log(f"     ✓ date={res['date']}, stocks={n:,}")
             _record(trade_date, f"status_{key}", "fetch", "ok",
                     count=n, enabled=record_db)
             states.append({"key": key, "name": name,
@@ -630,11 +630,14 @@ def fetch_status_sheets(trade_date: str, all_data: dict, *,
             states.append({"key": key, "name": name,
                            "status": "fail", "rows": None})
 
-    # 部分成功時保留既有資料,只覆蓋成功抓到的 key
+    # 部分成功時保留既有資料,只覆蓋成功抓到的 key;
+    # 順手清掉已不在 SOURCES 的舊 key (如舊版的 'vcp')
     if bucket:
         existing = all_data.get("stockStatus") or {}
         if not isinstance(existing, dict):
             existing = {}
+        existing = {k: v for k, v in existing.items()
+                    if k in status_sheets.SOURCES}
         existing.update(bucket)
         all_data["stockStatus"] = existing
     return states
@@ -746,11 +749,11 @@ def main(argv=None) -> int:
             log("[Phase 4] 從 Sheet 讀 5 個非-CSV key")
             summary["sheets"] = fetch_sheets(trade_date, all_data, record_db=record_db)
 
-        # Phase 4.5: 個股狀態 sheet (VCP / 三線開花) — 失敗保留舊資料,不 abort
+        # Phase 4.5: 個股狀態 (新高 / 強勢 / 三線開花) — 失敗保留舊資料,不 abort
         if args.skip_sheet:
-            log("[Phase 4.5] --skip-sheet,狀態 sheet 抓取跳過")
+            log("[Phase 4.5] --skip-sheet,狀態抓取跳過")
         else:
-            log("[Phase 4.5] 抓 VCP / 三線開花 狀態 sheet")
+            log("[Phase 4.5] 抓 新高 / 強勢 / 三線開花 狀態")
             summary["status_sheets"] = fetch_status_sheets(
                 trade_date, all_data, record_db=record_db)
 

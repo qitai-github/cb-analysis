@@ -556,7 +556,7 @@ const App = (() => {
     document.getElementById('company-report-modal-body').innerHTML = '';
   }
 
-  // 詳情面板標題:星星 + 代號名稱 + VCP/三線 狀態徽章
+  // 詳情面板標題:星星 + 代號名稱 + 新高/強勢/三線 狀態徽章
   function renderDetailTitle(stock) {
     const titleEl = document.getElementById('detail-title');
     titleEl.innerHTML = '';
@@ -576,7 +576,7 @@ const App = (() => {
 
     titleEl.append(star, label);
 
-    // VCP / 三線 徽章 (stock 層級)
+    // 新高 / 強勢 / 三線 徽章 (stock 層級)
     const badgesHtml = buildStatusBadgesHTML(stock);
     if (badgesHtml) {
       const wrap = document.createElement('span');
@@ -1494,7 +1494,7 @@ const App = (() => {
     </div>`;
   }
 
-  // 狀態徽章 (VCP / 三線) — stock 層級,所有 CB 卡共用
+  // 狀態徽章 (新高 / 強勢 / 三線) — stock 層級,所有 CB 卡共用
   function buildStatusBadgesHTML(stock) {
     const flags = stock.statusFlags;
     if (!flags) return '';
@@ -1505,7 +1505,8 @@ const App = (() => {
       const tip = `${label} 連續 ${streak} 天 / 累計 ${info.total ?? streak} 天`;
       return `<span class="badge ${cls}" title="${tip}">${text}</span>`;
     };
-    return mk('badge-vcp', 'VCP', flags.vcp)
+    return mk('badge-newhigh', '新高', flags.newhigh)
+         + mk('badge-strong', '強勢', flags.strong)
          + mk('badge-sanxian', '三線', flags.sanxian);
   }
 

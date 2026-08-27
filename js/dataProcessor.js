@@ -596,7 +596,7 @@ const DataProcessor = (() => {
     //     (CBAS 每日 API 更新,新掛牌當天就有;元大 xlsx 每週才換)
     applyCbasIssuedInfo(stockMap, rawResults.cbasCalendar);
 
-    // 9. 個股狀態 (VCP / 三線開花) — 由 parse_and_export 寫入 all-data.json
+    // 9. 個股狀態 (新高 / 強勢 / 三線開花) — 由 parse_and_export 寫入 all-data.json
     applyStockStatus(stockMap, rawResults.stockStatus);
 
     // 10. 融資融券 — parse_and_export 寫入,categories: 融資餘額/融資增減/融券餘額/融券增減
@@ -648,8 +648,8 @@ const DataProcessor = (() => {
   }
 
   /**
-   * 把 VCP / 三線開花 結果掛到 stockMap 對應個股上
-   * stockStatus 結構: { vcp: {date, stocks:{code:{...}}}, sanxian: {date, stocks:{...}} }
+   * 把 新高 / 強勢 / 三線開花 結果掛到 stockMap 對應個股上
+   * stockStatus 結構: { newhigh: {date, stocks:{code:{...}}}, strong: {...}, sanxian: {...} }
    */
   function applyStockStatus(stockMap, stockStatus) {
     if (!stockStatus || typeof stockStatus !== 'object') return;
@@ -661,9 +661,10 @@ const DataProcessor = (() => {
         if (!entry) continue;  // 只標示 CB 對應個股
         if (!entry.statusFlags) entry.statusFlags = {};
         entry.statusFlags[type] = { date, ...(details || {}) };
-        // 扁平欄位給 table 排序用 (key = vcpStreak / sanxianStreak)
+        // 扁平欄位給 table 排序用 (key = newhighStreak / strongStreak / sanxianStreak)
         const streak = Number(details?.streak) || 0;
-        if (type === 'vcp') entry.vcpStreak = streak;
+        if (type === 'newhigh') entry.newhighStreak = streak;
+        else if (type === 'strong') entry.strongStreak = streak;
         else if (type === 'sanxian') entry.sanxianStreak = streak;
       }
     }

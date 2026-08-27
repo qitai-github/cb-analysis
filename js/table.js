@@ -13,7 +13,8 @@ const Table = (() => {
     { key: '_star', label: '☆', width: '32px', sticky: true, format: 'star', noSort: false },
     { key: 'code', label: '代碼', width: '60px', sticky: true },
     { key: 'name', label: '名稱', width: '85px', sticky: true },
-    { key: 'vcpStreak',     label: 'VCP',  width: '60px', format: 'badge_vcp',     align: 'center' },
+    { key: 'newhighStreak', label: '新高', width: '60px', format: 'badge_newhigh', align: 'center' },
+    { key: 'strongStreak',  label: '強勢', width: '60px', format: 'badge_strong',  align: 'center' },
     { key: 'sanxianStreak', label: '三線', width: '60px', format: 'badge_sanxian', align: 'center' },
     { key: 'industryCategory', label: '產業分類', width: '105px', format: 'industry' },
     { key: 'latestClose', label: '收盤價', width: '65px', format: 'price', align: 'right' },
@@ -254,8 +255,12 @@ const Table = (() => {
       return;
     }
 
-    if (format === 'badge_vcp') {
-      renderSingleBadge(td, item, 'vcp');
+    if (format === 'badge_newhigh') {
+      renderSingleBadge(td, item, 'newhigh');
+      return;
+    }
+    if (format === 'badge_strong') {
+      renderSingleBadge(td, item, 'strong');
       return;
     }
     if (format === 'badge_sanxian') {
@@ -411,7 +416,8 @@ for (const pubName of PublicWatchlist.getLists()) {
 
   // 狀態徽章設定 (對齊 status_sheets.SOURCES key)
   const STATUS_BADGES = {
-    vcp:     { label: 'VCP',  cls: 'badge-vcp'     },
+    newhigh: { label: '新高', cls: 'badge-newhigh' },
+    strong:  { label: '強勢', cls: 'badge-strong'  },
     sanxian: { label: '三線', cls: 'badge-sanxian' }
   };
 
@@ -455,20 +461,13 @@ for (const pubName of PublicWatchlist.getLists()) {
 
   function buildStatusTooltip(type, info) {
     const lines = [];
-    const head = type === 'vcp' ? 'VCP' : '三線開花';
-    lines.push(`${head} — ${info.date || ''}`.trim());
+    const HEAD = { newhigh: '新高', strong: '強勢', sanxian: '三線開花' };
+    lines.push(`${HEAD[type] || type} — ${info.date || ''}`.trim());
     if (info.streak != null) {
       lines.push(`連續 ${info.streak} 天 / 累計 ${info.total ?? info.streak} 天`);
     }
-    if (type === 'vcp') {
-      if (info.gain20)              lines.push(`近20日漲幅: ${info.gain20}`);
-      if (info.marketShort === 'O') lines.push('大盤淨空 ✓');
-      if (info.consecShort === 'O') lines.push('連續淨空 ✓');
-    } else if (type === 'sanxian') {
-      if (info.close)   lines.push(`收盤股價: ${info.close}`);
-      if (info.high55)  lines.push(`55日內最高: ${info.high55}`);
-      if (info.diffPct) lines.push(`差距比: ${info.diffPct}`);
-    }
+    if (info.gain20)  lines.push(`近20日漲幅: ${info.gain20}%`);
+    if (info.diffPct) lines.push(`差距比: ${info.diffPct}`);
     return lines.join('\n');
   }
 

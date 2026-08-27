@@ -57,19 +57,19 @@ const Filters = (() => {
       apply: (stock, val) => !val || stock.firstBarSignal === true
     },
 
-    // 狀態 (VCP / 三線開花)
+    // 狀態 (新高 / 強勢 / 三線開花)
     hasStatusFlag: {
-      label: '有 VCP / 三線',
+      label: '有 新高/強勢/三線',
       type: 'checkbox',
       group: '狀態篩選',
       apply: (stock, val) => {
         if (!val) return true;
         const f = stock.statusFlags;
-        return !!(f && (f.vcp || f.sanxian));
+        return !!(f && (f.newhigh || f.strong || f.sanxian));
       }
     },
     recentStatusFlag: {
-      label: '新近 VCP / 三線 ≤ N 日',
+      label: '新近 新高/強勢/三線 ≤ N 日',
       type: 'number',
       placeholder: '天數...',
       group: '狀態篩選',
@@ -79,9 +79,9 @@ const Filters = (() => {
         if (!(n > 0)) return true;
         const f = stock.statusFlags;
         if (!f) return false;
-        const vcp = Number(f.vcp?.streak) || 0;
-        const sx  = Number(f.sanxian?.streak) || 0;
-        return (vcp >= 1 && vcp <= n) || (sx >= 1 && sx <= n);
+        const streaks = [f.newhigh, f.strong, f.sanxian]
+          .map(x => Number(x?.streak) || 0);
+        return streaks.some(v => v >= 1 && v <= n);
       }
     },
 

@@ -800,7 +800,13 @@ body {
 
 .badge:last-child { margin-right: 0; }
 
-.badge-vcp {
+.badge-newhigh {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.badge-strong {
   background: rgba(239, 68, 68, 0.15);
   color: #fca5a5;
   border-color: rgba(239, 68, 68, 0.45);

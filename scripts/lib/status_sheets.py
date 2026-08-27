@@ -1,28 +1,24 @@
-"""個股狀態 sheet 抓取 (VCP / 三線開花) → dict[stock_code, details]。
+"""個股狀態抓取 (新高 / 強勢 / 三線開花) → dict[stock_code, details]。
 
-兩份 Google Sheet 結構共同點:
-  - 公開 (任何人皆可檢視)
-  - 每天新增一個工作表,sheet name 為 YYMMDD (如 '260505')
-  - A 欄 = 股票代號, B/C = 股名/公司名, D-F = 產業分類, 後續為各指標欄位
+資料來源: 藏鋒資本趨勢選股 https://jacky99714.github.io/ZF_TrendPicking/
+  - data/index.json          → {generated_at, months[], stocks:{id:{n,m,i,e,ms}}}
+  - data/months/YYYY-MM.json → [{d, id, t, s, h, r, g}, ...]
+
+欄位語意 (對齊該站前端):
+  t = 'vcp' → 強勢/新高 系列, 旗標 s=強勢, h=新高
+  t = 'sx'  → 三線開花
+  r = 近20日漲幅(%), g = 差距比
 
 抓法:
-  下載整份 xlsx (export?format=xlsx),依 sheet name 排序找最新
-  -- 比 gviz 的 gid 路線穩定,不需要每天更新 gid
+  只取近 MONTHS_BACK 個月的 month json (同一份 JSON 三個 key 共用,module 內快取),
+  以「出現日期集合」算 streak (從最新交易日往回連續上榜天數) 與 total。
 
 跑法 (smoke):
   python -m lib.status_sheets
-
-輸出範例:
-  {
-    "vcp":     {"date": "260505", "stocks": {"2423": {...}, ...}},
-    "sanxian": {"date": "260505", "stocks": {"2342": {...}, ...}}
-  }
 """
 
 from __future__ import annotations
 
-import io
-import re
 import sys
 from typing import Any, Optional
 
@@ -35,57 +31,79 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-XLSX_URL_TPL = (
-    "https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
-)
+BASE_URL = "https://jacky99714.github.io/ZF_TrendPicking/data"
 TIMEOUT = 60
+MONTHS_BACK = 3          # 近 3 個月 (~60 交易日) 足夠算 streak,也不用扛 20+MB
+MARKET = "tw"            # 只要台股 (該站另有美股 'us')
 
-# 兩份固定的狀態 sheet
+# 三個狀態欄位。matcher: 一筆 month record 是否算這個狀態
 SOURCES: dict[str, dict[str, Any]] = {
-    "vcp": {
-        "name": "VCP",
-        "sheet_id": "1zJ0st8vbhrINdBvfi0-U3gFcbqeFHHHsUEEULM3kDSQ",
-        # 標頭: 代碼 / 股名 / 公司名 / 產業1 / 產業2 / 產品組合 /
-        #        近20日股價漲幅 / 大盤淨空 / 連續淨空
-        "fields": {
-            6: "gain20",       # 近20日股價漲幅
-            7: "marketShort",  # 大盤淨空 (O / 空)
-            8: "consecShort",  # 連續淨空 (O / 空)
-        },
+    "newhigh": {
+        "name": "新高",
+        "matcher": lambda e: e.get("t") == "vcp" and bool(e.get("h")),
+        "fields": {"r": "gain20"},
+    },
+    "strong": {
+        "name": "強勢",
+        "matcher": lambda e: e.get("t") == "vcp" and bool(e.get("s")),
+        "fields": {"r": "gain20"},
     },
     "sanxian": {
         "name": "三線開花",
-        "sheet_id": "1HinNbehTVBoBdZV6FqQRhld-WOWkSJvfjd0e1ndDvxo",
-        # 標頭: 代碼 / 股名 / 公司名 / 產業1 / 產業2 / 產品組合 /
-        #        收盤股價 / 55日內最高價 / 差距比
-        "fields": {
-            6: "close",       # 收盤股價
-            7: "high55",      # 55日內最高價
-            8: "diffPct",     # 差距比
-        },
+        "matcher": lambda e: e.get("t") == "sx",
+        "fields": {"r": "gain20", "g": "diffPct"},
     },
 }
 
-# YYMMDD pattern for sheet name (e.g. 260505)
-DATE_RE = re.compile(r"^(\d{6})$")
+# module 內快取:三個 key 共用同一份下載
+_CACHE: dict[str, Any] = {"index": None, "months": {}}
 
 
-def _pick_latest_sheet(sheet_names: list[str]) -> Optional[str]:
-    """從 sheet 名稱中挑最新一個。
+def _get_json(path: str) -> Any:
+    r = requests.get(f"{BASE_URL}/{path}", timeout=TIMEOUT)
+    r.raise_for_status()
+    return r.json()
 
-    優先挑 YYMMDD 格式排序最大的;若全不符,退回原始第 0 個 (Google Sheet 預設第一個)。
-    """
-    dated = [n for n in sheet_names if DATE_RE.match(n)]
-    if dated:
-        return max(dated)
-    return sheet_names[0] if sheet_names else None
+
+def _load_index() -> dict[str, Any]:
+    if _CACHE["index"] is None:
+        idx = _get_json("index.json")
+        if not isinstance(idx, dict) or not idx.get("months"):
+            raise RuntimeError("index.json 格式異常 (無 months)")
+        _CACHE["index"] = idx
+    return _CACHE["index"]
+
+
+def _load_month(month: str) -> list[dict]:
+    if month not in _CACHE["months"]:
+        data = _get_json(f"months/{month}.json")
+        if not isinstance(data, list):
+            raise RuntimeError(f"{month}.json 格式異常 (非 list)")
+        _CACHE["months"][month] = data
+    return _CACHE["months"][month]
+
+
+def _load_records() -> tuple[list[dict], dict[str, Any]]:
+    """近 MONTHS_BACK 個月、市場 = MARKET 的所有紀錄 + index。"""
+    idx = _load_index()
+    stocks_meta = idx.get("stocks") or {}
+    months = list(idx["months"])[:MONTHS_BACK]   # index.months 已是新→舊
+    records: list[dict] = []
+    for m in months:
+        for e in _load_month(m):
+            meta = stocks_meta.get(e.get("id"))
+            if not meta or meta.get("m") != MARKET:
+                continue
+            records.append(e)
+    if not records:
+        raise RuntimeError(f"近 {MONTHS_BACK} 個月無任何 {MARKET} 紀錄")
+    return records, idx
 
 
 def _stringify(v: Any) -> str:
     if v is None:
         return ""
     if isinstance(v, float):
-        # 整數浮點 → 去 .0;其餘保留 2 位
         if v.is_integer():
             return str(int(v))
         return f"{v:.4f}".rstrip("0").rstrip(".")
@@ -97,66 +115,58 @@ def _is_valid_code(s: str) -> bool:
 
 
 def fetch_one(key: str) -> dict[str, Any]:
-    """抓單一 sheet → {date, stocks, sheetsScanned}。失敗 raise RuntimeError。
+    """單一狀態 → {date, stocks, sheetsScanned}。失敗 raise RuntimeError。
 
-    掃 xlsx 內所有 YYMMDD 工作表計算每檔的:
-      - streak: 從最新往回連續上榜天數 (今天首上榜=1)
-      - total : 在歷史範圍內累計上榜天數
+    date          = 最新交易日 (YYYY-MM-DD)
+    sheetsScanned = 掃到的交易日數
+    stocks[code]  = {..明細.., streak, total}
+      - streak: 從最新交易日往回連續上榜天數 (今天首上榜=1)
+      - total : 在時間範圍內累計上榜天數
     """
     spec = SOURCES[key]
-    url = XLSX_URL_TPL.format(sheet_id=spec["sheet_id"])
-    r = requests.get(url, timeout=TIMEOUT, allow_redirects=True)
-    r.raise_for_status()
-    if not r.content:
-        raise RuntimeError(f"{spec['name']}: xlsx 內容為空")
-
-    # 延後 import,讓 import error 訊息直接顯示在 fetch 階段
-    from openpyxl import load_workbook
-
     try:
-        wb = load_workbook(io.BytesIO(r.content), read_only=True, data_only=True)
-    except Exception as e:
-        raise RuntimeError(f"{spec['name']}: 解析 xlsx 失敗: {e}") from e
+        records, _ = _load_records()
+    except requests.RequestException as e:
+        raise RuntimeError(f"{spec['name']}: 下載失敗: {e}") from e
 
-    # 全部 YYMMDD 工作表,降冪 (最新優先)
-    dated = sorted(
-        (s for s in wb.sheetnames if DATE_RE.match(s)),
-        reverse=True,
-    )
-    if not dated:
-        raise RuntimeError(f"{spec['name']}: 無任何 YYMMDD 工作表")
-    latest = dated[0]
-
-    # 第一遍:掃所有工作表,建出每檔股票的「出現日期集合」
-    appearance: dict[str, set[str]] = {}
-    for tab in dated:
-        for row in wb[tab].iter_rows(values_only=True):
-            if not row:
-                continue
-            code = _stringify(row[0])
-            if not _is_valid_code(code):
-                continue
-            appearance.setdefault(code, set()).add(tab)
-
-    # 第二遍:最新工作表 → 當前明細,加 streak / total
+    matcher = spec["matcher"]
     fields = spec["fields"]
-    stocks: dict[str, dict[str, Any]] = {}
-    for row in wb[latest].iter_rows(values_only=True):
-        if not row:
+
+    all_dates = sorted({e["d"] for e in records if e.get("d")}, reverse=True)
+    if not all_dates:
+        raise RuntimeError(f"{spec['name']}: 無任何交易日")
+    latest = all_dates[0]
+
+    # 每檔的「上榜日期集合」+ 最新日的明細
+    appearance: dict[str, set[str]] = {}
+    latest_row: dict[str, dict] = {}
+    for e in records:
+        if not matcher(e):
             continue
-        code = _stringify(row[0])
+        code = _stringify(e.get("id"))
         if not _is_valid_code(code):
             continue
+        d = e.get("d")
+        if not d:
+            continue
+        appearance.setdefault(code, set()).add(d)
+        if d == latest:
+            latest_row[code] = e
+
+    if not latest_row:
+        raise RuntimeError(f"{spec['name']}: 最新日 {latest} 無資料")
+
+    stocks: dict[str, dict[str, Any]] = {}
+    for code, e in latest_row.items():
         item: dict[str, Any] = {}
-        for col_idx, field_name in fields.items():
-            if col_idx < len(row):
-                val = _stringify(row[col_idx])
-                if val:
-                    item[field_name] = val
+        for src_key, field_name in fields.items():
+            val = _stringify(e.get(src_key))
+            if val:
+                item[field_name] = val
         appear_set = appearance.get(code, set())
         streak = 0
-        for tab in dated:
-            if tab in appear_set:
+        for d in all_dates:
+            if d in appear_set:
                 streak += 1
             else:
                 break
@@ -164,14 +174,11 @@ def fetch_one(key: str) -> dict[str, Any]:
         item["total"] = len(appear_set)
         stocks[code] = item
 
-    return {"date": latest, "stocks": stocks, "sheetsScanned": len(dated)}
+    return {"date": latest, "stocks": stocks, "sheetsScanned": len(all_dates)}
 
 
 def fetch_all() -> dict[str, dict[str, Any]]:
-    """抓兩份 sheet,個別失敗不會影響另一份。回傳 dict 會省略失敗的 key。
-
-    呼叫端可從回傳 dict 的 key 數量得知成功與否。
-    """
+    """抓三個狀態,個別失敗不影響其他。回傳 dict 會省略失敗的 key。"""
     out: dict[str, dict[str, Any]] = {}
     for key in SOURCES:
         try:
@@ -186,9 +193,8 @@ def _smoke() -> int:
     for key in SOURCES:
         try:
             res = fetch_one(key)
-            print(f"[{key}] tab={res['date']} scanned={res['sheetsScanned']} "
+            print(f"[{key}] date={res['date']} days={res['sheetsScanned']} "
                   f"stocks={len(res['stocks'])}")
-            # streak 最長前 5 名
             top = sorted(res["stocks"].items(),
                          key=lambda kv: kv[1].get("streak", 0), reverse=True)[:5]
             for code, details in top:
