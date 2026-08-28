@@ -1,9 +1,9 @@
-name: Margin Late (融資融券 19:30)
+name: Margin Late (融資融券 21:10)
 
 # 融資融券資料 TWSE/TPEX 通常傍晚才公布,
-# 18:23 主 cron 抓會拿到舊資料或失敗,所以分離出來在 19:30 單獨跑。
+# 18:23 主 cron 抓會拿到舊資料或失敗,所以分離出來在 21:10 單獨跑。
 #
-# 19:30 TPE = 11:30 UTC,週一~五。
+# 21:10 TPE = 13:10 UTC,週一~五。
 #
 # 流程:
 #   1. fetch_stocks (SOURCES=MARGIN_TWSE,MARGIN_TPEX) → Drive
@@ -15,7 +15,7 @@ name: Margin Late (融資融券 19:30)
 
 on:
   schedule:
-    - cron: '30 11 * * 1-5'
+    - cron: '10 13 * * 1-5'
   workflow_dispatch:
     inputs:
       date:

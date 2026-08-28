@@ -788,7 +788,7 @@ GAS (跑在個人帳號、有配額) 先建 0 bytes 空檔,SA 再覆蓋內容。
 |---|---|
 | `fetch-stocks.yml` | 每日 18:23 TPE 抓 raw → Drive |
 | `parse-and-export.yml` | 每日 18:47 TPE 合併 + 寫 all-data.json |
-| `margin-late.yml` | 19:30 TPE 延遲抓融資融券 |
+| `margin-late.yml` | 21:10 TPE 延遲抓融資融券 |
 | `vcp-scan.yml` | 19:35 TPE VCP 選股 → data/vcp.json |
 | `strength-scan.yml` | ~~19:40 TPE 強勢股 → data/strength.json~~ **已停用排程 (2026-08-14 封存)**, 只剩手動觸發 |
 | `mops-news.yml` | 每日 14:00 / 18:00 / 23:00 TPE 抓重大訊息 → data/mops_news.json (週六晚班加逐檔補漏) |
