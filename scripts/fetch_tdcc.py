@@ -32,10 +32,12 @@ import argparse
 import csv
 import io
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -114,13 +116,58 @@ def save_local(raw: bytes, filename: str, force: bool) -> Path:
     return target
 
 
-def save_drive_api(raw: bytes, filename: str) -> None:
-    """SA 覆蓋既有檔 (新檔名會失敗 — SA 無儲存配額)。"""
+def save_drive_api(raw: bytes, filename: str, dstr: str = "") -> None:
+    """SA 覆蓋 GAS 預建的空檔 (SA 無儲存配額,自己建新檔會 403)。
+
+    GAS 是用「執行當天」的日期命名空檔 (通常 = 當週週五 = 資料日期)。
+    週五碰到假日時集保的資料日期會提前 (看過 20260709(四)、20260618(四)),
+    這時空檔名字會對不上 → 找同一週 (±3 天) 的 **0 bytes 空殼改名**再覆蓋。
+    改名不吃儲存配額,SA 做得到。
+    """
     sys.path.insert(0, str(BASE))
     from fetch_stocks import drive_service, upload  # noqa: WPS433
 
     folder = os.environ.get("TDCC_DRIVE_FOLDER", DEFAULT_FOLDER_ID)
-    upload(drive_service(), folder, filename, raw, mime="text/csv")
+    svc = drive_service()
+
+    if dstr:
+        _rename_stale_placeholder(svc, folder, filename, dstr)
+    upload(svc, folder, filename, raw, mime="text/csv")
+
+
+def _rename_stale_placeholder(svc, folder: str, filename: str, dstr: str) -> None:
+    """同名檔不存在時,把同一週的空殼改名成正確的資料日期。"""
+    files = (
+        svc.files()
+        .list(
+            q=f"'{folder}' in parents and trashed = false",
+            fields="files(id,name,size)",
+            pageSize=200,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        )
+        .execute()
+        .get("files", [])
+    )
+    if any(f["name"] == filename for f in files):
+        return  # 名字就對,正常覆蓋
+
+    target = datetime.strptime(dstr, "%Y%m%d")
+    for f in files:
+        m = re.fullmatch(r"TDCC_OD_1-5_(\d{8})\.csv", f["name"])
+        if not m or int(f.get("size") or 0) > 0:
+            continue  # 只動 0 bytes 的空殼,有內容的舊資料不碰
+        try:
+            gap = abs((datetime.strptime(m.group(1), "%Y%m%d") - target).days)
+        except ValueError:
+            continue
+        if gap > 3:
+            continue
+        svc.files().update(
+            fileId=f["id"], body={"name": filename}, supportsAllDrives=True
+        ).execute()
+        print(f"🔤 空檔改名: {f['name']} → {filename} (資料日期與建檔日差 {gap} 天)")
+        return
 
 
 def main() -> int:
@@ -150,7 +197,7 @@ def main() -> int:
         # 空檔還沒建好就只是少一份備份,不該擋掉網頁 JSON 更新 → 失敗只警告。
         if os.environ.get("GOOGLE_CREDENTIALS", "").strip():
             try:
-                save_drive_api(raw, filename)
+                save_drive_api(raw, filename, dstr)
             except Exception as e:  # noqa: BLE001
                 print(f"⚠️ Drive 存檔失敗 (不擋 JSON 更新): {str(e)[:200]}",
                       file=sys.stderr, flush=True)
@@ -159,7 +206,7 @@ def main() -> int:
         else:
             print("ℹ️ 沒有 GOOGLE_CREDENTIALS,跳過 Drive 存檔")
     elif args.drive_api:
-        save_drive_api(raw, filename)
+        save_drive_api(raw, filename, dstr)
     else:
         save_local(raw, filename, args.force)
 

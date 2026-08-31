@@ -709,12 +709,12 @@ _meta                pipeline 時間戳
 ## 10.5 集保股權分散表 (大戶明細) pipeline
 
 ```
-        GAS TdccShareholding.gs (每週五 19:xx)          GitHub Actions tdcc-shareholding.yml
-        runWeeklyTdccPlaceholder                        (每週五 20:20 TPE)
+        GAS TdccShareholding.gs (每週五 20:00 TPE)      GitHub Actions tdcc-shareholding.yml
+        runWeeklyTdccPlaceholder                        (每週六 09:10 TPE)
                 │                                                │
-                │ 查 TDCC 查詢頁第一個 <option> 拿資料日期        │ 抓 opendata 1-5 CSV
+                │ 檔名 = 執行**當天**日期 (= 當週週五)            │ 抓 opendata 1-5 CSV
                 ▼                                                ▼
-   Drive 股權分散表/TDCC_OD_1-5_YYYYMMDD.csv  ◀── SA 覆蓋內容 ──┤ (fetch_tdcc.py --cloud)
+   Drive 股權分散表/TDCC_OD_1-5_YYYYMMDD.csv  ◀── SA 改名+覆蓋 ──┤ (fetch_tdcc.py --cloud)
                 (空檔,0 bytes)                                   │
                                                                  ▼
                               build_shareholding.py --merge (現有 JSON 當歷史基底)
@@ -722,18 +722,22 @@ _meta                pipeline 時間戳
 data/shareholding.json ─commit─▶ 前端 sheetsApi.loadAll → dataProcessor §6c-3 → stock.holders
 ```
 
-**為什麼要 GAS 先建空檔**:Service Account 沒有 Drive 儲存配額,**只能覆蓋既存檔、
-不能建新檔**,而股權分散表每週檔名都是新的 → 同 `CreatePlaceholders.gs` 的作法,
-GAS (跑在個人帳號、有配額) 先建 0 bytes 空檔,SA 再覆蓋內容。
-空檔沒建成只是少一份 Drive 備份,`--cloud` 會警告但照樣更新 JSON。
+**為什麼要 GAS 先建空檔**:Service Account 沒有 Drive 儲存配額,**建新檔會 403**,
+但對已存在、owner 是使用者的檔案 **可以覆蓋內容也可以改名** (實測
+`capabilities: {canEdit:true, canRename:true}`) → 同 `CreatePlaceholders.gs` 的作法,
+GAS 先建 0 bytes 空檔,SA 再覆蓋。空檔沒建成只是少一份 Drive 備份,
+`--cloud` 會警告但照樣更新 JSON。
 
-⚠️ **空檔的日期不能用「上一個週五」硬算**:遇到假日集保會順延/提前
-(實際看過 20260709(四)、20260618、20261023…),所以 GAS 是去 TDCC 查詢頁
-(55KB) 讀日期下拉的第一個 option。集保 OpenData 那個 CSV 網址不支援 Range,
-要拿日期就得整包 2.3MB 抓下來,所以才繞查詢頁。
+⚠️ **集保是週五深夜~週六清晨才發布當週那筆**:實測 2026-08-28(五) 20:44 抓到的
+還是 08/21,隔天清晨才變 08/28 → 所以 GAS(建空檔) 排週五晚、GHA(抓內容) 排週六早。
+
+⚠️ **空檔日期 vs 資料日期可能差一兩天**:GAS 用執行當天命名 (= 週五),但週五碰到
+假日時集保會提前到當週最後一個交易日 (看過 20260709(四)、20260618(四))。
+`fetch_tdcc._rename_stale_placeholder` 會在找不到同名檔時,把同一週 (±3 天) 的
+**0 bytes 空殼改名**成正確日期再覆蓋 (有內容的舊檔不碰)。
 
 **本機備援** (原本的做法,仍保留):Windows 工作排程 `TDCC-Shareholding-Weekly`
-每週五 20:00 跑 `scripts/run_tdcc_weekly.bat` → `fetch_tdcc.py` 寫本機 Drive 同步資料夾
+每週六 10:00 跑 `scripts/run_tdcc_weekly.bat` → `fetch_tdcc.py` 寫本機 Drive 同步資料夾
 `Y:\我的雲端硬碟\Telegram Bot\股權分散表\` 並重建 JSON (同名檔已存在會跳過,不會打架)。
 歷史回補快取 `scripts/cache/tdcc/{code}.json` 只在本機 (gitignore),
 所以**全量重建一定要在本機跑**,雲端那班只會做增量。
@@ -792,7 +796,7 @@ GAS (跑在個人帳號、有配額) 先建 0 bytes 空檔,SA 再覆蓋內容。
 | `vcp-scan.yml` | 19:35 TPE VCP 選股 → data/vcp.json |
 | `strength-scan.yml` | ~~19:40 TPE 強勢股 → data/strength.json~~ **已停用排程 (2026-08-14 封存)**, 只剩手動觸發 |
 | `mops-news.yml` | 每日 14:00 / 18:00 / 23:00 TPE 抓重大訊息 → data/mops_news.json (週六晚班加逐檔補漏) |
-| `tdcc-shareholding.yml` | **每週五 20:20 TPE** 集保股權分散表 → data/shareholding.json (增量 + 自動 commit) |
+| `tdcc-shareholding.yml` | **每週六 09:10 TPE** 集保股權分散表 → data/shareholding.json (增量 + 自動 commit) |
 | `pages-rebuild.yml` | 手動觸發 Pages 重建 (空 commit) |
 
 ### 11.4 環境變數 (`scripts/.env`)

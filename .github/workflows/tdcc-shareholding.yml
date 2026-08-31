@@ -3,19 +3,20 @@ name: TDCC Shareholding Weekly
 # 集保股權分散表 (大戶明細) 每週更新。
 #
 # 分工 (為什麼要拆兩半):
-#   - **GAS `TdccShareholding.gs`** 每週五 19:xx 先在 Drive 建好當週的**空檔**
+#   - **GAS `TdccShareholding.gs`** 每週五晚上先在 Drive 建好**當天日期**的空檔
 #     TDCC_OD_1-5_YYYYMMDD.csv (同 CreatePlaceholders.gs 的作法) —
-#     Service Account 沒有 Drive 儲存配額,只能覆蓋既存檔、不能建新檔。
-#   - **這支 workflow** 抓 CSV → SA 覆蓋那個空檔 → 再用 repo 裡現有的
+#     Service Account 沒有 Drive 儲存配額,只能覆蓋/改名既存檔、不能建新檔。
+#   - **這支 workflow** (週六早上) 抓 CSV → SA 覆蓋那個空檔 → 再用 repo 裡現有的
 #     data/shareholding.json 當歷史基底做增量,commit 回 main。
 #     空檔沒建成只會少一份 Drive 備份,不會擋掉 JSON 更新。
 #
-# 20:20 TPE = 12:20 UTC 週五 (要排在 GAS 建空檔那班後面)。
-# 集保 OpenData 每週更新一次,週五晚上抓到的是**上一個週五**那筆資料。
+# 為什麼排週六早上:集保是**週五深夜~週六清晨**才發布當週(週五)那筆。
+# 實測 2026-08-28(五) 20:44 去抓,拿到的還是 08/21 那筆;隔天清晨才變 08/28。
+# 09:10 TPE 週六 = 01:10 UTC 週六 (避開 :00 整點的 GHA 排程高峰)。
 
 on:
   schedule:
-    - cron: '20 12 * * 5'
+    - cron: '10 1 * * 6'
   workflow_dispatch:
 
 # 同時只跑一個,避免兩次觸發同時 push 打架
