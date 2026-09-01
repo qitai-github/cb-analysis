@@ -13,7 +13,23 @@
 3. 以 `scripts/templates/universe_report_example.html` 為版型（CSS 直接沿用，**不要改動 CSS**）寫今天的報告，用佔位符插入表格。
 4. 用 Artifact 發佈，`favicon` 用 🎯，`title` 用「正向訊號榜 <MMDD>」。
    **這份報告不可以用任何個股名稱命名**（不要叫「XX 型態榜」），一律用中性的「正向訊號榜」。
-5. 更新網站資料：執行 `PYTHONUTF8=1 python scripts/build_signal_rank_json.py`，它會把掃描結果寫成 `data/signal_rank.json`，供網頁的「籌碼追蹤」分頁讀取。接著：
+5. **寫評論給網頁**：把報告的文字內容另存成 `scripts/output/signal_commentary.json`，格式如下（網頁「週報」分頁會直接顯示，所以文字要能獨立閱讀，不要出現「如上表」這種指涉）：
+
+```json
+{
+  "date": "YYYY-MM-DD",
+  "title": "X 月 X 日正向訊號榜",
+  "artifactUrl": "剛才發佈的 Artifact 網址",
+  "lede": "這次最重要的變化，2-4 句",
+  "stats": [{ "label": "80 分以上", "value": "N 檔", "note": "與上次比較" }],
+  "highlights": [{ "code": "2455", "name": "全新", "score": 85.0, "tag": "新進 · 第一名",
+                   "text": "命中/未命中哪幾項、籌碼細節", "cb": "對應 CB 的量比與 CB 價" }],
+  "sections": [{ "heading": "上次名單追蹤", "body": "升降級與出局原因" }]
+}
+```
+`highlights` 放 80 分以上的每一檔；`sections` 至少要有「上次名單追蹤」「新進名單」「要小心的型態」「評分方法」「使用前要知道的事」五段。
+
+6. 更新網站資料：執行 `PYTHONUTF8=1 python scripts/build_signal_rank_json.py`，它會把掃描結果**加上上一步的評論**寫成 `data/signal_rank.json`，供網頁的「週報」分頁讀取。接著：
    - `git pull --rebase` （`data/all-data.json` 是單行 18MB 檔，每日 GHA 會推，先 pull 才不會衝突）
    - 只 commit `data/signal_rank.json`，訊息用 `data: 正向訊號榜 @ <YYYY-MM-DD HH:MM>`
    - `git push`

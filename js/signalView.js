@@ -89,6 +89,8 @@ const SignalView = (() => {
     }
 
     container.appendChild(buildHeader());
+    const commentary = buildCommentary();
+    if (commentary) container.appendChild(commentary);
     container.appendChild(buildControls(container));
     container.appendChild(buildTable(getFiltered()));
     const dropped = buildDropped();
@@ -118,6 +120,89 @@ const SignalView = (() => {
     }
     head.appendChild(tiers);
     return head;
+  }
+
+  // 評論（週報文字）— 由 scripts/output/signal_commentary.json 併進 signal_rank.json
+  let commentaryOpen = true;
+  function buildCommentary() {
+    const rep = data.report;
+    if (!rep) return null;
+
+    const box = el('div', 'signal-report');
+
+    const bar = el('div', 'signal-report-bar');
+    const h = el('div', 'signal-report-h');
+    h.appendChild(el('span', 'signal-report-title', rep.title || '週報評論'));
+    if (rep.date) h.appendChild(el('span', 'signal-report-date', rep.date));
+    bar.appendChild(h);
+    const toggle = el('button', 'signal-report-toggle', commentaryOpen ? '收合評論' : '展開評論');
+    toggle.type = 'button';
+    bar.appendChild(toggle);
+    box.appendChild(bar);
+
+    const body = el('div', 'signal-report-body');
+    body.hidden = !commentaryOpen;
+    toggle.addEventListener('click', () => {
+      commentaryOpen = !commentaryOpen;
+      body.hidden = !commentaryOpen;
+      toggle.textContent = commentaryOpen ? '收合評論' : '展開評論';
+    });
+
+    if (rep.lede) body.appendChild(el('p', 'signal-report-lede', rep.lede));
+
+    if (rep.stats && rep.stats.length) {
+      const grid = el('div', 'signal-report-stats');
+      for (const st of rep.stats) {
+        const cell = el('div', 'signal-report-stat');
+        cell.appendChild(el('div', 'signal-report-stat-l', st.label));
+        cell.appendChild(el('div', 'signal-report-stat-v', st.value));
+        if (st.note) cell.appendChild(el('div', 'signal-report-stat-n', st.note));
+        grid.appendChild(cell);
+      }
+      body.appendChild(grid);
+    }
+
+    if (rep.highlights && rep.highlights.length) {
+      const cards = el('div', 'signal-report-cards');
+      for (const hl of rep.highlights) {
+        const card = el('div', 'signal-report-card');
+        const top = el('div', 'signal-report-card-top');
+        const sc = el('span', 'signal-report-card-score', Number(hl.score).toFixed(1));
+        top.appendChild(sc);
+        top.appendChild(el('span', 'signal-report-card-code', hl.code));
+        top.appendChild(el('span', 'signal-report-card-name', hl.name));
+        if (hl.tag) top.appendChild(el('span', 'signal-report-card-tag', hl.tag));
+        card.appendChild(top);
+        if (hl.text) card.appendChild(el('p', 'signal-report-card-text', hl.text));
+        if (hl.cb) card.appendChild(el('div', 'signal-report-card-cb', hl.cb));
+        // 點卡片 → 跳到表格中該檔並開詳情
+        card.addEventListener('click', () => onRowClick && onRowClick(hl.code));
+        cards.appendChild(card);
+      }
+      body.appendChild(cards);
+    }
+
+    if (rep.sections && rep.sections.length) {
+      const secs = el('div', 'signal-report-secs');
+      for (const sec of rep.sections) {
+        const s1 = el('div', 'signal-report-sec');
+        s1.appendChild(el('h4', 'signal-report-sec-h', sec.heading));
+        s1.appendChild(el('p', 'signal-report-sec-b', sec.body));
+        secs.appendChild(s1);
+      }
+      body.appendChild(secs);
+    }
+
+    if (rep.artifactUrl) {
+      const link = el('a', 'signal-report-link', '看完整報告 →');
+      link.href = rep.artifactUrl;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      body.appendChild(link);
+    }
+
+    box.appendChild(body);
+    return box;
   }
 
   function buildControls(container) {

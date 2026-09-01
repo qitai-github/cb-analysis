@@ -3205,3 +3205,66 @@ input[type="number"] { -moz-appearance: textfield; }
   background: var(--bg-input); border: 1px solid var(--border-light);
   border-radius: 3px; padding: 1px 5px; font-size: 11.5px;
 }
+
+/* --- 週報:評論區塊 --- */
+.signal-report { border-bottom: 1px solid var(--border-light); }
+.signal-report-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; background: rgba(59, 130, 246, .06);
+}
+.signal-report-h { display: flex; align-items: baseline; gap: 10px; }
+.signal-report-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.signal-report-date { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.signal-report-toggle {
+  margin-left: auto; background: transparent; border: 1px solid var(--border-light);
+  color: var(--text-muted); border-radius: var(--radius-sm); padding: 3px 10px;
+  font-size: 11.5px; cursor: pointer; font-family: inherit;
+}
+.signal-report-toggle:hover { border-color: var(--accent); color: var(--text); }
+
+.signal-report-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.signal-report-lede { font-size: 13px; line-height: 1.85; color: var(--text-muted); max-width: 80ch; }
+
+.signal-report-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;
+}
+.signal-report-stat {
+  background: var(--bg-input); border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm); padding: 8px 10px;
+}
+.signal-report-stat-l { font-size: 11px; color: var(--text-dim); }
+.signal-report-stat-v { font-size: 18px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.signal-report-stat-n { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.5; }
+
+.signal-report-cards { display: flex; flex-direction: column; gap: 8px; }
+.signal-report-card {
+  background: var(--bg-input); border: 1px solid var(--border-light);
+  border-left: 3px solid #22c55e; border-radius: var(--radius-sm);
+  padding: 10px 12px; cursor: pointer;
+}
+.signal-report-card:hover { border-color: var(--accent); border-left-color: #22c55e; }
+.signal-report-card-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.signal-report-card-score {
+  font-size: 16px; font-weight: 600; color: #22c55e; font-variant-numeric: tabular-nums;
+}
+.signal-report-card-code { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.signal-report-card-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.signal-report-card-tag {
+  font-size: 10.5px; padding: 1px 7px; border-radius: 2px;
+  background: rgba(59, 130, 246, .18); color: #93c5fd;
+}
+.signal-report-card-text { font-size: 12.5px; line-height: 1.8; color: var(--text-muted); margin-top: 6px; }
+.signal-report-card-cb {
+  font-size: 12px; line-height: 1.7; color: var(--text-muted); margin-top: 7px;
+  padding: 6px 9px; background: var(--bg); border: 1px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.signal-report-secs {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;
+}
+.signal-report-sec-h { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.signal-report-sec-b { font-size: 12px; line-height: 1.8; color: var(--text-muted); }
+
+.signal-report-link { font-size: 12.5px; color: var(--accent); text-decoration: none; }
+.signal-report-link:hover { text-decoration: underline; }

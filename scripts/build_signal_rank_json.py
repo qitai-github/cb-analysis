@@ -102,6 +102,15 @@ def main():
     margin_date = next((r['margin']['date'] for r in cur if r.get('margin')), '')
     holder_date = next((r['holder']['date'] for r in cur if r.get('holder')), '')
 
+    # 評論（週報的文字內容）— 由 claude 寫進 scripts/output/signal_commentary.json
+    commentary = None
+    cpath = os.path.join(OUT, 'signal_commentary.json')
+    if os.path.exists(cpath):
+        try:
+            commentary = json.load(open(cpath, encoding='utf-8'))
+        except Exception as e:
+            print('警告:評論檔讀取失敗，本次不附評論（%s）' % e)
+
     payload = {
         '_meta': {
             'generatedAt': datetime.now().strftime('%Y-%m-%dT%H:%M:%S+08:00'),
@@ -118,10 +127,13 @@ def main():
         'stocks': stocks,
         'dropped': dropped,
     }
+    if commentary:
+        payload['report'] = commentary
 
     out = os.path.join(DATA, 'signal_rank.json')
     with open(out, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, separators=(',', ':'))
+    print('評論: %s' % ('已附上' if commentary else '無（scripts/output/signal_commentary.json 不存在）'))
     print('寫入 %s（%d 檔，A%d B%d C%d D%d，前次快照 %s，掉出 %d 檔）'
           % (out, len(stocks), payload['_meta']['tierA'], payload['_meta']['tierB'],
              payload['_meta']['tierC'], payload['_meta']['tierD'],
