@@ -1,0 +1,240 @@
+<title>正向訊號榜 0901</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root{
+    --bg:#eaedf1; --surface:#ffffff; --surface-2:#f4f6f9; --line:#d3d9e2;
+    --ink:#151a21; --muted:#5c6674; --faint:#8b95a3;
+    --accent:#1c5a80; --accent-soft:#e2eef5;
+    --up:#c8322f; --down:#0f7a55; --flat:#5c6674;
+    --tierA:#0f7a55; --tierB:#1c5a80; --tierC:#8b95a3;
+    --shadow:0 1px 2px rgba(19,32,48,.06), 0 8px 24px -16px rgba(19,32,48,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1216; --surface:#161c23; --surface-2:#1b222b; --line:#2a333e;
+      --ink:#e7ecf2; --muted:#9aa6b4; --faint:#6d7987;
+      --accent:#63b0d8; --accent-soft:#17303e;
+      --up:#e8615c; --down:#3fb98a; --flat:#9aa6b4;
+      --tierA:#3fb98a; --tierB:#63b0d8; --tierC:#6d7987;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1216; --surface:#161c23; --surface-2:#1b222b; --line:#2a333e;
+    --ink:#e7ecf2; --muted:#9aa6b4; --faint:#6d7987;
+    --accent:#63b0d8; --accent-soft:#17303e;
+    --up:#e8615c; --down:#3fb98a; --flat:#9aa6b4;
+    --tierA:#3fb98a; --tierB:#63b0d8; --tierC:#6d7987;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px; margin:0 auto; padding:40px 20px 72px; display:flex; flex-direction:column; gap:34px}
+  h1,h2,h3{font-family:"Noto Serif TC",serif; text-wrap:balance; margin:0}
+  .n{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+
+  header{display:flex; flex-direction:column; gap:14px; border-bottom:2px solid var(--ink); padding-bottom:20px}
+  .eyebrow{font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); font-weight:700}
+  h1{font-size:clamp(27px,4vw,38px); line-height:1.2; font-weight:700}
+  .lede{color:var(--muted); max-width:70ch; margin:0}
+  .meta{display:flex; flex-wrap:wrap; gap:8px 20px; font-size:12.5px; color:var(--faint)}
+  .meta b{color:var(--muted); font-weight:500}
+
+  .tiers{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px}
+  .tier{background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--tierC); border-radius:4px; padding:16px 18px; box-shadow:var(--shadow)}
+  .tier.a{border-top-color:var(--tierA)} .tier.b{border-top-color:var(--tierB)}
+  .tier .sc{font-size:12px; letter-spacing:.08em; color:var(--faint); font-weight:600}
+  .tier .n2{font-size:32px; font-weight:600; line-height:1.15; font-family:"IBM Plex Mono",monospace; display:flex; align-items:baseline; gap:8px}
+  .tier .n2 em{font-size:13px; font-style:normal; font-weight:500}
+  .tier.a .n2{color:var(--tierA)} .tier.b .n2{color:var(--tierB)}
+  .tier .d{font-size:13px; color:var(--muted); margin-top:4px}
+
+  section{display:flex; flex-direction:column; gap:14px}
+  .sec-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:8px}
+  .sec-head h2{font-size:21px}
+  .sec-head .badge{font-family:"IBM Plex Mono",monospace; font-size:12px; padding:2px 8px; border-radius:3px; background:var(--accent-soft); color:var(--accent); font-weight:600}
+  .sec-head p{margin:0; font-size:13px; color:var(--faint)}
+
+  .cards{display:flex; flex-direction:column; gap:12px}
+  .card{background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--tierA); border-radius:4px; padding:16px 18px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:10px}
+  .c-top{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .c-score{font-family:"IBM Plex Mono",monospace; font-size:22px; font-weight:600; color:var(--tierA)}
+  .c-code{font-size:13px; color:var(--faint); font-family:"IBM Plex Mono",monospace}
+  .c-name{font-size:18px; font-weight:700; font-family:"Noto Serif TC",serif}
+  .c-tagnew{font-size:10.5px; letter-spacing:.06em; padding:1px 6px; border-radius:2px; background:var(--accent-soft); color:var(--accent); font-weight:700}
+  .c-price{margin-left:auto; display:flex; align-items:baseline; gap:10px}
+  .c-price .p{font-size:19px; font-weight:600; font-family:"IBM Plex Mono",monospace}
+  .chg{font-weight:600; font-size:14px; font-family:"IBM Plex Mono",monospace}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+  .note{margin:0; font-size:13.5px; color:var(--muted)}
+  .note strong{color:var(--ink); font-weight:600}
+  .cb-line{font-size:13px; color:var(--muted); padding:8px 10px; background:var(--surface-2); border-radius:3px; border:1px dashed var(--line)}
+  .cb-line b{color:var(--ink); font-family:"IBM Plex Mono",monospace}
+
+  .method{background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:18px 20px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:12px}
+  .method h3{font-size:16px}
+  .formula{font-family:"IBM Plex Mono",monospace; font-size:13.5px; background:var(--surface-2); border:1px solid var(--line); border-radius:3px; padding:10px 12px; overflow-x:auto}
+
+  .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:4px; background:var(--surface); box-shadow:var(--shadow)}
+  table{border-collapse:collapse; width:100%; min-width:1060px; font-size:12.5px}
+  table.track{min-width:760px}
+  th,td{padding:6px 9px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap}
+  th{position:sticky; top:0; z-index:2; background:var(--surface-2); color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.03em}
+  td:nth-child(2),th:nth-child(2){text-align:left}
+  table:not(.track) td:nth-child(3),table:not(.track) th:nth-child(3){text-align:left}
+  table.track td:last-child,table.track th:last-child{text-align:left}
+  td.n{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+  td.score{font-weight:600; color:var(--accent)}
+  td.faintcell,.faintcell{color:var(--faint); font-size:11px}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--surface-2)}
+  tbody tr.out td{color:var(--faint)}
+  td.chips{text-align:left; padding-right:14px}
+  .chip{display:inline-block; font-size:10px; line-height:1.5; padding:0 5px; margin:1px 2px 1px 0; border-radius:2px; background:var(--accent-soft); color:var(--accent); font-weight:600; white-space:nowrap}
+  .chip.off{display:none}
+
+  .caveats{background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:16px 18px}
+  .caveats h3{font-size:15px; margin-bottom:8px}
+  .caveats ul{margin:0; padding-left:18px; color:var(--muted); font-size:13.5px; display:flex; flex-direction:column; gap:5px}
+  .caveats code{font-family:"IBM Plex Mono",monospace; font-size:12.5px; background:var(--surface); padding:1px 5px; border-radius:3px; border:1px solid var(--line)}
+  footer{border-top:1px solid var(--line); padding-top:16px; font-size:12.5px; color:var(--faint)}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">全網頁掃描 · 第 2 次 · 含 8/28 追蹤</div>
+    <h1>9 月 1 日正向訊號榜：換了新的第一名</h1>
+    <p class="lede">同一套 12 項評分再跑一次 415 檔個股與其可轉債。這次的變化是：雙鴻退到第二（因為融資由減轉增，少拿一分），<b>2455 全新</b>以 85.0 分接手第一，而 8/28 的第二名亞通掉了 9.4 分。下半部是 8/28 那份 A+B 級 37 檔的逐檔追蹤——留下來的、掉下去的、出局的，一次看完。</p>
+    <div class="meta">
+      <span><b>價量／法人／CB</b> 2026-09-01</span>
+      <span><b>融資融券</b> 2026-08-31</span>
+      <span><b>集保大戶</b> 2026-08-28</span>
+      <span><b>掃描池</b> 415 檔</span>
+      <span><b>有效樣本</b> 358 檔</span>
+      <span><b>入榜</b> 191 檔</span>
+    </div>
+  </header>
+
+  <div class="tiers">
+    <div class="tier a">
+      <div class="sc">80 分以上</div>
+      <div class="n2">4 <em>持平</em></div>
+      <div class="d">全正向 — 名單換了兩檔：全新、晶宏進，亞通、高端疫苗退</div>
+    </div>
+    <div class="tier b">
+      <div class="sc">70 – 79 分</div>
+      <div class="n2">45 <em>+12</em></div>
+      <div class="d">一半正向 — 從 33 檔增至 45 檔，市場廣度明顯轉強</div>
+    </div>
+    <div class="tier">
+      <div class="sc">60 – 69 分</div>
+      <div class="n2">109 <em>−17</em></div>
+      <div class="d">一些些正向 — 部分往上升級，部分跌破月線出局</div>
+    </div>
+    <div class="tier">
+      <div class="sc">未入榜</div>
+      <div class="n2">167</div>
+      <div class="d">跌破月線或 20 日負報酬，籌碼再好也不計入</div>
+    </div>
+  </div>
+
+  <!-- ===== A 級 ===== -->
+  <section>
+    <div class="sec-head"><h2>80 分以上 · 全正向</h2><span class="badge">4 檔</span>
+      <p>價量、法人、集保、CB 四個維度沒有一項扯後腿</p></div>
+    <div class="cards">
+
+      <article class="card">
+        <div class="c-top"><span class="c-score">85.0</span><span class="c-code">2455</span><span class="c-name">全新</span><span class="c-tagnew">新進 · 第一名</span>
+          <span class="c-price"><span class="p">524.00</span><span class="chg up">+9.85%</span></span></div>
+        <p class="note"><strong>12 項全數命中，是今天唯一滿分結構的一檔。</strong>漲停、量能 2.44×、位階 100%、20 日 +48.4%，外資 5 日買 3,828 張、投信買 1,998 張，大戶 4 週 +1.63%、散戶 −1.31%，<strong>而且融資 5 日還減 12.5%</strong>——漲停日融資不增反減，代表籌碼是法人與大戶在收，不是散戶追。8/28 時它只有 69.1 分（卡在量縮 0.20×），三個交易日內完成量能突破。</p>
+        <div class="cb-line"><b>全新二 24552</b> 183 張＝均量 <b>10.3×</b>、CB 價 20 日 <b>+44.0%</b>。CB 端早在現股突破前就已大漲，是這檔最漂亮的股債同步。</div>
+      </article>
+
+      <article class="card">
+        <div class="c-top"><span class="c-score">83.1</span><span class="c-code">3324</span><span class="c-name">雙鴻</span>
+          <span class="c-price"><span class="p">1,375</span><span class="chg up">+10.00%</span></span></div>
+        <p class="note">從 85.0 退到 83.1，唯一掉的一項是<strong>「融資 5 日未增」——8/28 融資減 7.4%，今天轉為增 7.7%</strong>。其他 11 項全中：漲停創新高、量 2.62×、位階 100%、外資投信同買、大戶 4 週 +5.20%、散戶 −4.48%。基本面沒變差，是短線追價資金開始進場的訊號。</p>
+        <div class="cb-line">CB 強度創本輪新高：<b>雙鴻五 33245</b> 835 張＝<b>28.8×</b>、CB 價 5 日 +24.3%；<b>雙鴻六 33246</b> 4.67×；<b>雙鴻七 33247</b> 4.28×。三檔 5 日累量 2,888 張。</div>
+      </article>
+
+      <article class="card">
+        <div class="c-top"><span class="c-score">80.3</span><span class="c-code">1717</span><span class="c-name">長興</span>
+          <span class="c-price"><span class="p">84.70</span><span class="chg up">+2.67%</span></span></div>
+        <p class="note">分數與 8/28 完全相同（80.3），但內容更強：<strong>外資 5 日買超從 12,679 張放大到 36,308 張，投信從 2,202 張放大到 5,953 張</strong>，量能 3.09×、位階 98%。未命中的兩項還是老問題——融資 5 日增 4.2%、CB 沒跟量。</p>
+        <div class="cb-line"><b>長興二 17172</b> 136 張＝<b>0.36×</b>。股價 20 日漲 33.2%、CB 只漲 6.2%，是全榜單股債落差最大的一檔。</div>
+      </article>
+
+      <article class="card">
+        <div class="c-top"><span class="c-score">80.3</span><span class="c-code">3141</span><span class="c-name">晶宏</span><span class="c-tagnew">70.0 → 80.3</span>
+          <span class="c-price"><span class="p">90.50</span><span class="chg up">+9.96%</span></span></div>
+        <p class="note">這次<strong>升幅最大的一檔（+10.3 分）</strong>。漲停、<strong>量能 9.95×</strong>（全榜最高）、位階 100%、5 日 +24.5%，外資 5 日買 3,211 張，大戶 4 週 +5.00%、散戶 −3.17%。唯二未命中：投信沒進場、融資 5 日增 9.4%。</p>
+        <div class="cb-line">CB 也動了：<b>晶宏四 31414</b> 209 張＝<b>2.23×</b>、<strong>CB 價 5 日 +20.9%</strong>；晶宏三 31413 因均量僅 0.6 張，10.3× 的倍數失真，看絕對量（6 張）即可。</div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ===== 追蹤 ===== -->
+  <section>
+    <div class="sec-head"><h2>8/28 A＋B 級 37 檔追蹤</h2><span class="badge">3 檔出局</span>
+      <p>上次 70 分以上的名單，三個交易日後的變化</p></div>
+    <p class="note">37 檔裡 <strong>34 檔仍在榜上、3 檔出局</strong>（欣興、盟立、保瑞——都是跌破月線被門檻擋掉，不是籌碼變壞）。升分最多的是晶宏 +10.3、邑昇 +6.6、台郡 +6.5、神達 +4.7、州巧 +3.7；掉分最多的是鉅橡 −11.3、亞通 −9.4、高端疫苗 −7.5、光寶科 −6.6、騰輝 −5.7。<strong>亞通與高端疫苗這兩檔上次的 80 分，掉分原因相同：漲多後回檔，量能與法人買超同時消退</strong>——這正是這套評分該有的反應速度。</p>
+    {{TRACK}}
+    <p class="note" style="font-size:12.5px;color:var(--faint)">出局三檔的實際狀況：<b>3037 欣興</b> 收 971（月線 1,055）但外資 5 日仍買 13,249 張、大戶 4 週 +3.82%，籌碼很好只是價格弱，若站回月線會立刻回榜；<b>2464 盟立</b> 大戶 4 週 +15.64%、散戶 −11.50% 這種級距通常來自減增資造成的股本變動，不宜當成買盤解讀；<b>6472 保瑞</b> 收 420、月線 430，差距不大。</p>
+  </section>
+
+  <!-- ===== 新進 ===== -->
+  <section>
+    <div class="sec-head"><h2>新進 70 分以上</h2><span class="badge">21 檔</span>
+      <p>8/28 不在 A＋B 級、今天升上來的</p></div>
+    <p class="note">除了 A 級的全新與晶宏，B 級新面孔裡有三檔值得單獨看：<b>3680 家登</b>（79.4，漲停＋量 2.86×＋<strong>融資 20 日仍減 2.2%</strong>，是所有漲停股裡唯一槓桿沒跟進的，CB 家登四 4.01×、CB 價 5 日 +17.2%）；<b>8111 立碁</b>（77.5，漲停＋量 <strong>4.50×</strong>＋位階 100%，CB 立碁四 81114 達 8.8×）；<b>3081 聯亞</b>（75.6，20 日 +74.3%、投信買、大戶增，但今天量縮 0.72× 且回檔 3%，屬高檔整理）。另外 <b>6538 倉和</b>（漲停但量只有 0.28×）與 <b>3362 先進光</b>（量 0.14×）都是<strong>量縮上漲</strong>，分數會高但可信度低，請以絕對量複核。</p>
+    {{NEW}}
+  </section>
+
+  <!-- ===== B 級 ===== -->
+  <section>
+    <div class="sec-head"><h2>70 – 79 分 · 一半正向</h2><span class="badge">45 檔</span>
+      <p>依分數排序；標籤為命中的訊號</p></div>
+    <p class="note">這一級從 33 檔擴到 45 檔，是市場廣度轉強的直接證據。共同缺口仍是<strong>法人只到一半</strong>或<strong>量能沒跟上</strong>。留意兩種要小心的型態：一是<strong>當日大跌卻仍高分</strong>（州巧 −9.38%、美而快 −9.80%、宏致 −9.71%），分數來自 5 日與 20 日的累積漲幅，代表它們正在高檔劇烈換手；二是<strong>量縮高分</strong>（華星光 0.20×、先進光 0.14×、巨大 0.29×、倉和 0.28×），趨勢與籌碼都在但沒有量能確認。</p>
+    {{B}}
+  </section>
+
+  <!-- ===== C 級 ===== -->
+  <section>
+    <div class="sec-head"><h2>60 – 69 分 · 一些些正向</h2><span class="badge">109 檔</span>
+      <p>觀察池，非買點；表格可左右捲動</p></div>
+    <p class="note">這一級請當觀察池用。最值得篩的仍是<strong>「只有 CB 在動」</strong>那一類——CB 常領先現股，可以從表格最右的「CB 最大量比」欄位挑倍數 ≥2 且現股還沒漲的標的。</p>
+    {{C}}
+  </section>
+
+  <div class="method">
+    <h3>評分方法（與 8/28 完全相同，未調整權重）</h3>
+    <div class="formula">分數 = 55 + 30 × (命中權重 ÷ 16)　　→　全中 85 分、命中一半 70 分、命中兩成 61 分</div>
+    <p class="note">12 項條件：量能 ≥1.8×（1.5）、當日漲 ≥2%（1.0）、5 日漲 ≥5%（1.0）、20 日漲 ≥10%（1.0）、60 日位階 ≥70%（1.5）、多頭排列（1.5）、外資 5 日買超 ≥0.3× 日均量（1.5）、投信 5 日買超 ≥0.15× 日均量（1.5）、大戶 100 張+ 4 週增加 ≥0.5%（2.0）、散戶 4 週減少 ≥0.3%（1.0）、融資 5 日未增（1.0）、CB 量能 ≥2×（1.5）。<strong>兩道排除條件：</strong>跌破月線或 20 日負報酬一律不列榜；日均量低於 50 張剔除。</p>
+  </div>
+
+  <div class="caveats">
+    <h3>使用前要知道的事</h3>
+    <ul>
+      <li>掃描池是網頁資料庫裡<strong>有 CB 對應的 415 檔個股</strong>（比 8/28 多 1 檔），不是全台股。沒有 CB 的個股不在其中。</li>
+      <li>358 檔取得完整評分，57 檔因日均量不足 50 張或缺法人／集保資料被剔除；再扣掉未過多頭門檻的 167 檔，入榜 191 檔（8/28 是 218 檔）。入榜數減少但 70 分以上增加，代表<strong>強度往頭部集中</strong>。</li>
+      <li>追蹤基準只涵蓋 8/28 的 <strong>A＋B 級 37 檔</strong>（當時 C 級 126 檔未完整留存）。本次已把完整結果存成 <code>scripts/output/positive_scan_20260901.json</code>，之後每次掃描都能做全名單追蹤。</li>
+      <li>集保大戶資料到 <code>20260828</code>，與 8/31 那次是同一批，所以「大戶 4 週」欄位兩次相同——這次的分數變化主要來自價量與法人。</li>
+      <li>倍數失真提醒：CB 均量低於 5 張時倍數沒有意義（晶宏三 31413 均量 0.6 張），請一律回頭看絕對張數。個股方面，倉和 0.28×、先進光 0.14×、華星光 0.20× 都是量縮上漲。</li>
+      <li>資料瑕疵：CB <code>81114</code>（立碁四）在來源資料的名稱欄有亂碼，表格會照實顯示，不影響數值。</li>
+      <li>分數只描述<strong>當下訊號的一致性</strong>，不含基本面與評價。85 分代表「12 項正向條件命中最完整」，不代表報酬期望最高。</li>
+      <li>腳本：<code>scripts/positive_scan.py</code>、<code>scripts/build_positive_report.py</code>；本次執行前已 <code>git pull</code> 取得 9/1 資料。</li>
+    </ul>
+  </div>
+
+  <footer>全網頁正向訊號掃描 · 資料截至 2026-09-01 盤後 · 415 檔掃描 / 191 檔入榜 · 對照 8/28 · 本頁為資料整理，非投資建議</footer>
+
+</div>

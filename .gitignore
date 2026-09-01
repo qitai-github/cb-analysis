@@ -16,3 +16,7 @@ __pycache__/
 scripts/cache/
 # VCP Excel 輸出
 scripts/output/
+
+# 個人持股清單與其報告版型 (repo 是 public,不可外流)
+持股清單/
+scripts/templates/holdings_report_example.html

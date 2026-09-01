@@ -3126,3 +3126,82 @@ input[type="number"] { -moz-appearance: textfield; }
   color: var(--text-dim);
   text-align: center;
 }
+
+/* === 週報分頁 (SignalView) === */
+.signal-wrapper { padding: 0; }
+
+.signal-head {
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border-light);
+}
+.signal-head-left { display: flex; flex-direction: column; gap: 4px; flex: 1 1 340px; }
+.signal-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.signal-sub { font-size: 11.5px; color: var(--text-dim); line-height: 1.6; }
+
+.signal-tiers { display: flex; gap: 18px; align-items: flex-start; }
+.signal-tier-box { text-align: right; }
+.signal-tier-n { font-size: 22px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.signal-tier-l { font-size: 11px; color: var(--text-dim); }
+
+.signal-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border-light);
+}
+.signal-ctrl-group { display: flex; align-items: center; gap: 6px; }
+.signal-ctrl-label { font-size: 11.5px; color: var(--text-dim); }
+.signal-chip {
+  background: var(--bg-input); border: 1px solid var(--border-light); color: var(--text-muted);
+  border-radius: var(--radius-sm); padding: 4px 10px; font-size: 11.5px; cursor: pointer;
+  font-family: inherit;
+}
+.signal-chip:hover { border-color: var(--accent); color: var(--text); }
+.signal-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.signal-select, .signal-search {
+  background: var(--bg-input); border: 1px solid var(--border-light); color: var(--text);
+  border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; font-family: inherit;
+}
+.signal-search { width: 150px; }
+.signal-select:focus, .signal-search:focus { outline: none; border-color: var(--accent); }
+.signal-count { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+
+.signal-table-wrap { overflow: auto; max-height: calc(100vh - 300px); }
+.signal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.signal-table th {
+  position: sticky; top: 0; z-index: 2; background: var(--bg-card); color: var(--text-muted);
+  font-size: 11px; font-weight: 600; padding: 7px 8px; white-space: nowrap;
+  border-bottom: 1px solid var(--border); text-align: left;
+}
+.signal-table th.text-right { text-align: right; }
+.signal-table td {
+  padding: 6px 8px; white-space: nowrap; border-bottom: 1px solid var(--border-light);
+  font-variant-numeric: tabular-nums;
+}
+.signal-table td.text-right { text-align: right; }
+.signal-row { cursor: pointer; }
+.signal-row:hover { background: var(--bg-hover); }
+.signal-score { font-weight: 600; font-size: 13px; }
+.sig-up { color: var(--up); }
+.sig-down { color: var(--down); }
+.sig-flat { color: var(--neutral); }
+.sig-dim { color: var(--text-dim); }
+
+.signal-hits { white-space: normal; min-width: 230px; }
+.signal-hit {
+  display: inline-block; font-size: 10px; line-height: 1.6; padding: 0 5px;
+  margin: 1px 3px 1px 0; border-radius: 2px;
+  background: rgba(59, 130, 246, .16); color: #93c5fd; white-space: nowrap;
+}
+.signal-none { text-align: center; color: var(--text-dim); padding: 24px; }
+
+.signal-dropped {
+  padding: 12px 16px; font-size: 12px; color: var(--text-muted);
+  border-top: 1px solid var(--border-light); background: rgba(148, 163, 184, .06);
+}
+.signal-dropped b { color: var(--text); }
+.signal-dropped-note { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; }
+
+.signal-empty { padding: 28px 20px; color: var(--text-dim); font-size: 13px; line-height: 1.8; }
+.signal-empty code {
+  background: var(--bg-input); border: 1px solid var(--border-light);
+  border-radius: 3px; padding: 1px 5px; font-size: 11.5px;
+}

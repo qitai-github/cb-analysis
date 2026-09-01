@@ -88,7 +88,7 @@ const Table = (() => {
 
     const tabs = document.createElement('div');
     tabs.className = 'table-folder-tabs';
-    for (const t of [{ k: 'stock', label: '個股' }, { k: 'cb', label: '可轉債' }, { k: 'scatter', label: '分布圖' }]) {
+    for (const t of [{ k: 'stock', label: '個股' }, { k: 'cb', label: '可轉債' }, { k: 'scatter', label: '分布圖' }, { k: 'signal', label: '週報' }]) {
       const btn = document.createElement('button');
       btn.className = 'table-folder-tab' + (currentTab === t.k ? ' active' : '');
       btn.textContent = t.label;
@@ -102,6 +102,27 @@ const Table = (() => {
 
     toolbar.append(tabs, stats);
     container.appendChild(toolbar);
+
+    // === 週報分頁:全市場正向訊號榜 (data/signal_rank.json,與目前篩選無關) ===
+    if (currentTab === 'signal') {
+      const panel = document.createElement('div');
+      panel.className = 'table-folder-panel signal-wrapper';
+      container.appendChild(panel);
+      stats.textContent = SignalView.isLoaded()
+        ? `共 ${SignalView.getFiltered().length} 檔入榜`
+        : '載入中…';
+      if (typeof SignalView !== 'undefined') {
+        const draw = () => SignalView.render(panel, {
+          onRowClick: (code) => {
+            const stock = (currentData || []).find(s => s.code === code);
+            if (stock && onRowClick) onRowClick(stock);
+          }
+        });
+        if (SignalView.isLoaded()) draw();
+        else SignalView.loadData().then(draw).catch(() => draw());
+      }
+      return;
+    }
 
     // === 分布圖分頁:同一個資料夾版面,內容換成散布圖 ===
     if (currentTab === 'scatter') {
