@@ -2202,6 +2202,8 @@ body {
 
 .tech-folder-panel.hidden { display: none; }
 
+.tech-chart-sub.hidden { display: none; }
+
 .tech-chart-sub {
   flex: 1 1 0;
   min-height: 0;
@@ -2228,6 +2230,48 @@ body {
   color: var(--text-muted);
   letter-spacing: 0.3px;
 }
+
+/* 溢價率 × 轉換價值 疊圖開關 (放在 CB 溢價率 sub-head 標題右側) */
+.tech-overlay-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(30,41,59,0.5);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 1px 8px 1px 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  line-height: 15px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tech-overlay-toggle:hover { color: var(--text); border-color: var(--text-muted); }
+
+.tech-overlay-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.tech-overlay-toggle.active {
+  background: rgba(59,130,246,0.18);
+  border-color: rgba(59,130,246,0.7);
+  color: #93c5fd;
+}
+
+.tech-overlay-toggle.active .tech-overlay-dot {
+  background: #3b82f6;
+  box-shadow: 0 0 4px rgba(59,130,246,0.9);
+}
+
+/* 標題+開關靠左成一組,meta 永遠推到最右 */
+.tech-sub-head .tech-chart-meta { margin-left: auto; }
 
 /* 自訂 legend (chart.js 內建 legend 太佔垂直空間,改放在標題列同高處) */
 .tech-legend {

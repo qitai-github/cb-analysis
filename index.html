@@ -328,9 +328,13 @@
 
           <!-- Panel B: 溢價 / 餘額 -->
           <div class="tech-folder-panel hidden" data-panel="extra">
-            <div class="tech-chart-sub">
+            <div class="tech-chart-sub" id="cbtech-premium-sub">
               <div class="tech-sub-head">
-                <span class="tech-sub-title">CB 溢價率</span>
+                <span class="tech-sub-title" id="cbtech-premium-title">CB 溢價率</span>
+                <button class="tech-overlay-toggle" id="cbtech-overlay-toggle" type="button"
+                        title="把溢價率與轉換價值疊在同一張圖 (雙 Y 軸)">
+                  <span class="tech-overlay-dot"></span>疊圖
+                </button>
                 <span class="tech-chart-meta" id="cbtech-premium-meta"></span>
               </div>
               <div class="chart-container tech-chart-container">
@@ -346,7 +350,7 @@
                 <canvas id="cbtech-balance-chart"></canvas>
               </div>
             </div>
-            <div class="tech-chart-sub">
+            <div class="tech-chart-sub" id="cbtech-convvalue-sub">
               <div class="tech-sub-head">
                 <span class="tech-sub-title">轉換價值</span>
                 <span class="tech-chart-meta" id="cbtech-convvalue-meta"></span>

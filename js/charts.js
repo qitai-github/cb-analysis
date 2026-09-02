@@ -1412,7 +1412,8 @@ const Charts = (() => {
    *   premium: 用 cb.ohlcv + stock.trading + cb.conversionPrice 算每日溢價率%
    *   convvalue: 轉換價值 = 股價/轉換價 × 100,疊 CB 收盤線可看出溢價幅度
    *   balance: 只有本週/上週,用 ohlcv 日期軸 forward-fill 出每日 bar
-   * @param {string} which 'premium' | 'convvalue' | 'balance'
+   *   combo: 溢價率(右軸%) 疊 轉換價值/CB收盤(左軸元)
+   * @param {string} which 'premium' | 'convvalue' | 'combo' | 'balance'
    */
   function renderCBTechExtraChart(canvasId, stock, cbCode, which, sharedDates) {
     const canvas = _claimCBTechSubCanvas(canvasId);
@@ -1499,6 +1500,125 @@ const Charts = (() => {
 
       const lastPrem = premiums.filter(v => v != null).slice(-1)[0] ?? null;
       return { latest: lastPrem };
+    } else if (which === 'combo') {
+      // 疊圖:溢價率(右軸 %) + 轉換價值 & CB 收盤(左軸 元)
+      const ohlcv = cb.ohlcv || [];
+      const convPrice = cb.conversionPrice;
+      if (!ohlcv.length || !convPrice) {
+        _emptyChart_(canvas, '無法疊圖 (缺 CB 收盤或轉換價)');
+        return { latest: null };
+      }
+      const ohlcvMap = new Map(ohlcv.map(r => [r.date, r]));
+      const axisDates = sharedDates && sharedDates.length
+        ? sharedDates
+        : techSlice(ohlcv).map(r => r.date);
+      const labels = axisDates.map(formatDateLabel);
+
+      const convValues = [], cbCloses = [], premiums = [];
+      for (const d of axisDates) {
+        const r = ohlcvMap.get(d);
+        const stockClose = stock.trading?.['收盤價']?.[d];
+        const cv = (stockClose != null && stockClose > 0) ? (stockClose / convPrice) * 100 : null;
+        const close = r?.close ?? null;
+        convValues.push(cv);
+        cbCloses.push(close);
+        premiums.push((cv != null && cv > 0 && close != null) ? ((close - cv) / cv) * 100 : null);
+      }
+
+      const priceVals = convValues.concat(cbCloses).filter(v => v != null);
+      let vMin = 0, vMax = 10;
+      if (priceVals.length) {
+        vMin = Math.min(...priceVals);
+        vMax = Math.max(...priceVals);
+        const span = Math.max(vMax - vMin, 1);
+        vMin -= span * 0.1; vMax += span * 0.1;
+      }
+      const premVals = premiums.filter(v => v != null);
+      let pMin = 0, pMax = 10;
+      if (premVals.length) {
+        pMin = Math.min(...premVals);
+        pMax = Math.max(...premVals);
+        const span = Math.max(pMax - pMin, 1);
+        pMin -= span * 0.1; pMax += span * 0.1;
+      }
+
+      const chart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: '溢價率(%)',
+              data: premiums,
+              yAxisID: 'yRight',
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59,130,246,0.15)',
+              borderWidth: 1.8,
+              pointRadius: 0, pointHoverRadius: 3,
+              tension: 0.15, fill: true, spanGaps: false
+            },
+            {
+              label: '轉換價值',
+              data: convValues,
+              yAxisID: 'y',
+              borderColor: '#f59e0b',
+              borderWidth: 1.8,
+              pointRadius: 0, pointHoverRadius: 3,
+              tension: 0.15, fill: false, spanGaps: false
+            },
+            {
+              label: 'CB 收盤',
+              data: cbCloses,
+              yAxisID: 'y',
+              borderColor: '#94a3b8',
+              borderWidth: 1.2,
+              borderDash: [4, 3],
+              pointRadius: 0, pointHoverRadius: 3,
+              tension: 0.15, fill: false, spanGaps: false
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              display: true, position: 'top', align: 'end',
+              labels: { color: APP_CONFIG.colors.textMuted, boxWidth: 10, font: { size: 10 } }
+            },
+            tooltip: { callbacks: { label: (ctx) => {
+              const v = ctx.raw;
+              if (v == null) return `${ctx.dataset.label}: -`;
+              return ctx.dataset.yAxisID === 'yRight'
+                ? `溢價率: ${v >= 0 ? '+' : ''}${v.toFixed(2)}%`
+                : `${ctx.dataset.label}: ${v.toFixed(2)}`;
+            }}}
+          },
+          scales: {
+            x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+            y: {
+              position: 'left', min: vMin, max: vMax,
+              ticks: { color: '#f59e0b', callback: v => v.toFixed(1) },
+              grid: { color: 'rgba(71,85,105,0.3)' }
+            },
+            yRight: {
+              position: 'right', min: pMin, max: pMax,
+              ticks: { color: '#3b82f6', callback: v => v.toFixed(1) + '%' },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+      _setCBTechSub(canvasId, chart);
+
+      let lastPrem = null, lastConv = null, lastClose = null;
+      for (let i = axisDates.length - 1; i >= 0; i--) {
+        if (premiums[i] != null) {
+          lastPrem = premiums[i]; lastConv = convValues[i]; lastClose = cbCloses[i];
+          break;
+        }
+      }
+      return { latest: lastPrem, convValue: lastConv, cbClose: lastClose, convPrice };
     } else if (which === 'convvalue') {
       // 轉換價值 = 股價 / 轉換價 × 100 (每張面額 100 元的換股價值),與 CB 收盤同單位可直接比較
       const ohlcv = cb.ohlcv || [];
@@ -1697,6 +1817,11 @@ const Charts = (() => {
     }
   }
 
+  function destroyCBTechSub(canvasId) {
+    const old = cbTechSubCharts.get(canvasId);
+    if (old) { old.destroy(); cbTechSubCharts.delete(canvasId); }
+  }
+
   function destroyCBTech() {
     if (cbTechPriceChart) { cbTechPriceChart.destroy(); cbTechPriceChart = null; }
     _destroyCBTechSubs();
@@ -1717,7 +1842,8 @@ const Charts = (() => {
     renderTechPriceChart, renderTechInstChart, renderTechMarginChart, renderTechBiasChart,
     renderTechHolderChart, renderTechHolderPeopleChart, buildHolderSeries,
     destroyTech,
-    renderCBTechPriceChart, renderCBTechInstChart, renderCBTechExtraChart, destroyCBTech,
+    renderCBTechPriceChart, renderCBTechInstChart, renderCBTechExtraChart,
+    destroyCBTechSub, destroyCBTech,
     destroy
   };
 })();

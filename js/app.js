@@ -1099,6 +1099,33 @@ const App = (() => {
   // ============================================================
   let cbTechActiveFolder = 'inst';  // 'inst' | 'extra'
 
+  // 溢價率 × 轉換價值 疊圖開關 (localStorage 持久化,關窗再開沿用)
+  const CBTECH_OVERLAY_KEY = 'cbtech_overlay_premium_convvalue';
+  let cbTechOverlay = (() => {
+    try { return localStorage.getItem(CBTECH_OVERLAY_KEY) === '1'; }
+    catch { return false; }
+  })();
+
+  function bindCBTechOverlayToggle() {
+    const btn = document.getElementById('cbtech-overlay-toggle');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      cbTechOverlay = !cbTechOverlay;
+      try { localStorage.setItem(CBTECH_OVERLAY_KEY, cbTechOverlay ? '1' : '0'); } catch {}
+      refreshCBTechModal();
+    });
+  }
+
+  function syncCBTechOverlayUI() {
+    const btn = document.getElementById('cbtech-overlay-toggle');
+    if (btn) btn.classList.toggle('active', cbTechOverlay);
+    const title = document.getElementById('cbtech-premium-title');
+    if (title) title.textContent = cbTechOverlay ? 'CB 溢價率 × 轉換價值' : 'CB 溢價率';
+    // 疊圖時收掉獨立的轉換價值格,讓剩下兩格分掉垂直空間
+    document.getElementById('cbtech-convvalue-sub')?.classList.toggle('hidden', cbTechOverlay);
+  }
+
   function openCBTechModal() {
     if (!selectedStock) return;
     const cbs = (selectedStock.cbs || []).filter(c => c.cbCode);
@@ -1115,6 +1142,7 @@ const App = (() => {
     }
     document.getElementById('cbtech-modal').classList.add('show');
     bindCBTechFolderTabs();
+    bindCBTechOverlayToggle();
     bindTechWheel();
     bindQuotaGroup('tech-quota-group-cb');
     syncQuotaUI();
@@ -1151,6 +1179,7 @@ const App = (() => {
     if (!selectedStock) return;
     renderCBTechModalTitle();
     syncCBTechFolderTab();
+    syncCBTechOverlayUI();
 
     // 共用 X 軸 (CB ohlcv 日期 ∩ stock 收盤日期)
     const cb = (selectedStock.cbs || []).find(c => c.cbCode === selectedCBTab);
@@ -1181,10 +1210,11 @@ const App = (() => {
       renderCBTechInstSub('cbtech-invest-chart',  '投信',   'cbtech-invest-meta');
       renderCBTechInstSub('cbtech-dealer-chart',  '自營商', 'cbtech-dealer-meta');
 
-      // 溢價/餘額 tab — 3 個 sub-charts
+      // 溢價/餘額 tab — 疊圖關:溢價率 / 餘額 / 轉換價值 3 格;疊圖開:合併成 2 格
       renderCBTechPremium();
       renderCBTechBalance();
-      renderCBTechConvValue();
+      if (cbTechOverlay) Charts.destroyCBTechSub('cbtech-convvalue-chart');
+      else renderCBTechConvValue();
     }, 60)));
   }
 
@@ -1201,14 +1231,19 @@ const App = (() => {
   }
 
   function renderCBTechPremium() {
+    const mode = cbTechOverlay ? 'combo' : 'premium';
     const meta = Charts.renderCBTechExtraChart(
-      'cbtech-premium-chart', selectedStock, selectedCBTab, 'premium', cbTechSharedDates);
+      'cbtech-premium-chart', selectedStock, selectedCBTab, mode, cbTechSharedDates);
     const el = document.getElementById('cbtech-premium-meta');
     if (!el) return;
     const v = meta?.latest;
-    el.innerHTML = v == null
-      ? ''
-      : `當前溢價率 <strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
+    if (v == null) { el.textContent = ''; return; }
+    const premHtml = `當前溢價率 <strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
+    if (!cbTechOverlay) { el.innerHTML = premHtml; return; }
+    const parts = [premHtml];
+    if (meta.convValue != null) parts.push(`轉換價值 <strong>${meta.convValue.toFixed(2)}</strong>`);
+    if (meta.cbClose != null) parts.push(`CB 收 <strong>${meta.cbClose.toFixed(2)}</strong>`);
+    el.innerHTML = parts.join(' &middot; ');
   }
 
   function renderCBTechConvValue() {
