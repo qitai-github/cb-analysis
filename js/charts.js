@@ -1410,8 +1410,9 @@ const Charts = (() => {
   /**
    * CB 溢價率 / 流通餘額 圖 (各自一張 canvas)
    *   premium: 用 cb.ohlcv + stock.trading + cb.conversionPrice 算每日溢價率%
+   *   convvalue: 轉換價值 = 股價/轉換價 × 100,疊 CB 收盤線可看出溢價幅度
    *   balance: 只有本週/上週,用 ohlcv 日期軸 forward-fill 出每日 bar
-   * @param {string} which 'premium' | 'balance'
+   * @param {string} which 'premium' | 'convvalue' | 'balance'
    */
   function renderCBTechExtraChart(canvasId, stock, cbCode, which, sharedDates) {
     const canvas = _claimCBTechSubCanvas(canvasId);
@@ -1498,6 +1499,107 @@ const Charts = (() => {
 
       const lastPrem = premiums.filter(v => v != null).slice(-1)[0] ?? null;
       return { latest: lastPrem };
+    } else if (which === 'convvalue') {
+      // 轉換價值 = 股價 / 轉換價 × 100 (每張面額 100 元的換股價值),與 CB 收盤同單位可直接比較
+      const ohlcv = cb.ohlcv || [];
+      const convPrice = cb.conversionPrice;
+      if (!convPrice) {
+        _emptyChart_(canvas, '無法計算轉換價值 (缺轉換價)');
+        return { latest: null };
+      }
+      const ohlcvMap = new Map(ohlcv.map(r => [r.date, r]));
+      const axisDates = sharedDates && sharedDates.length
+        ? sharedDates
+        : techSlice(Object.keys(stock.trading?.['收盤價'] || {}).sort()).map(d => d);
+      const labels = axisDates.map(formatDateLabel);
+      const convValues = axisDates.map(d => {
+        const stockClose = stock.trading?.['收盤價']?.[d];
+        if (stockClose == null || !(stockClose > 0)) return null;
+        return (stockClose / convPrice) * 100;
+      });
+      const cbCloses = axisDates.map(d => ohlcvMap.get(d)?.close ?? null);
+
+      const allVals = convValues.concat(cbCloses).filter(v => v != null);
+      let vMin = 0, vMax = 10;
+      if (allVals.length) {
+        vMin = Math.min(...allVals);
+        vMax = Math.max(...allVals);
+        const span = Math.max(vMax - vMin, 1);
+        vMin -= span * 0.1;
+        vMax += span * 0.1;
+      }
+
+      const chart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: '轉換價值',
+              data: convValues,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245,158,11,0.15)',
+              borderWidth: 1.8,
+              pointRadius: 0,
+              pointHoverRadius: 3,
+              tension: 0.15,
+              fill: true,
+              spanGaps: false
+            },
+            {
+              label: 'CB 收盤',
+              data: cbCloses,
+              borderColor: '#94a3b8',
+              borderWidth: 1.2,
+              borderDash: [4, 3],
+              pointRadius: 0,
+              pointHoverRadius: 3,
+              tension: 0.15,
+              fill: false,
+              spanGaps: false
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              display: true, position: 'top', align: 'end',
+              labels: { color: APP_CONFIG.colors.textMuted, boxWidth: 10, font: { size: 10 } }
+            },
+            tooltip: { callbacks: { label: (ctx) => {
+              const v = ctx.raw;
+              return v == null ? `${ctx.dataset.label}: -` : `${ctx.dataset.label}: ${v.toFixed(2)}`;
+            }}}
+          },
+          scales: {
+            x: { ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+            y: {
+              position: 'left', min: vMin, max: vMax,
+              ticks: { color: APP_CONFIG.colors.text, callback: v => v.toFixed(1) },
+              grid: { color: 'rgba(71,85,105,0.3)' }
+            },
+            yRight: {
+              position: 'right', min: vMin, max: vMax,
+              ticks: { color: APP_CONFIG.colors.textMuted, callback: v => v.toFixed(1) },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+      _setCBTechSub(canvasId, chart);
+
+      let lastConv = null, lastClose = null, lastStockClose = null;
+      for (let i = axisDates.length - 1; i >= 0; i--) {
+        if (convValues[i] != null) {
+          lastConv = convValues[i];
+          lastStockClose = stock.trading?.['收盤價']?.[axisDates[i]] ?? null;
+          lastClose = cbCloses[i];
+          break;
+        }
+      }
+      return { latest: lastConv, cbClose: lastClose, stockClose: lastStockClose, convPrice };
     } else { // balance
       // 資料源只有 本週/上週 2 個週報快照。
       // 為了「每日一根 bar」,用 cb.ohlcv 的日期軸,

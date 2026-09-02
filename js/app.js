@@ -1181,9 +1181,10 @@ const App = (() => {
       renderCBTechInstSub('cbtech-invest-chart',  '投信',   'cbtech-invest-meta');
       renderCBTechInstSub('cbtech-dealer-chart',  '自營商', 'cbtech-dealer-meta');
 
-      // 溢價/餘額 tab — 2 個 sub-charts (第 3 格保留)
+      // 溢價/餘額 tab — 3 個 sub-charts
       renderCBTechPremium();
       renderCBTechBalance();
+      renderCBTechConvValue();
     }, 60)));
   }
 
@@ -1208,6 +1209,23 @@ const App = (() => {
     el.innerHTML = v == null
       ? ''
       : `當前溢價率 <strong class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</strong>`;
+  }
+
+  function renderCBTechConvValue() {
+    const meta = Charts.renderCBTechExtraChart(
+      'cbtech-convvalue-chart', selectedStock, selectedCBTab, 'convvalue', cbTechSharedDates);
+    const el = document.getElementById('cbtech-convvalue-meta');
+    if (!el) return;
+    const v = meta?.latest;
+    if (v == null) { el.textContent = ''; return; }
+    const parts = [`轉換價值 <strong>${v.toFixed(2)}</strong>`];
+    if (meta.convPrice != null) parts.push(`轉換價 <strong>${Number(meta.convPrice).toFixed(2)}</strong>`);
+    if (meta.cbClose != null) {
+      const diff = ((meta.cbClose - v) / v) * 100;
+      parts.push(`CB 收 <strong>${meta.cbClose.toFixed(2)}</strong>`);
+      parts.push(`價差 <strong class="${cc(diff)}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</strong>`);
+    }
+    el.innerHTML = parts.join(' &middot; ');
   }
 
   function renderCBTechBalance() {
