@@ -3060,39 +3060,48 @@ input[type="number"] { -moz-appearance: textfield; }
   position: relative;
   height: calc(100vh - 300px);
   min-height: 320px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.scatter-canvas-inner {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .scatter-avg-badge {
-  position: absolute;
-  left: 6px;
-  top: 38%;
-  transform: translateY(-50%);
+  flex: 0 0 auto;
+  align-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   background: rgba(15,23,42,0.85);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  padding: 10px 6px;
   pointer-events: none;
-  z-index: 2;
-}
-
-.scatter-avg-label {
-  font-size: 10px;
-  color: var(--text-dim);
-  white-space: nowrap;
 }
 
 .scatter-avg-val {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--up);
   font-variant-numeric: tabular-nums;
+  writing-mode: vertical-rl;
 }
 
 .scatter-avg-val.neg { color: var(--down); }
+
+.scatter-avg-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
 
 .scatter-hint {
   margin-top: 6px;
