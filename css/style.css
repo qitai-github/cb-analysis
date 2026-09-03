@@ -3062,6 +3062,38 @@ input[type="number"] { -moz-appearance: textfield; }
   min-height: 320px;
 }
 
+.scatter-avg-badge {
+  position: absolute;
+  left: 6px;
+  top: 38%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(15,23,42,0.85);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.scatter-avg-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.scatter-avg-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--up);
+  font-variant-numeric: tabular-nums;
+}
+
+.scatter-avg-val.neg { color: var(--down); }
+
 .scatter-hint {
   margin-top: 6px;
   font-size: 12px;

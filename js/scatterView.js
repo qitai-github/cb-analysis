@@ -180,7 +180,13 @@ const ScatterView = (() => {
         '<button class="scatter-reset" id="scatter-reset" type="button">重設範圍</button>' +
       '</div>' +
       '<div class="scatter-legend" id="scatter-legend"></div>' +
-      '<div class="scatter-canvas-wrap"><canvas id="scatter-canvas"></canvas></div>' +
+      '<div class="scatter-canvas-wrap">' +
+        '<canvas id="scatter-canvas"></canvas>' +
+        '<div class="scatter-avg-badge" id="scatter-avg-badge">' +
+          '<span class="scatter-avg-label">平均溢價率</span>' +
+          '<span class="scatter-avg-val" id="scatter-avg-val">-</span>' +
+        '</div>' +
+      '</div>' +
       '<div class="scatter-hint">「產業」下拉可只看單一產業;點擊任一點可開啟該檔 CB 對應個股的詳情面板;點上方圖例可隱藏/顯示該分組;「分色」可切換依產業或依 CB 價格帶上色;「樣式」切到氣泡時,圈圈大小 = 發行總額,圈內直接標 CB 代號與名稱。</div>';
 
     const indSel = panel.querySelector('#scatter-industry');
@@ -511,6 +517,18 @@ const ScatterView = (() => {
 
     const countEl = panel.querySelector('#scatter-count');
     if (countEl) countEl.textContent = '顯示 ' + inRange.length + ' / ' + pts.length + ' 檔';
+
+    const avgEl = panel.querySelector('#scatter-avg-val');
+    if (avgEl) {
+      if (inRange.length) {
+        const avg = inRange.reduce((sum, p) => sum + p.y, 0) / inRange.length;
+        avgEl.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(1) + '%';
+        avgEl.classList.toggle('neg', avg < 0);
+      } else {
+        avgEl.textContent = '-';
+        avgEl.classList.remove('neg');
+      }
+    }
   }
 
   function destroy() {
