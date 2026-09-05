@@ -29,9 +29,16 @@ def to_f(x):
 
 
 def index_table(rows):
-    """[代號,名稱,類別,...日期] → dates, {(code,cat): [float]}, {code: name}"""
+    """[代號,名稱,類別,...日期] → dates, {(code,cat): [float]}, {code: name}
+
+    日期欄位理論上照時間排序,但來源(如融資融券的回補流程)偶爾會把單一日期
+    附加在檔案最後而非插回正確位置(例如 ...0904,0826)。這裡強制依日期排序,
+    避免下游的 [-5:]/[-21:] 這類「假設最後一欄=今天」的切片算到錯誤的日期。
+    """
     hdr = rows[0]
-    dates = hdr[3:]
+    raw_dates = hdr[3:]
+    order = sorted(range(len(raw_dates)), key=lambda i: raw_dates[i])
+    dates = [raw_dates[i] for i in order]
     out, names = {}, {}
     cur_code = cur_name = ''
     for r in rows[1:]:
@@ -40,7 +47,8 @@ def index_table(rows):
             cur_code, cur_name = str(r[0]).strip(), str(r[1]).strip()
         if not cur_code:
             continue
-        out[(cur_code, str(r[2]).strip())] = [to_f(x) for x in r[3:]]
+        vals = [to_f(x) for x in r[3:]]
+        out[(cur_code, str(r[2]).strip())] = [vals[i] if i < len(vals) else 0.0 for i in order]
         names[cur_code] = cur_name
     return dates, out, names
 
