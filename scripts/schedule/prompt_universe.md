@@ -3,9 +3,9 @@
 ## 已經完成的事（不要重跑）
 - 已 `git pull` 取得最新 `data/*.json`
 - 已跑完 `scripts/positive_scan.py`，結果在 `scripts/output/positive_scan.json`
-- 已存今日快照 `scripts/output/positive_scan_<YYYYMMDD>.json`
+- 已存今日快照 `scripts/output/positive_scan_<YYYYMMDD>.json`，並登記進 `scripts/output/weekly_snapshots.txt`（週報快照帳本——對照基準永遠是帳本裡上一筆，不是檔案系統上最新的快照，避免被中途的臨時掃描污染）
 - 已跑完 `scripts/build_positive_report.py`，表格片段在 `scripts/output/_tables.html`（含 `<!--A-->` `<!--B-->` `<!--C-->` 三段）
-- 上一份快照的檔名寫在 `scripts/output/universe_prev_snapshot.txt`（可能是空的，代表沒有前次可比）
+- 上一份週報快照的檔名寫在 `scripts/output/universe_prev_snapshot.txt`（可能是空的，代表沒有前次可比）
 
 ## 你的工作
 1. 讀今日 `positive_scan.json` 與上一份快照，做**逐檔追蹤**：升級／降級／新進 70 分以上／掉出榜單的名單與分數變化。用 python 算，不要憑印象。

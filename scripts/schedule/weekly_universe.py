@@ -9,7 +9,6 @@
 
 單獨測試: PYTHONUTF8=1 python scripts/schedule/weekly_universe.py --no-claude
 """
-import glob
 import json
 import os
 import shutil
@@ -20,6 +19,9 @@ from datetime import datetime
 BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(BASE, 'scripts', 'output')
 LOG = os.path.join(OUT, 'schedule_universe.log')
+
+sys.path.insert(0, os.path.join(BASE, 'scripts'))
+import weekly_snapshots as WS  # noqa: E402
 
 
 def log(msg):
@@ -49,19 +51,22 @@ def main():
     subprocess.run(['git', 'pull', '--ff-only'], cwd=BASE, capture_output=True,
                    text=True, encoding='utf-8', errors='replace', timeout=600)
 
-    # 保留上一份快照供追蹤用
-    snaps = sorted(glob.glob(os.path.join(OUT, 'positive_scan_2*.json')))
-    prev = snaps[-1] if snaps else None
-    log('上一份快照: %s' % (os.path.basename(prev) if prev else '(無)'))
+    # 對照基準永遠是「上一份週報」,不是檔案系統上最新的快照
+    # (中途若有人臨時跑 positive_scan.py,那份快照不算數,除非它也被記錄成週報)
+    today = datetime.now().strftime('%Y%m%d')
+    prev_date = WS.previous_report_date(today)
+    prev = WS.snapshot_path(prev_date) if prev_date else None
+    log('上一份週報快照: %s' % (os.path.basename(prev) if prev else '(無,帳本是空的)'))
 
     if sh([sys.executable, os.path.join('scripts', 'positive_scan.py'), '--min', '70']) != 0:
         log('positive_scan 失敗,中止')
         raise SystemExit(1)
 
-    today = datetime.now().strftime('%Y%m%d')
     snap = os.path.join(OUT, 'positive_scan_%s.json' % today)
     shutil.copy(os.path.join(OUT, 'positive_scan.json'), snap)
     log('快照存檔 %s' % os.path.basename(snap))
+    WS.record(today)
+    log('已登記為本次週報快照(scripts/output/weekly_snapshots.txt)')
 
     sh([sys.executable, os.path.join('scripts', 'build_positive_report.py')])
 

@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""把 positive_scan.json 轉成網頁用的 data/signal_rank.json（籌碼追蹤分頁）
+"""把 positive_scan.json 轉成網頁用的 data/signal_rank.json（週報分頁）
 
-會自動找 scripts/output/positive_scan_<YYYYMMDD>.json 的前一份快照做分數追蹤。
+對照基準永遠是「上一份週報」(scripts/output/weekly_snapshots.txt 帳本裡的
+上一筆),不是檔案系統上最新的 positive_scan_<日期>.json——中途若有人臨時
+跑一次全網頁掃描,那份快照不算「上一份週報」,除非它也被登記進帳本。
 
 用法: PYTHONUTF8=1 python scripts/build_signal_rank_json.py
 """
-import glob
 import json
 import os
-import re
 from datetime import datetime
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +18,7 @@ DATA = os.path.join(BASE, 'data')
 import sys
 sys.path.insert(0, os.path.join(BASE, 'scripts'))
 from positive_scan import CRITERIA  # noqa: E402
+import weekly_snapshots as WS  # noqa: E402
 
 
 def tier_of(score):
@@ -28,16 +29,6 @@ def tier_of(score):
     if score >= 60:
         return 'C'
     return 'D'          # 60 分以下:有過多頭門檻但訊號太少,網頁預設不顯示
-
-
-def snapshots():
-    """所有快照,依日期排序 → [(YYYYMMDD, path)]"""
-    out = []
-    for p in glob.glob(os.path.join(OUT, 'positive_scan_2*.json')):
-        m = re.search(r'(\d{8})', os.path.basename(p))
-        if m:
-            out.append((m.group(1), p))
-    return sorted(out)
 
 
 def slim(r, prev_score=None):
@@ -80,16 +71,17 @@ def slim(r, prev_score=None):
 def main():
     cur_path = os.path.join(OUT, 'positive_scan.json')
     cur = json.load(open(cur_path, encoding='utf-8'))
-    snaps = snapshots()
 
     today = datetime.now().strftime('%Y%m%d')
-    prev_date, prev_map = None, {}
-    for date, path in reversed(snaps):
-        if date == today:
-            continue
-        prev_date = date
-        prev_map = {r['code']: r['score'] for r in json.load(open(path, encoding='utf-8'))}
-        break
+    prev_date = WS.previous_report_date(today)
+    prev_map = {}
+    if prev_date:
+        prev_path = WS.snapshot_path(prev_date)
+        if os.path.exists(prev_path):
+            prev_map = {r['code']: r['score'] for r in json.load(open(prev_path, encoding='utf-8'))}
+        else:
+            print('警告:帳本記錄了 %s 但快照檔不存在,本次不做追蹤' % prev_date)
+            prev_date = None
 
     stocks = [slim(r, prev_map.get(r['code'])) for r in cur]
     stocks.sort(key=lambda x: -x['score'])
