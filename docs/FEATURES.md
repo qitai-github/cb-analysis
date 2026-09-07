@@ -766,7 +766,8 @@ GAS 先建 0 bytes 空檔,SA 再覆蓋。空檔沒建成只是少一份 Drive �
 | Script | 功能 |
 |---|---|
 | `scripts/fetch_stocks.py` | 每日抓 TWSE/TPEX raw CSV → Drive 備份 (6 來源 + CBAS xlsx) |
-| `scripts/parse_and_export.py` | 主合併 pipeline (Phase 1-5),寫 `all-data.json` + Supabase |
+| `scripts/parse_and_export.py` | 主合併 pipeline (Phase 1-6),寫 `all-data.json` + Supabase |
+| `scripts/lib/cb_alerts.py` | Phase 6 CB 快訊:掃 `cbDailyTrading` / `cbBondInstitutional`,挑出 ①CB 大量(量≥500張且≥3×20日均量) ②價漲量增(漲≥3%且量≥2×均量) ③法人單日大買(單一法人≥300張),組一則獨立 Telegram 訊息。門檻是檔案頂端常數。送到專用 bot(`TG_CB_BOT_TOKEN`+`TG_CB_CHAT_ID`,兩個 secret),沒設就 fallback 用 pipeline 摘要那支 `TG_BOT_TOKEN`/`TG_CHAT_ID`。本機驗:`cd scripts && python -m lib.cb_alerts`(加 `--send` 真的送)。只在該輪有重解 CB 日交易時才觸發(margin-late 等 `--only-sources` 跑法會跳過) |
 | `scripts/parse_etf.py` | ETF 持股 |
 | `scripts/vcp_scanner.py` | VCP 選股 |
 | `scripts/twsa_scraper.py` | 競拍資料 |

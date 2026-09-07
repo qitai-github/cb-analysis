@@ -49,6 +49,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TG_BOT_TOKEN:              ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID:                ${{ secrets.TG_CHAT_ID }}
+          # CB 快訊專用 bot;沒設這兩個 secret 就 fallback 用上面那支
+          TG_CB_BOT_TOKEN:          ${{ secrets.TG_CB_BOT_TOKEN }}
+          TG_CB_CHAT_ID:            ${{ secrets.TG_CB_CHAT_ID }}
           # 手動 dispatch 沒填 → 6 個 source (排除融資融券)
           ONLY: ${{ inputs.only_sources || 'STOCK_INST_TWSE,STOCK_INST_TPEX,STOCK_PRICE_TWSE,STOCK_PRICE_TPEX,CB_PRICE,CB_INST' }}
         run: python scripts/parse_and_export.py --only-sources "$ONLY" ${{ inputs.date }}
