@@ -38,19 +38,22 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 # ── 門檻(要調直接改) ────────────────────────────────────────────────
-VOL_MA_DAYS = 20            # 均量回看的「交易日」數(不含當日)
-
 # 條件 A:CB 大量(量能爆增)
-BIGVOL_MIN_LOT = 500       # 當日成交量(張)下限
+BIGVOL_MIN_LOT = 200       # 當日成交量(張)下限
+BIGVOL_MA_DAYS = 20        # 均量回看的「交易日」數(不含當日)
 BIGVOL_MA_MULT = 3.0       # 當日量 / 均量 倍數下限
 
 # 條件 B:CB 價漲量增
 SURGE_PCT = 3.0            # 收盤漲幅 % 下限
 SURGE_VOL_MIN_LOT = 100    # 當日成交量(張)下限
+SURGE_VOL_MA_DAYS = 5      # 均量回看的「交易日」數(不含當日)
 SURGE_VOL_MA_MULT = 2.0    # 當日量 / 均量 倍數下限
 
-# 條件 C:法人單日大買
-INST_MIN_LOT = 300        # 單一法人(外資/投信/自營商)單日買超張數下限
+# 條件 C:個股法人單日大買
+#   注意:查的是 CB「對應個股」的法人(聯電一→查聯電、正達四→查正達),
+#   資料取自 cbInstitutional(以 4 碼股號為 key),原始單位是「股」,已 /1000 轉張。
+INST_MIN_LOT = 500        # 個股單一法人(外資/投信/自營商)單日買超張數下限
+INST_CB_MIN_VOL_LOT = 100  # 該股至少一檔 CB 當日成交量(張)要 ≥ 此值,否則不看
 
 MAX_ITEMS_PER_SECT = 15    # 每個區塊最多列幾檔(避免訊息爆長)
 
@@ -111,39 +114,62 @@ def scan(all_data: dict, trade_date: str) -> dict:
         if not v_today or v_today <= 0:
             continue
 
-        window = [_f(x) for x in vol[max(0, ti - VOL_MA_DAYS):ti]]
-        window = [x for x in window if x and x > 0]
-        ma = sum(window) / len(window) if window else 0.0
-        mult = (v_today / ma) if ma else 0.0
         name = rec["name"]
 
-        if v_today >= BIGVOL_MIN_LOT and mult >= BIGVOL_MA_MULT:
-            bigvol.append((code, name, v_today, ma, mult))
+        def _ma(days: int) -> float:
+            w = [_f(x) for x in vol[max(0, ti - days):ti]]
+            w = [x for x in w if x and x > 0]
+            return sum(w) / len(w) if w else 0.0
+
+        ma_big = _ma(BIGVOL_MA_DAYS)
+        mult_big = (v_today / ma_big) if ma_big else 0.0
+        if v_today >= BIGVOL_MIN_LOT and mult_big >= BIGVOL_MA_MULT:
+            bigvol.append((code, name, v_today, ma_big, mult_big))
 
         if close and ti < len(close):
             c_today = _f(close[ti])
             c_prev = _prev_close(close, ti)
             if c_today and c_prev:
                 pct = (c_today / c_prev - 1) * 100
+                ma_s = _ma(SURGE_VOL_MA_DAYS)
+                mult_s = (v_today / ma_s) if ma_s else 0.0
                 if (pct >= SURGE_PCT and v_today >= SURGE_VOL_MIN_LOT
-                        and mult >= SURGE_VOL_MA_MULT):
-                    surge.append((code, name, pct, c_today, v_today, mult))
+                        and mult_s >= SURGE_VOL_MA_MULT):
+                    surge.append((code, name, pct, c_today, v_today, mult_s))
 
-    # 條件 C:法人單日大買
-    dates_i, rows_i = _explode(all_data.get("cbBondInstitutional"))
+    # 條件 C:個股法人單日大買 — 查 CB 對應「個股」的法人(股號 = CB 代號前 4 碼)
+    # 僅在「該股至少一檔 CB 當日成交量 ≥ INST_CB_MIN_VOL_LOT」時才看。
+    # cbInstitutional 原始單位是「股」,/1000 轉張。
+    stock_cb: dict[str, tuple[str, float]] = {}   # 股號 → (成交量最大的 CB 名, 該量)
+    for cb_code, rec in rows_t.items():
+        sc = cb_code[:4]
+        vser = rec["cats"].get("成交量(張)")
+        cbvol = (_f(vser[ti]) if vser and ti < len(vser) else 0.0) or 0.0
+        if sc not in stock_cb or cbvol > stock_cb[sc][1]:
+            stock_cb[sc] = (rec["name"], cbvol)
+
+    dates_s, rows_s = _explode(all_data.get("cbInstitutional"))
     inst: list[tuple] = []
     idate = None
-    if dates_i:
-        ii = dates_i.index(tdate) if tdate in dates_i else len(dates_i) - 1
-        idate = dates_i[ii]
-        for code, rec in rows_i.items():
+    if dates_s:
+        si = dates_s.index(tdate) if tdate in dates_s else len(dates_s) - 1
+        idate = dates_s[si]
+        for sc, rec in rows_s.items():
+            cbinfo = stock_cb.get(sc)
+            if not cbinfo or cbinfo[1] < INST_CB_MIN_VOL_LOT:
+                continue
+            cbname = cbinfo[0]
             for cat in _INST_CATS:
                 series = rec["cats"].get(cat)
-                if not series or ii >= len(series):
+                if not series or si >= len(series):
                     continue
-                val = _f(series[ii])
-                if val is not None and val >= INST_MIN_LOT:
-                    inst.append((code, rec["name"], cat.replace("買賣超", ""), val))
+                raw = _f(series[si])
+                if raw is None:
+                    continue
+                lots = raw / 1000.0
+                if lots >= INST_MIN_LOT:
+                    inst.append((sc, rec["name"], cat.replace("買賣超", ""),
+                                 lots, cbname))
 
     return {
         "date": tdate,
@@ -169,7 +195,7 @@ def format_msg(r: dict) -> Optional[str]:
 
     if bigvol:
         L.append(f"*💥 CB 大量*  量≥{BIGVOL_MIN_LOT:,}張 且 "
-                 f"≥{BIGVOL_MA_MULT:g}×{VOL_MA_DAYS}日均量")
+                 f"≥{BIGVOL_MA_MULT:g}×{BIGVOL_MA_DAYS}日均量")
         for code, name, v, _ma, mult in bigvol[:MAX_ITEMS_PER_SECT]:
             L.append(f"  `{code}` {name}  {v:,.0f}張  ({mult:.1f}×)")
         if len(bigvol) > MAX_ITEMS_PER_SECT:
@@ -178,7 +204,8 @@ def format_msg(r: dict) -> Optional[str]:
 
     if surge:
         L.append(f"*📈 價漲量增*  漲≥{SURGE_PCT:g}% 且 "
-                 f"量≥{SURGE_VOL_MA_MULT:g}×均量、≥{SURGE_VOL_MIN_LOT:,}張")
+                 f"量≥{SURGE_VOL_MA_MULT:g}×{SURGE_VOL_MA_DAYS}日均量、"
+                 f"≥{SURGE_VOL_MIN_LOT:,}張")
         for code, name, pct, c, v, _m in surge[:MAX_ITEMS_PER_SECT]:
             L.append(f"  `{code}` {name}  +{pct:.1f}%  收{c:g}  {v:,.0f}張")
         if len(surge) > MAX_ITEMS_PER_SECT:
@@ -189,9 +216,10 @@ def format_msg(r: dict) -> Optional[str]:
         note = ""
         if r.get("inst_date") and r["inst_date"] != r["date"]:
             note = f"  (資料日 {_iso(r['inst_date'])})"
-        L.append(f"*🏦 法人單日大買*  單一法人 ≥{INST_MIN_LOT:,}張{note}")
-        for code, name, who, val in inst[:MAX_ITEMS_PER_SECT]:
-            L.append(f"  `{code}` {name}  {who} +{val:,.0f}張")
+        L.append(f"*🏦 個股法人單日大買*  對應個股單一法人 ≥{INST_MIN_LOT:,}張 "
+                 f"(且該股 CB 當日量≥{INST_CB_MIN_VOL_LOT:,}張){note}")
+        for sc, sname, who, val, cbname in inst[:MAX_ITEMS_PER_SECT]:
+            L.append(f"  `{sc}` {sname}({cbname})  {who} +{val:,.0f}張")
         if len(inst) > MAX_ITEMS_PER_SECT:
             L.append(f"  … 另 {len(inst) - MAX_ITEMS_PER_SECT} 檔")
         L.append("")
