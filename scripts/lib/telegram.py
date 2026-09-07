@@ -32,12 +32,17 @@ def _truncate(text: str, limit: int = TG_MSG_LIMIT) -> str:
     return text[: limit - 30] + "\n\n... (訊息截斷)"
 
 
-def send(text: str, *, parse_mode: str = "Markdown") -> bool:
-    """送一則訊息。回傳 True/False;通知失敗印 stderr,絕不拋例外。"""
-    token = os.environ.get("TG_BOT_TOKEN", "").strip()
-    chat_id = os.environ.get("TG_CHAT_ID", "").strip()
+def send(text: str, *, parse_mode: str = "Markdown",
+         token: Optional[str] = None, chat_id: Optional[str] = None) -> bool:
+    """送一則訊息。回傳 True/False;通知失敗印 stderr,絕不拋例外。
+
+    token / chat_id 不給時讀環境變數 TG_BOT_TOKEN / TG_CHAT_ID。
+    要送到另一支 bot / 另一個 chat 就把兩個都帶進來。
+    """
+    token = (token or os.environ.get("TG_BOT_TOKEN", "")).strip()
+    chat_id = (chat_id or os.environ.get("TG_CHAT_ID", "")).strip()
     if not token or not chat_id:
-        print("⚠️ TG_BOT_TOKEN / TG_CHAT_ID 未設定,通知跳過", file=sys.stderr)
+        print("⚠️ Telegram token / chat_id 未設定,通知跳過", file=sys.stderr)
         return False
     try:
         r = requests.post(

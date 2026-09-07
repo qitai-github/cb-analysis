@@ -888,6 +888,26 @@ def main(argv=None) -> int:
                 log(f"  ✗ JSON 寫入失敗: {e}")
                 summary["json"] = {"status": "fail", "error": str(e)}
 
+        # Phase 6: CB 快訊 (大量 / 價漲量增 / 法人單日大買) — 失敗不擋主流程
+        # 只在這輪真的有重解 CB 日交易時才掃 (避免 margin-late 等 --only-sources
+        # 跑法拿 repo 舊 all-data.json 的最後一欄重送)。
+        if args.no_notify:
+            log("[Phase 6] --no-notify,CB 快訊跳過")
+            summary["cb_alerts"] = {"status": "skip"}
+        elif "cbDailyTrading" not in parsed:
+            log("[Phase 6] 本輪未解析 CB 日交易 (--only-sources),CB 快訊跳過")
+            summary["cb_alerts"] = {"status": "skip"}
+        else:
+            log("[Phase 6] 掃 CB 快訊")
+            try:
+                from lib import cb_alerts
+                res = cb_alerts.scan_and_notify(all_data, trade_date)
+                summary["cb_alerts"] = res
+                log(f"  ✓ CB 快訊: {res}")
+            except Exception as e:  # noqa: BLE001
+                log(f"  ⚠️  CB 快訊失敗 (不擋主流程): {e}")
+                summary["cb_alerts"] = {"status": "fail", "error": str(e)}
+
         # 收尾
         dt = time.time() - t0
         summary["elapsed_s"] = dt
