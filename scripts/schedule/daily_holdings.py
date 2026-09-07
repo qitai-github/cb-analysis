@@ -3,7 +3,7 @@
 
 流程:
   1. (週一~五) gh workflow run margin-late.yml,等它跑完 → 確保當日融資融券已入庫
-  2. git pull --ff-only 取得 GHA 推的最新 data/*.json
+  2. 同步 data/ 到 origin/main 最新版(main 上就 pull,其他分支只簽出 data/,見 sync_data())
   3. 找最新的 持股清單/CB篩選結果_*.csv,跑 holdings_review.py
   4. 產表格片段,交給 claude -p 寫報告 + 發佈 Artifact
 
@@ -101,6 +101,28 @@ def latest_run_id():
         return None
 
 
+def sync_data():
+    """把 data/ 目錄同步到 origin/main 最新版本,不管目前簽出哪個分支。
+
+    2026-09-07 發生過:本機停留在一個已合併進 main 的舊功能分支上,
+    `git pull --ff-only` 只會更新那個分支自己的追蹤,完全抓不到 GHA
+    每天推到 main 的 data/*.json,導致整份分析用了三天前的舊資料還
+    渾然不知。這裡改成:在 main 上就正常 pull;不在 main 上就只把
+    data/ 目錄簽出成 origin/main 的版本,不動其他檔案、不切換分支,
+    避免影響其他分支上可能還在進行的工作。
+    """
+    run(['git', 'fetch', 'origin', 'main'], timeout=120)
+    rc, branch = run(['git', 'branch', '--show-current'], timeout=30)
+    branch = (branch or '').strip()
+    if branch == 'main':
+        run(['git', 'pull', '--ff-only'], timeout=600)
+        return
+    log('注意:目前不在 main 分支(現為 "%s"),只把 data/ 同步到 origin/main 最新版,不切換分支' % branch)
+    rc, out = run(['git', 'checkout', 'origin/main', '--', 'data/'], timeout=120)
+    if rc != 0:
+        log('data/ 同步失敗,後續分析可能用到舊資料: %s' % out[:400])
+
+
 def latest_csv():
     files = glob.glob(os.path.join(BASE, '持股清單', 'CB篩選結果_*.csv'))
     if not files:
@@ -118,8 +140,8 @@ def main():
     margin_status = trigger_margin_late()
     log('Margin Late 狀態: %s' % margin_status)
 
-    log('git pull ...')
-    run(['git', 'pull', '--ff-only'], timeout=600)
+    log('同步 data/ ...')
+    sync_data()
 
     csv = latest_csv()
     if not csv:

@@ -2,7 +2,7 @@
 """每週日 17:00 全網頁正向訊號榜 — 排程進入點
 
 流程:
-  1. git pull --ff-only
+  1. 同步 data/ 到 origin/main 最新版(見 sync_data())
   2. positive_scan.py 掃全部有 CB 的個股 → positive_scan.json + 當日快照
   3. build_positive_report.py 產表格片段
   4. 交給 claude -p 寫報告(含與上一份快照的追蹤) + 發佈 Artifact
@@ -43,13 +43,39 @@ def sh(args, timeout=1800):
     return p.returncode
 
 
+def git(args, timeout=600):
+    p = subprocess.run(['git'] + args, cwd=BASE, capture_output=True, text=True,
+                       encoding='utf-8', errors='replace', timeout=timeout)
+    return p.returncode, (p.stdout or '') + (p.stderr or '')
+
+
+def sync_data():
+    """把 data/ 目錄同步到 origin/main 最新版本,不管目前簽出哪個分支。
+
+    2026-09-07 發生過:本機停留在一個已合併進 main 的舊功能分支上,
+    `git pull --ff-only` 只更新那個分支自己的追蹤,完全抓不到 GHA
+    每天推到 main 的 data/*.json。這裡改成:在 main 上就正常 pull;
+    不在 main 上就只把 data/ 目錄簽出成 origin/main 的版本,不動其他
+    檔案、不切換分支,避免影響其他分支上可能還在進行的工作。
+    """
+    git(['fetch', 'origin', 'main'], timeout=120)
+    _, branch = git(['branch', '--show-current'], timeout=30)
+    branch = branch.strip()
+    if branch == 'main':
+        git(['pull', '--ff-only'], timeout=600)
+        return
+    log('注意:目前不在 main 分支(現為 "%s"),只把 data/ 同步到 origin/main 最新版,不切換分支' % branch)
+    rc, out = git(['checkout', 'origin/main', '--', 'data/'], timeout=120)
+    if rc != 0:
+        log('data/ 同步失敗,後續分析可能用到舊資料: %s' % out[:400])
+
+
 def main():
     no_claude = '--no-claude' in sys.argv
     log('===== 每週正向訊號榜開始 =====')
 
-    log('git pull ...')
-    subprocess.run(['git', 'pull', '--ff-only'], cwd=BASE, capture_output=True,
-                   text=True, encoding='utf-8', errors='replace', timeout=600)
+    log('同步 data/ ...')
+    sync_data()
 
     # 對照基準永遠是「上一份週報」,不是檔案系統上最新的快照
     # (中途若有人臨時跑 positive_scan.py,那份快照不算數,除非它也被記錄成週報)
