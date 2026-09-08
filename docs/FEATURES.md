@@ -291,7 +291,7 @@
 
 ## 5. ETF 持股 tab ([js/etfView.js](../js/etfView.js))
 
-- 14 檔 ETF 持股對比 (5 欄 grid)
+- 15 檔 ETF 持股對比 (5 欄 grid)
 - 與 CB 發行資訊交叉比對
 
 ---
