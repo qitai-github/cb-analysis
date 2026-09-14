@@ -511,5 +511,12 @@ for (const pubName of PublicWatchlist.getLists()) {
 
   function getCurrentData() { return currentData; }
 
-  return { render, updateInstDays, getCurrentData, columns, showStarMenu };
+  function getCurrentTab() { return currentTab; }
+
+  // 目前分頁實際顯示的列 (個股分頁 = 個股陣列;可轉債/分布圖分頁 = 攤平後的逐檔 CB)
+  function getActiveRows() {
+    return currentTab === 'stock' ? currentData : cbRows(currentData);
+  }
+
+  return { render, updateInstDays, getCurrentData, getCurrentTab, getActiveRows, columns, showStarMenu };
 })();

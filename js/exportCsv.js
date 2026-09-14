@@ -26,7 +26,35 @@ const ExportCSV = (() => {
       stock.latestShortChange ?? ''
     ]);
 
-    downloadCSV(headers, rows, `CB篩選結果_${getDateStr()}.csv`);
+    downloadCSV(headers, rows, `個股篩選結果_${getDateStr()}.csv`);
+  }
+
+  /**
+   * 將目前可轉債分頁的逐檔 CB 結果匯出為 CSV
+   */
+  function exportCBFiltered(cbRows) {
+    const headers = [
+      'CB代號', 'CB名稱', '產業分類', 'CB收盤價', '漲跌%', '成交量(張)',
+      '5日均量', '20日均量', '轉換價', 'CB溢價率', '流通餘額(張)', '餘額增減', '最近賣回日'
+    ];
+
+    const rows = cbRows.map(cb => [
+      cb.cbCode,
+      cb.cbName,
+      cb.industryCategory ?? '',
+      cb.close != null ? cb.close.toFixed(2) : '',
+      cb.priceChangePercent != null ? cb.priceChangePercent.toFixed(2) : '',
+      cb.volume ?? '',
+      cb.avgVolume5 ?? '',
+      cb.avgVolume20 ?? '',
+      cb.conversionPrice ?? '',
+      cb.premiumRate != null ? cb.premiumRate.toFixed(2) : '',
+      cb.balThisWeek ?? '',
+      cb.balChange ?? '',
+      cb.nearestPutDate ?? ''
+    ]);
+
+    downloadCSV(headers, rows, `可轉債篩選結果_${getDateStr()}.csv`);
   }
 
   /**
@@ -96,5 +124,5 @@ const ExportCSV = (() => {
     return new Date().toISOString().slice(0, 10).replace(/-/g, '');
   }
 
-  return { exportFiltered, exportInstitutional, exportTrading };
+  return { exportFiltered, exportCBFiltered, exportInstitutional, exportTrading };
 })();

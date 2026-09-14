@@ -200,7 +200,13 @@ const App = (() => {
     const btnExport = document.createElement('button');
     btnExport.textContent = '匯出 CSV';
     btnExport.className = 'btn btn-accent';
-    btnExport.addEventListener('click', () => ExportCSV.exportFiltered(filteredData));
+    btnExport.addEventListener('click', () => {
+      if (Table.getCurrentTab() === 'cb') {
+        ExportCSV.exportCBFiltered(Table.getActiveRows());
+      } else {
+        ExportCSV.exportFiltered(filteredData);
+      }
+    });
 
     const btnImport = document.createElement('button');
     btnImport.textContent = '匯入 CSV';
