@@ -42,6 +42,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib import capital_raise  # noqa: E402
+from lib.tpex_ca import ca_bundle  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "data" / "mops_news.json"
@@ -99,7 +100,7 @@ def _get(row: dict, *names: str):
 # ── 來源 1 / 2:OpenAPI ───────────────────────────────────────────────
 def fetch_openapi(url: str, market: str) -> list:
     r = requests.get(url, headers={"User-Agent": UA, "Accept": "application/json"},
-                     timeout=45)
+                     timeout=45, verify=ca_bundle())
     r.raise_for_status()
     rows = r.json()
     out = []

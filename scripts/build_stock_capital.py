@@ -25,6 +25,9 @@ from pathlib import Path
 
 import requests
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib.tpex_ca import ca_bundle  # noqa: E402
+
 for _s in (sys.stdout, sys.stderr):
     try:
         _s.reconfigure(encoding="utf-8")
@@ -65,7 +68,7 @@ def _num(v) -> float | None:
 
 def fetch(src: dict) -> dict[str, dict]:
     r = requests.get(src["url"], headers={"User-Agent": UA, "Accept": "application/json"},
-                     timeout=60)
+                     timeout=60, verify=ca_bundle())
     r.raise_for_status()
     out: dict[str, dict] = {}
     for row in r.json():

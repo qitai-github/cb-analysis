@@ -39,6 +39,9 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaInMemoryUpload
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lib.tpex_ca import ca_bundle as _ca_bundle  # noqa: E402
+
 TAIPEI = timezone(timedelta(hours=8))
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -182,6 +185,7 @@ SOURCE_RULES: dict[str, dict] = {
 # ── HTTP ─────────────────────────────────────────────────────────────
 def make_session(referer: Optional[str]) -> requests.Session:
     s = requests.Session()
+    s.verify = _ca_bundle()
     s.headers.update({
         "User-Agent": UA,
         "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
