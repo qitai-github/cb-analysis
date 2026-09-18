@@ -3285,6 +3285,13 @@ input[type="number"] { -moz-appearance: textfield; }
 .signal-dropped b { color: var(--text); }
 .signal-dropped-note { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; }
 
+/* 週報往期切換列 — 樣式沿用企業報告 modal 的 .crm-ver-bar/.crm-ver-btn，貼在標題正下方 */
+.signal-week-bar {
+  flex-wrap: wrap; margin-bottom: 0; border-bottom: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-light); position: static;
+}
+.signal-week-bar .crm-ver-btn:disabled { cursor: default; }
+
 .signal-empty { padding: 28px 20px; color: var(--text-dim); font-size: 13px; line-height: 1.8; }
 .signal-empty code {
   background: var(--bg-input); border: 1px solid var(--border-light);

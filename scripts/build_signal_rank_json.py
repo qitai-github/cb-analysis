@@ -131,6 +131,41 @@ def main():
              payload['_meta']['tierC'], payload['_meta']['tierD'],
              prev_date or '無', len(dropped)))
 
+    archive_history(payload, today)
+
+
+def archive_history(payload, today):
+    """把這次週報存進 data/signal_rank_history/，供網頁「週報」分頁的往期切換按鈕讀取。
+
+    週報日期優先用評論裡的 report.date（人工核對過的實際發佈日），沒有評論才退回
+    _meta.asOf（掃描資料的價量日期，可能跟發佈日差一兩天）。
+    """
+    hist_dir = os.path.join(DATA, 'signal_rank_history')
+    os.makedirs(hist_dir, exist_ok=True)
+
+    rep = payload.get('report') or {}
+    report_date = (rep.get('date') or '').replace('-', '') or payload['_meta']['asOf'] or today
+    hist_path = os.path.join(hist_dir, '%s.json' % report_date)
+    with open(hist_path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, ensure_ascii=False, separators=(',', ':'))
+
+    index_path = os.path.join(hist_dir, 'index.json')
+    entries = []
+    if os.path.exists(index_path):
+        try:
+            entries = json.load(open(index_path, encoding='utf-8'))
+        except Exception:
+            entries = []
+    entries = [e for e in entries if e['date'] != report_date]
+    entries.append({
+        'date': report_date,
+        'title': rep.get('title') or ('%s 正向訊號榜' % report_date),
+    })
+    entries.sort(key=lambda e: e['date'], reverse=True)
+    with open(index_path, 'w', encoding='utf-8') as f:
+        json.dump(entries, f, ensure_ascii=False, separators=(',', ':'))
+    print('歸檔往期週報 %s（帳本共 %d 筆）' % (hist_path, len(entries)))
+
 
 if __name__ == '__main__':
     main()

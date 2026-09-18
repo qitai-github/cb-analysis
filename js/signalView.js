@@ -7,9 +7,19 @@
  */
 const SignalView = (() => {
   const DATA_URL = 'data/signal_rank.json';
+  const HISTORY_INDEX_URL = 'data/signal_rank_history/index.json';
+  const HISTORY_DIR = 'data/signal_rank_history/';
 
   let data = null;
   let onRowClick = null;
+
+  // 往期切換：historyIndex 依日期新到舊排序，[0] 通常就是目前 data 這一期。
+  // activeDate 為 null 表示正在看最新（data），否則表示正在看 historyCache[activeDate]。
+  let historyIndex = null;
+  const historyCache = {};
+  let activeDate = null;
+
+  function current() { return activeDate ? historyCache[activeDate] : data; }
 
   const state = {
     tiers: new Set(['A', 'B']),   // 預設看 70 分以上
@@ -37,15 +47,28 @@ const SignalView = (() => {
     const resp = await fetch(DATA_URL, { cache: 'no-store' });
     if (!resp.ok) throw new Error('讀取 signal_rank.json 失敗: ' + resp.status);
     data = await resp.json();
+    try {
+      const hResp = await fetch(HISTORY_INDEX_URL, { cache: 'no-store' });
+      if (hResp.ok) historyIndex = await hResp.json();
+    } catch (e) { /* 沒有往期資料就不顯示切換列 */ }
     return data;
+  }
+
+  async function loadHistory(dateStr) {
+    if (historyCache[dateStr]) return historyCache[dateStr];
+    const resp = await fetch(HISTORY_DIR + dateStr + '.json', { cache: 'no-store' });
+    if (!resp.ok) throw new Error('讀取往期週報失敗: ' + resp.status);
+    historyCache[dateStr] = await resp.json();
+    return historyCache[dateStr];
   }
 
   function isLoaded() { return !!data; }
 
   function getFiltered() {
-    if (!data) return [];
+    const d = current();
+    if (!d) return [];
     const kw = state.keyword.trim().toLowerCase();
-    let rows = data.stocks.filter(r => {
+    let rows = d.stocks.filter(r => {
       if (!state.tiers.has(r.tier)) return false;
       if (state.cbOnly && !(r.cb && r.cb.ratio >= 2)) return false;
       if (kw && !(r.code + ' ' + r.name).toLowerCase().includes(kw)) return false;
@@ -89,6 +112,8 @@ const SignalView = (() => {
     }
 
     container.appendChild(buildHeader());
+    const switcher = buildWeekSwitcher(container);
+    if (switcher) container.appendChild(switcher);
     const commentary = buildCommentary();
     if (commentary) container.appendChild(commentary);
     container.appendChild(buildControls(container));
@@ -98,7 +123,7 @@ const SignalView = (() => {
   }
 
   function buildHeader() {
-    const m = data._meta;
+    const m = current()._meta;
     const head = el('div', 'signal-head');
 
     const left = el('div', 'signal-head-left');
@@ -125,7 +150,7 @@ const SignalView = (() => {
   // 評論（週報文字）— 由 scripts/output/signal_commentary.json 併進 signal_rank.json
   let commentaryOpen = true;
   function buildCommentary() {
-    const rep = data.report;
+    const rep = current().report;
     if (!rep) return null;
 
     const box = el('div', 'signal-report');
@@ -362,14 +387,52 @@ const SignalView = (() => {
   }
 
   function buildDropped() {
-    if (!data.dropped || !data.dropped.length) return null;
+    const d = current();
+    if (!d.dropped || !d.dropped.length) return null;
     const box = el('div', 'signal-dropped');
-    const names = data.dropped
-      .map(d => `${d.code}（上次 ${d.prevScore.toFixed(1)}）`).join('、');
+    const names = d.dropped
+      .map(x => `${x.code}（上次 ${x.prevScore.toFixed(1)}）`).join('、');
     box.innerHTML = `<b>掉出榜單</b>（上次 70 分以上、這次未入榜）：${names}`
       + '<div class="signal-dropped-note">未入榜多半是跌破月線或 20 日轉為負報酬被門檻擋掉，'
       + '不一定是籌碼變壞。</div>';
     return box;
+  }
+
+  // 往期切換列：仿企業報告 modal 的「版本：」列，貼在標題正下方，每顆是「週報 + 實際日期」。
+  const MAX_WEEKS = 5;
+
+  function buildWeekSwitcher(container) {
+    if (!historyIndex || historyIndex.length === 0) return null;
+
+    const dates = historyIndex.map(e => e.date).slice(0, MAX_WEEKS);
+    if (dates.length < 2) return null;   // 只有一期資料就不必顯示切換列
+
+    const bar = el('div', 'crm-ver-bar signal-week-bar');
+    bar.appendChild(el('span', null, '週報：'));
+
+    dates.forEach((dateStr, i) => {
+      const isActive = activeDate ? activeDate === dateStr : i === 0;
+      const btn = el('button', 'crm-ver-btn' + (isActive ? ' on' : ''),
+        `${fmtDate(dateStr)}${i === 0 ? '（最新）' : ''}`);
+      btn.type = 'button';
+      btn.disabled = isActive;
+      btn.addEventListener('click', async () => {
+        if (i === 0) {
+          activeDate = null;
+        } else {
+          try {
+            await loadHistory(dateStr);
+            activeDate = dateStr;
+          } catch (e) {
+            alert('讀取往期週報失敗：' + e.message);
+            return;
+          }
+        }
+        render(container);
+      });
+      bar.appendChild(btn);
+    });
+    return bar;
   }
 
   return { loadData, isLoaded, render, getFiltered };

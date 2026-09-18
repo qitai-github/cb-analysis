@@ -144,6 +144,20 @@
 - **新聞資訊** (近期股票相關) + **MOPS 重大訊息**(橘色「重訊」標籤,點標題就地展開公告全文;以股票代號比對,不靠股名)
 - **投資重點儀表板** — 連結到 `investing.0099914.xyz/companies/<code>/`
 
+### 2.6 週報 · 正向訊號榜 分頁 ([js/signalView.js](../js/signalView.js))
+
+全市場有 CB 的個股，12 項正向條件加權評分（55 + 30 × 命中權重/16），分 A(80+)/B(70-79)/C(60-69) 三級。
+資料來源 `data/signal_rank.json`（`scripts/positive_scan.py` → `scripts/build_signal_rank_json.py` 產出，
+內容含評分表 + `scripts/output/signal_commentary.json` 併入的週報評論文字）。對照基準是
+`scripts/weekly_snapshots.py` 帳本裡「上一份正式週報」，不是檔案系統上最新快照，避免被臨時掃描污染
+(詳見 build 腳本註解)。
+
+**往期週報切換 (2026-09-18 新增)**：頁面最下方「往期週報」按鈕列，顯示週報／前週週報／前前週週報…
+最多 5 檔，各標實際日期。`build_signal_rank_json.py` 每次執行都會把當次結果歸檔一份到
+`data/signal_rank_history/<YYYYMMDD>.json`，並維護同資料夾的 `index.json`（日期新到舊）供按鈕列讀取；
+點按鈕會 fetch 對應歷史檔並整頁重繪（含評分表、評論、掉出榜單），點第一顆「週報」回到最新一期。
+`prompt_universe.md` 已同步要求連同 `data/signal_rank_history/` 一起 commit。
+
 ---
 
 ## 3. 技術分析 Modal
