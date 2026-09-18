@@ -3307,12 +3307,7 @@ input[type="number"] { -moz-appearance: textfield; }
 .signal-report-h { display: flex; align-items: baseline; gap: 10px; }
 .signal-report-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
 .signal-report-date { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
-.signal-report-toggle {
-  margin-left: auto; background: transparent; border: 1px solid var(--border-light);
-  color: var(--text-muted); border-radius: var(--radius-sm); padding: 3px 10px;
-  font-size: 11.5px; cursor: pointer; font-family: inherit;
-}
-.signal-report-toggle:hover { border-color: var(--accent); color: var(--text); }
+.signal-report-bar .btn-tech-analysis { margin-left: auto; text-decoration: none; }
 
 .signal-report-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
 .signal-report-lede { font-size: 13px; line-height: 1.85; color: var(--text-muted); max-width: 80ch; }
@@ -3357,6 +3352,3 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 .signal-report-sec-h { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .signal-report-sec-b { font-size: 12px; line-height: 1.8; color: var(--text-muted); }
-
-.signal-report-link { font-size: 12.5px; color: var(--accent); text-decoration: none; }
-.signal-report-link:hover { text-decoration: underline; }

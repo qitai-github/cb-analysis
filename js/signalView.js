@@ -148,7 +148,6 @@ const SignalView = (() => {
   }
 
   // 評論（週報文字）— 由 scripts/output/signal_commentary.json 併進 signal_rank.json
-  let commentaryOpen = true;
   function buildCommentary() {
     const rep = current().report;
     if (!rep) return null;
@@ -160,18 +159,16 @@ const SignalView = (() => {
     h.appendChild(el('span', 'signal-report-title', rep.title || '週報評論'));
     if (rep.date) h.appendChild(el('span', 'signal-report-date', rep.date));
     bar.appendChild(h);
-    const toggle = el('button', 'signal-report-toggle', commentaryOpen ? '收合評論' : '展開評論');
-    toggle.type = 'button';
-    bar.appendChild(toggle);
+    if (rep.artifactUrl) {
+      const link = el('a', 'btn-tech-analysis', '📄 看完整報告');
+      link.href = rep.artifactUrl;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      bar.appendChild(link);
+    }
     box.appendChild(bar);
 
     const body = el('div', 'signal-report-body');
-    body.hidden = !commentaryOpen;
-    toggle.addEventListener('click', () => {
-      commentaryOpen = !commentaryOpen;
-      body.hidden = !commentaryOpen;
-      toggle.textContent = commentaryOpen ? '收合評論' : '展開評論';
-    });
 
     if (rep.lede) body.appendChild(el('p', 'signal-report-lede', rep.lede));
 
@@ -216,14 +213,6 @@ const SignalView = (() => {
         secs.appendChild(s1);
       }
       body.appendChild(secs);
-    }
-
-    if (rep.artifactUrl) {
-      const link = el('a', 'signal-report-link', '看完整報告 →');
-      link.href = rep.artifactUrl;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      body.appendChild(link);
     }
 
     box.appendChild(body);
