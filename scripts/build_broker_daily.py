@@ -17,6 +17,12 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "br
 TOP = 30
 
 
+def lots(shares):
+    """股 → 張,保留 3 位小數 (零股不進位,損益才算得準);整數時輸出 int 省空間"""
+    v = round(shares / 1000, 3)
+    return int(v) if v == int(v) else v
+
+
 def load_day(files):
     agg = defaultdict(lambda: defaultdict(lambda: [0, 0, 0.0, 0.0]))  # stock -> broker -> [buy, sell, buyAmt, sellAmt]
     date = None
@@ -33,7 +39,7 @@ def load_day(files):
     stocks = {}
     for code, brokers in agg.items():
         vol = sum(a[0] for a in brokers.values()) / 1000
-        rows = [[n, round(a[0] / 1000), round(a[1] / 1000), round(a[2] / 1e3, 1), round(a[3] / 1e3, 1)]
+        rows = [[n, lots(a[0]), lots(a[1]), round(a[2] / 1e3, 1), round(a[3] / 1e3, 1)]
                 for n, a in brokers.items()]  # 金額單位: 千元
         by_net = sorted(rows, key=lambda x: x[1] - x[2])
         keep = {id(x): x for x in by_net[:TOP] + by_net[-TOP:]}

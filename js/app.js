@@ -1038,8 +1038,10 @@ const App = (() => {
       const amt = isBuy ? r.ba : r.sa;              // 千元
       const avg = lots ? amt / lots : null;         // 元/股 (千元/張)
       const net = Math.abs(r.net);
-      // 買方:(收盤-買均價)×淨張;賣方:(賣均價-收盤)×淨張 → 單位 萬元
-      const pnl = (avg != null && px != null) ? (isBuy ? px - avg : avg - px) * net * 1000 / 1e4 : null;
+      // 損益 = 當期買賣以最新收盤結算的整體盈虧 (對齊 LINE 籌碼K線):
+      //   收盤×(買張−賣張) − (買金額−賣金額);金額欄單位千元 → ×1000 換元 → /1e4 換萬。
+      //   買方多為正、賣方股價上漲時為負,兩邊同一條公式。
+      const pnl = px != null ? (px * (r.buy - r.sell) - (r.ba - r.sa)) * 1000 / 1e4 : null;
       return `<tr><td class="broker-name">${r.n}</td>` +
         `<td class="${isBuy ? 'text-up' : 'text-down'}">${fmt(net)}</td>` +
         `<td>${avg != null ? avg.toFixed(2) : '-'}</td>` +
