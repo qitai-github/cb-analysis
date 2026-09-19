@@ -71,6 +71,8 @@ const DataProcessor = (() => {
       const tradeType = String(row[3] || '').trim();
 
       if (!code || !name) continue;
+      // 排除標題 / 分段列 (如「櫃檯買賣」):CB 代號一定以 4 碼股票代號開頭
+      if (!/^\d{4}/.test(code)) continue;
       // 排除議價
       if (tradeType === '議價') continue;
 

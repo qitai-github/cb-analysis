@@ -239,6 +239,17 @@
 - 某級距整段沒資料回 `null` 不回 0 (缺資料 ≠ 0)
 - 比例軸刻度到小數第 2 位 — 大戶比例常常一整年只動 1~2%,`toFixed(1)` 會整排一樣
 
+### 3.1c 籌碼日報 tab (券商分點買賣超)
+
+個股技術分析 modal 第 4 個 tab (仿 LINE「籌碼K線」的籌碼日報)。[index.html](../index.html) Panel D、[js/app.js renderBrokerDaily](../js/app.js)。
+
+- **資料**:`data/broker_daily/YYYYMMDD.json` + `index.json`(日期清單),由 `scripts/build_broker_daily.py` 從 Drive 券商進出 CSV 產生。每檔每日只存買超 Top30 / 賣超 Top30 券商,格式 `[券商, 買張, 賣張, 買金額(千元), 賣金額(千元)]`,另存 `vol`(當日總成交張數 = 全部券商買進股數 / 1000)。預設保留 30 個交易日。
+- **統計天數** 1/3/5/10/20:前端取最近 N 個日期檔跨日加總再排 Top15(天數不足的按鈕反灰)。跨日是「每天 Top30 的加總」,天數多時排名有些微誤差。
+- **摘要**:籌碼集中 = 買方 Top15 淨買張 − 賣方 Top15 淨賣張;集中度 = 籌碼集中 / 成交量;佔股本比重 = 籌碼集中 / 發行張數。主力動向門檻(自訂):集中度 ≥20% 大買、≥5% 偏買、≤-20% 大賣、≤-5% 偏賣,其餘中性。
+- **損益(萬)**:以網頁最新一根 K 線收盤價估算。買方 (收盤−買均價)×淨張、賣方 (賣均價−收盤)×淨張。
+- **踩坑**:金額單位曾誤存成百萬元導致買均價縮 1/1000(金像電顯示 1.00);金額欄一律是「千元」,均價 = 金額/張數。
+- 沒有券商進出資料的標的(不在抓取清單)整頁顯示「此標的在所選期間沒有券商進出資料」。
+
 ### 3.2 CB 技術分析
 
 **標題列**: ◀ CB代號 CB名 ▶,多 CB 時用 tab pills 切換 (active 藍底)
@@ -698,6 +709,8 @@ _meta                pipeline 時間戳
 
 新 CB 公司公告董事會 → 出現在 3 個源 → 自動進白名單。
 
+**前端個股清單再過濾 (dataProcessor.js mergeAllData)**:白名單只增不減,網頁顯示時另外剔除「沒有 CB」的個股——只保留 (1) 有 CB 流通 (CB 交易日報有,或 cbDailyTrading 最近 10 個交易日有成交) 或 (2) 有初級市場資訊 (富邦/元大/CBAS 預計發行) 者。CB 到期/下市約兩週後自動消失,又有成交或新案件會自動回來。`all-data.json` 本身不動;CB 日報的標題/分段列(如「櫃檯買賣」)因代號非 4 碼數字開頭而被 parseCBDailyReport 排除。
+
 ### 10.4 白名單歷史軌跡 (Google Sheet)
 
 每天 pipeline 跑完 (Phase 4.8) 會把當日白名單聯集寫入這份 sheet:
@@ -865,3 +878,14 @@ GitHub Actions 對應同名 Secret (改本機 .env 不會影響雲端,反之亦�
 
 加新功能 / 改變現有功能行為時,**順手** 更新對應段落。檔案位置:
 `docs/FEATURES.md`
+
+## 券商進出(上市 + 上櫃 當日分點買賣)
+
+- **一鍵執行**:雙擊專案根目錄 `券商進出.exe`(啟動時自動 git 同步 data/ 並重產標的清單;原始碼 `scripts/broker_daily_launcher.py`,用 PyInstaller 打包;exe 只是啟動器,實際呼叫 scripts/ 內的 Python,所以 exe 必須留在專案根目錄)。
+- **資料日期**:16:10 前或假日執行 → 自動取上一個交易日。
+- **標的**:= 網頁個股清單(約 365 檔)。`scripts/gen_broker_targets.py` 呼叫 `scripts/web_stock_list.js`(node 載入前端 dataProcessor.js 跑 mergeAllData,結果與網頁一致,含「無 CB 剔除」),市場別取 `scripts/cache/universe/` 最新快照,輸出 `scripts/cache/broker_targets.json`;上市 `broker_scan_twse.py` 與上櫃 console 腳本都讀這份。node 不可用時退回 `cbIssuance` 並印警告。exe 每次啟動都會重產。
+- **上市** `scripts/broker_scan_twse.py`:bsr.twse.com.tw,Playwright Chromium + ddddocr 破 5 碼驗證碼。純 requests 會被回空白頁(疑似指紋檢查),一定要用瀏覽器。CSV 內 `股票代碼` 必須與查詢代號一致,否則視為站方 session 卡住(會回傳別檔舊資料),換全新 context 重抓。失敗檔自動第二輪補跑。
+- **上櫃** `scripts/broker_scan_tpex_auto.py`:TPEx 用 Cloudflare Turnstile。Playwright 直接啟動的瀏覽器會「驗證失敗」;改成用 subprocess 正常啟動 chrome.exe(帶 `--remote-debugging-port`,獨立 profile),等驗證自己過,再 `connect_over_cdp` 注入 `broker_scan_tpex_console.js`。會跳出 Chrome 視窗,執行中請勿操作。回應含兩張表,券商明細是欄位含「券商」的那張。
+- **輸出**:`Y:\我的雲端硬碟\Telegram Bot\上市券商進出\BrokerBS_TWSE_YYYYMMDD.csv`、`上櫃券商進出\BrokerBS_TPEX_YYYYMMDD.csv`;欄位 date,stock_code,broker_code,broker_name,price,buy_shares,sell_shares。上市有失敗檔時另存 `_failed.json`。
+- **自動更新網頁**:兩邊抓完後 exe 最後一步呼叫 `scripts/publish_broker_daily.py`:build_broker_daily → fetch + `merge --ff-only` origin/main(不用 stash/rebase,撞到本機未提交檔會乾淨中止)→ 只 commit/push `data/broker_daily/`(被搶先推最多重試 3 次)。所以雙擊 exe 跑完網頁就更新,不需手動。
+- **踩坑**:上櫃走 VPN/國外 IP 時 Cloudflare 驗證易失敗,關 VPN 或用台灣節點再試;短時間大量測試 TWSE 會被擋;1589、6806、3591 這類代號兩邊都查無資料(下市/更名/無成交),屬正常。
