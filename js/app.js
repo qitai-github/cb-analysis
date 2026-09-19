@@ -850,6 +850,8 @@ const App = (() => {
       // 大戶明細 tab (集保股權分散表,每週一筆)
       buildHolderSegs();
       renderTechHolders();
+      // 籌碼日報 tab
+      renderBrokerDaily();
     }, 60)));
   }
 
@@ -932,6 +934,144 @@ const App = (() => {
       b.classList.toggle('active', Number(b.dataset.lots) === APP_CONFIG.holderBigLots));
     document.querySelectorAll('#holder-seg-small .holder-seg-btn').forEach(b =>
       b.classList.toggle('active', Number(b.dataset.lots) === APP_CONFIG.holderSmallLots));
+  }
+
+  // ── 籌碼日報 tab (券商分點買賣超,data/broker_daily/YYYYMMDD.json) ──────
+  // 由 scripts/build_broker_daily.py 從 Drive 券商進出 CSV 產生;每檔每日只存買/賣超 Top30,
+  // 前端跨日加總 (張數、金額),再取買方/賣方 Top15。損益以最新收盤價估算。
+  const BROKER_DAY_OPTS = [1, 3, 5, 10, 20];
+  let brokerIndex = null;              // { dates: [...] }
+  const brokerDayCache = new Map();    // date -> {stocks}
+  let brokerDays = 1;
+  let brokerSide = 'buy';
+
+  async function loadBrokerDays(dates) {
+    await Promise.all(dates.map(async (d) => {
+      if (brokerDayCache.has(d)) return;
+      try {
+        const r = await fetch(`data/broker_daily/${d}.json`);
+        brokerDayCache.set(d, r.ok ? await r.json() : null);
+      } catch (e) { brokerDayCache.set(d, null); }
+    }));
+  }
+
+  async function renderBrokerDaily() {
+    if (!selectedStock) return;
+    const wrap = document.getElementById('broker-table-wrap');
+    if (!wrap) return;
+    bindBrokerControls();
+    if (!brokerIndex) {
+      try { brokerIndex = await (await fetch('data/broker_daily/index.json')).json(); }
+      catch (e) { brokerIndex = { dates: [] }; }
+    }
+    const all = brokerIndex.dates || [];
+    const seg = document.getElementById('broker-seg-days');
+    seg.innerHTML = BROKER_DAY_OPTS.map(n =>
+      `<button type="button" class="holder-seg-btn big${n === brokerDays ? ' active' : ''}" data-days="${n}"` +
+      `${n > all.length ? ' disabled title="累積天數不足"' : ''}>${n}</button>`).join('');
+    const summary = document.getElementById('broker-summary');
+    const meta = document.getElementById('broker-meta');
+    if (all.length === 0) {
+      summary.innerHTML = ''; meta.textContent = '';
+      wrap.innerHTML = '<div class="broker-empty">尚無券商進出資料</div>';
+      return;
+    }
+    const use = all.slice(-Math.min(brokerDays, all.length));
+    await loadBrokerDays(use);
+    if (!selectedStock) return;
+    const code = String(selectedStock.code);
+    const agg = new Map();  // broker -> [buy, sell, buyAmt, sellAmt]
+    let vol = 0, got = 0;
+    for (const d of use) {
+      const st = brokerDayCache.get(d)?.stocks?.[code];
+      if (!st) continue;
+      got++; vol += st.vol;
+      for (const [n, b, s, ba, sa] of st.b) {
+        const a = agg.get(n) || [0, 0, 0, 0];
+        a[0] += b; a[1] += s; a[2] += ba; a[3] += sa;
+        agg.set(n, a);
+      }
+    }
+    meta.textContent = `券商進出 · ${use[0]}${use.length > 1 ? '~' + use[use.length - 1] : ''}` +
+      (got < use.length ? ` (${got}/${use.length} 日有資料)` : '');
+    if (got === 0) {
+      summary.innerHTML = '';
+      wrap.innerHTML = '<div class="broker-empty">此標的在所選期間沒有券商進出資料</div>';
+      return;
+    }
+    const rows = [...agg].map(([n, a]) => ({ n, buy: a[0], sell: a[1], ba: a[2], sa: a[3], net: a[0] - a[1] }));
+    const top = (side) => rows
+      .filter(r => side === 'buy' ? r.net > 0 : r.net < 0)
+      .sort((x, y) => side === 'buy' ? y.net - x.net : x.net - y.net).slice(0, 15);
+    const buyTop = top('buy'), sellTop = top('sell');
+    const sumBuy = buyTop.reduce((t, r) => t + r.net, 0);
+    const sumSell = sellTop.reduce((t, r) => t - r.net, 0);
+    const conc = sumBuy - sumSell;
+    const concPct = vol ? conc / vol * 100 : null;
+    let verdict = '中性', vcls = 'text-neutral';
+    if (concPct != null) {
+      if (concPct >= 20) { verdict = '大買'; vcls = 'text-up'; }
+      else if (concPct >= 5) { verdict = '偏買'; vcls = 'text-up'; }
+      else if (concPct <= -20) { verdict = '大賣'; vcls = 'text-down'; }
+      else if (concPct <= -5) { verdict = '偏賣'; vcls = 'text-down'; }
+    }
+    const shares = selectedStock.issuedShares ? selectedStock.issuedShares / 1000 : null;
+    const fmt = (v) => Math.round(v).toLocaleString();
+    const px = (() => {
+      const o = selectedStock.ohlcv; if (!o) return null;
+      for (let i = o.length - 1; i >= 0; i--) if (o[i].close != null) return o[i].close;
+      return null;
+    })();
+    summary.innerHTML =
+      `<div class="broker-verdict"><span class="broker-verdict-label">近${use.length}日 主力動向</span>` +
+      `<span class="broker-verdict-val ${vcls}">${verdict}</span></div>` +
+      `<div class="broker-kv">` +
+      `<div><span>籌碼集中</span><b class="${cc(conc)}">${fmt(conc)}張</b></div>` +
+      `<div><span>籌碼集中度</span><b class="${cc(conc)}">${concPct != null ? concPct.toFixed(2) + '%' : '-'}</b></div>` +
+      `<div><span>成交量</span><b>${fmt(vol)}張</b></div>` +
+      `<div><span>佔股本比重</span><b>${shares ? (conc / shares * 100).toFixed(2) + '%' : '-'}</b></div>` +
+      `</div>`;
+    const isBuy = brokerSide === 'buy';
+    const list = isBuy ? buyTop : sellTop;
+    const body = list.map(r => {
+      const lots = isBuy ? r.buy : r.sell;
+      const amt = isBuy ? r.ba : r.sa;              // 千元
+      const avg = lots ? amt / lots : null;         // 元/股 (千元/張)
+      const net = Math.abs(r.net);
+      // 買方:(收盤-買均價)×淨張;賣方:(賣均價-收盤)×淨張 → 單位 萬元
+      const pnl = (avg != null && px != null) ? (isBuy ? px - avg : avg - px) * net * 1000 / 1e4 : null;
+      return `<tr><td class="broker-name">${r.n}</td>` +
+        `<td class="${isBuy ? 'text-up' : 'text-down'}">${fmt(net)}</td>` +
+        `<td>${avg != null ? avg.toFixed(2) : '-'}</td>` +
+        `<td class="${cc(pnl)}">${pnl != null ? (pnl > 0 ? '+' : '') + pnl.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '-'}</td></tr>`;
+    }).join('');
+    wrap.innerHTML = `<table class="holder-table broker-table"><thead><tr><th>券商</th>` +
+      `<th>${isBuy ? '買超' : '賣超'}(張)</th><th>${isBuy ? '買' : '賣'}均價</th><th>損益(萬)</th></tr></thead>` +
+      `<tbody>${body || '<tr><td colspan="4" class="broker-empty">無資料</td></tr>'}</tbody></table>`;
+  }
+
+  function bindBrokerControls() {
+    const seg = document.getElementById('broker-seg-days');
+    if (seg && seg.dataset.bound !== '1') {
+      seg.dataset.bound = '1';
+      seg.addEventListener('click', (e) => {
+        const b = e.target.closest('.holder-seg-btn');
+        if (!b || b.disabled) return;
+        brokerDays = Number(b.dataset.days);
+        renderBrokerDaily();
+      });
+    }
+    const tabs = document.getElementById('broker-side-tabs');
+    if (tabs && tabs.dataset.bound !== '1') {
+      tabs.dataset.bound = '1';
+      tabs.addEventListener('click', (e) => {
+        const b = e.target.closest('.broker-side-tab');
+        if (!b) return;
+        brokerSide = b.dataset.side;
+        tabs.querySelectorAll('.broker-side-tab').forEach(x => x.classList.toggle('active', x === b));
+        renderBrokerDaily();
+      });
+    }
   }
 
   function renderTechHolders() {

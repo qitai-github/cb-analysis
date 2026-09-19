@@ -128,6 +128,7 @@
             <button class="tech-folder-tab active" data-folder="inst">法人買賣</button>
             <button class="tech-folder-tab" data-folder="margin">資券</button>
             <button class="tech-folder-tab" data-folder="holders">大戶明細</button>
+            <button class="tech-folder-tab" data-folder="broker">籌碼日報</button>
           </div>
 
           <!-- Panel A: 法人買賣 (外資 / 投信 / 自營商) -->
@@ -249,6 +250,23 @@
               </div>
               <div class="holder-table-wrap" id="holder-table-wrap"></div>
             </div>
+          </div>
+
+          <!-- Panel D: 籌碼日報 (券商分點買賣超 Top15,資料 data/broker_daily/) -->
+          <div class="tech-folder-panel hidden" data-panel="broker">
+            <div class="holder-controls">
+              <div class="holder-ctrl-row">
+                <span class="holder-ctrl-label big">統計天數</span>
+                <span class="holder-seg" id="broker-seg-days"></span>
+              </div>
+              <span class="holder-ctrl-meta" id="broker-meta"></span>
+            </div>
+            <div class="broker-summary" id="broker-summary"></div>
+            <div class="broker-side-tabs" id="broker-side-tabs">
+              <button type="button" class="broker-side-tab buy active" data-side="buy">買方Top15</button>
+              <button type="button" class="broker-side-tab sell" data-side="sell">賣方Top15</button>
+            </div>
+            <div class="holder-table-wrap broker-table-wrap" id="broker-table-wrap"></div>
           </div>
         </div>
       </div>

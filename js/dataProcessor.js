@@ -439,6 +439,12 @@ const DataProcessor = (() => {
       for (const [cbCode, cbEntry] of Object.entries(cbTradingByCode.stocks)) {
         if (seenCBs.has(cbCode)) continue;
         if (cbCode.length === 5 && sourceCodes.has(cbCode + '0')) continue;
+        // 已到期 / 下市的 CB:最近 10 個交易日完全沒有任何成交資料 → 不補,
+        // 讓只剩過期 CB 的個股在下方「無 CB 個股剔除」時被移除。
+        const recentDates = cbTradingByCode.dates.slice(-10);
+        const hasRecent = Object.values(cbEntry.data || {}).some(series =>
+          recentDates.some(dt => series[dt] != null && series[dt] !== 0));
+        if (!hasRecent) continue;
         const stockCode = extractStockCode(cbCode);
         if (!stockCode) continue;
         const entry = getOrCreate(stockMap, stockCode, '');
@@ -608,6 +614,15 @@ const DataProcessor = (() => {
         entry.margin = st.data;
         entry.marginDates = dates;
       }
+    }
+
+    // 只保留「目前有 CB 流通」或「準備發行 CB」的個股:
+    // 沒有 CB、CB 已到期 / 下市的個股整檔剔除 (cbs 來自 CB 交易日報 + 近期有成交的 CB;
+    // primaryMarket 來自富邦 / 元大 / CBAS 預計發行,所以要發 CB 的會保留)。
+    for (const [code, stock] of stockMap) {
+      const hasCB = Array.isArray(stock.cbs) && stock.cbs.length > 0;
+      const hasPlanned = Array.isArray(stock.primaryMarket) && stock.primaryMarket.length > 0;
+      if (!hasCB && !hasPlanned) stockMap.delete(code);
     }
 
     // 計算衍生欄位
