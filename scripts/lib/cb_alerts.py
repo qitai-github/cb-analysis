@@ -29,6 +29,9 @@ from lib import telegram
 # 沒設就 fallback 用 pipeline 摘要那支 TG_BOT_TOKEN / TG_CHAT_ID。
 CB_BOT_TOKEN_ENV = "TG_CB_BOT_TOKEN"
 CB_CHAT_ID_ENV = "TG_CB_CHAT_ID"
+# 白名單來源:telegramBot資料查詢 的 SHEET_ID_CONFIG「參數設定」E 欄
+WHITELIST_SHEET_ID = "11xkzvUCgCjuTrWJhT4tjk6vtEODqu1y_dCwfDPGeREs"
+WHITELIST_WORKSHEET = "參數設定"
 
 # Windows console UTF-8
 for _s in (sys.stdout, sys.stderr):
@@ -227,6 +230,25 @@ def format_msg(r: dict) -> Optional[str]:
     return "\n".join(L).rstrip()
 
 
+def _whitelist_chat_ids() -> list[str]:
+    """讀 GAS 查詢 bot 的白名單 (設定試算表「參數設定」E 欄)。
+    讀不到(SA 沒被分享該試算表等)回空 list,呼叫端會退回只送 TG_CB_CHAT_ID。"""
+    try:
+        from lib import whitelist_log
+        res = whitelist_log._svc().spreadsheets().values().get(
+            spreadsheetId=WHITELIST_SHEET_ID,
+            range=f"'{WHITELIST_WORKSHEET}'!E:E").execute()
+        ids = []
+        for row in res.get("values", []):
+            v = str(row[0]).strip() if row else ""
+            if v.lstrip("-").isdigit() and v not in ids:
+                ids.append(v)
+        return ids
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️ 讀 TG 白名單失敗,只送 TG_CB_CHAT_ID: {exc}", file=sys.stderr)
+        return []
+
+
 def scan_and_notify(all_data: dict, trade_date: str, *,
                     send: bool = True) -> dict:
     """掃 + 送。回傳 status dict 供 log / summary。絕不拋例外給呼叫端。"""
@@ -248,9 +270,19 @@ def scan_and_notify(all_data: dict, trade_date: str, *,
 
     token = os.environ.get(CB_BOT_TOKEN_ENV, "").strip() or None
     chat_id = os.environ.get(CB_CHAT_ID_ENV, "").strip() or None
-    ok = telegram.send(msg, token=token, chat_id=chat_id)
+
+    # 收件人 = 查詢 bot 白名單 ∪ TG_CB_CHAT_ID(管理員永遠收得到)
+    recipients = _whitelist_chat_ids()
+    if chat_id and chat_id not in recipients:
+        recipients.insert(0, chat_id)
+    if not recipients:
+        recipients = [chat_id]  # 可能是 None → telegram.send 內部會 fallback/跳過
+
+    oks = [telegram.send(msg, token=token, chat_id=cid) for cid in recipients]
+    ok = any(oks)
     return {"status": "ok" if ok else "fail",
-            "bot": "cb" if token else "pipeline", **counts}
+            "bot": "cb" if token else "pipeline",
+            "recipients": len(recipients), "delivered": sum(oks), **counts}
 
 
 # ── 本機 CLI ────────────────────────────────────────────────────────
