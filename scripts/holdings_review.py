@@ -181,6 +181,7 @@ def analyze(codes):
                     'chg20pct': round(pct(mb[m - 1], mb[m - 21]), 1) if m >= 21 else 0,
                     'short': round(ms[m - 1]) if ms else 0,
                     'shortChg5': round(ms[m - 1] - ms[m - 6]) if ms else 0,
+                    'shortChg1': round(ms[m - 1] - ms[m - 2]) if ms else 0,
                 }
                 if r['margin']['chg5pct'] >= 10:
                     r['flags'].append('融資 5 日增 %.1f%%' % r['margin']['chg5pct'])

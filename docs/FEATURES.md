@@ -158,6 +158,30 @@
 點按鈕會 fetch 對應歷史檔並整頁重繪（含評分表、評論、掉出榜單），點第一顆「週報」回到最新一期。
 `prompt_universe.md` 已同步要求連同 `data/signal_rank_history/` 一起 commit。
 
+### 2.7 日報 · CB 漲幅／量能排行 分頁 ([js/dailyView.js](../js/dailyView.js), 2026-09-22 新增)
+
+「CB 分析」表格工具列裡「週報」左邊的分頁，套用同一套技術面(均線/量比/位階)＋籌碼面
+(外資投信/大戶/融資券)＋券商分點規格，但對象改成**當日**的 CB 漲幅榜／量能榜前 N 檔
+(預設 100)，而不是全市場個股評分。
+
+- **資料**：`scripts/daily_cb_scan.py` 從 `data/all-data.json` 的 `cbDailyTrading` 取當日漲幅/成交量
+  排行前 N 檔 CB，對其對應個股跑 `holdings_review.analyze`（技術面/法人/融資券/大戶/CB）與
+  `positive_scan.score_one`（附上週報同一套分數，僅供參考），再併入
+  `data/broker_daily/<日期>.json` 的當日券商買超前 2 名與前 5 名集中度。輸出
+  `scripts/output/daily_cb_scan.json`（A=漲幅榜、B=量能榜）。
+- `scripts/build_daily_cb_rank_json.py` 把上面結果轉成網頁用的 `data/daily_cb_rank.json`，
+  同時歸檔一份到 `data/daily_cb_rank_history/<YYYYMMDD>.json`（+ 維護 `index.json`），
+  供頁面下方「日報」往期切換按鈕讀取，切換方式跟 §2.6 週報一致。
+- **評論**（可選）：`scripts/output/daily_commentary.json`（格式同 `signal_commentary.json`：
+  lede/stats/highlights/sections）存在且 `date` 對得上這次掃描日期才會併入；日期對不上
+  (例如排程無人值守跑了好幾天、忘了更新評論檔) 就自動略過，不會把舊評論誤貼到新的一天。
+- **一鍵執行 + 上傳**：雙擊專案根目錄 `日報.exe`(原始碼 `scripts/daily_report_launcher.py`，
+  用 PyInstaller 打包，跟 `券商進出.exe` 同一種做法，exe 必須留在專案根目錄)。
+  實際流程在 `scripts/publish_daily_report.py`：git 同步 → `daily_cb_scan.py` →
+  `build_daily_cb_rank_json.py` → 只 commit `data/daily_cb_rank.json` +
+  `data/daily_cb_rank_history/` 並 push（跟 `all-data.json` 撞車時重試 3 次）。
+  也可以不打包直接跑：`PYTHONUTF8=1 python scripts/publish_daily_report.py [--top 100] [--no-push]`。
+
 ---
 
 ## 3. 技術分析 Modal

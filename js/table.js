@@ -88,7 +88,7 @@ const Table = (() => {
 
     const tabs = document.createElement('div');
     tabs.className = 'table-folder-tabs';
-    for (const t of [{ k: 'stock', label: '個股' }, { k: 'cb', label: '可轉債' }, { k: 'scatter', label: '分布圖' }, { k: 'signal', label: '週報' }]) {
+    for (const t of [{ k: 'stock', label: '個股' }, { k: 'cb', label: '可轉債' }, { k: 'scatter', label: '分布圖' }, { k: 'daily', label: '日報' }, { k: 'signal', label: '週報' }]) {
       const btn = document.createElement('button');
       btn.className = 'table-folder-tab' + (currentTab === t.k ? ' active' : '');
       btn.textContent = t.label;
@@ -102,6 +102,27 @@ const Table = (() => {
 
     toolbar.append(tabs, stats);
     container.appendChild(toolbar);
+
+    // === 日報分頁:CB 當日漲幅/量能排行榜 (data/daily_cb_rank.json,與目前篩選無關) ===
+    if (currentTab === 'daily') {
+      const panel = document.createElement('div');
+      panel.className = 'table-folder-panel signal-wrapper';
+      container.appendChild(panel);
+      stats.textContent = DailyView.isLoaded()
+        ? `共 ${DailyView.getFiltered().length} 檔`
+        : '載入中…';
+      if (typeof DailyView !== 'undefined') {
+        const draw = () => DailyView.render(panel, {
+          onRowClick: (code) => {
+            const stock = (currentData || []).find(s => s.code === code);
+            if (stock && onRowClick) onRowClick(stock);
+          }
+        });
+        if (DailyView.isLoaded()) draw();
+        else DailyView.loadData().then(draw).catch(() => draw());
+      }
+      return;
+    }
 
     // === 週報分頁:全市場正向訊號榜 (data/signal_rank.json,與目前篩選無關) ===
     if (currentTab === 'signal') {
