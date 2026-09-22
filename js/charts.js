@@ -962,6 +962,107 @@ const Charts = (() => {
   }
 
   /**
+   * 月營收長條圖 — labels/values 由呼叫端(app.js)從 data/revenue.json 算好傳入,
+   * 因為營收資料是獨立延遲載入的檔案,不像 ohlcv/margin 掛在 stock 物件上。
+   * values 單位:百萬元。
+   */
+  function renderTechRevenueChart(canvasId, labels, values) {
+    const canvas = _claimTechSubCanvas(canvasId);
+    if (!canvas) return;
+    if (!labels.length) {
+      _emptyChart_(canvas, '無月營收資料');
+      return;
+    }
+    const barColors = values.map(v => v == null ? 'rgba(148,163,184,0.4)' : 'rgba(245,158,11,0.75)');
+    const chart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: '月營收(百萬)',
+          data: values,
+          backgroundColor: barColors,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ctx.raw == null ? '營收: -' : `營收: ${Number(ctx.raw).toLocaleString()} 百萬`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 24 },
+            grid: { display: false }
+          },
+          y: {
+            ticks: { color: APP_CONFIG.colors.text, callback: v => v.toLocaleString() },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          }
+        }
+      }
+    });
+    _setTechSub(canvasId, chart);
+  }
+
+  /**
+   * 單季 EPS 長條圖 — 同 renderTechRevenueChart,labels/values 由 app.js 算好傳入。
+   * values 單位:元/股,可能是負值 (虧損季),用紅/綠區分正負。
+   */
+  function renderTechEpsChart(canvasId, labels, values) {
+    const canvas = _claimTechSubCanvas(canvasId);
+    if (!canvas) return;
+    if (!labels.length) {
+      _emptyChart_(canvas, '無 EPS 資料');
+      return;
+    }
+    const barColors = values.map(v => v == null
+      ? 'rgba(148,163,184,0.4)'
+      : (v >= 0 ? 'rgba(239,68,68,0.75)' : 'rgba(34,197,94,0.75)'));
+    const chart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: '單季 EPS(元)',
+          data: values,
+          backgroundColor: barColors,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ctx.raw == null ? 'EPS: -' : `EPS: ${Number(ctx.raw).toFixed(2)} 元`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: APP_CONFIG.colors.textMuted, font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 24 },
+            grid: { display: false }
+          },
+          y: {
+            ticks: { color: APP_CONFIG.colors.text, callback: v => v.toFixed(2) },
+            grid: { color: 'rgba(71,85,105,0.3)' }
+          }
+        }
+      }
+    });
+    _setTechSub(canvasId, chart);
+  }
+
+  /**
    * 乖離率 (BIAS) 圖 — 同圖 3 條線:5/10/20 日
    *   BIAS(N) = (today close - MA(N)) / MA(N) × 100%
    */
@@ -1840,7 +1941,7 @@ const Charts = (() => {
   return {
     renderPriceChart, renderInstChart, renderCBPriceChart, renderCBInstChart, renderMarginChart,
     renderTechPriceChart, renderTechInstChart, renderTechMarginChart, renderTechBiasChart,
-    renderTechHolderChart, renderTechHolderPeopleChart, buildHolderSeries,
+    renderTechHolderChart, renderTechHolderPeopleChart, buildHolderSeries, renderTechRevenueChart, renderTechEpsChart,
     destroyTech,
     renderCBTechPriceChart, renderCBTechInstChart, renderCBTechExtraChart,
     destroyCBTechSub, destroyCBTech,

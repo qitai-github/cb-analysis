@@ -129,6 +129,8 @@
             <button class="tech-folder-tab" data-folder="margin">資券</button>
             <button class="tech-folder-tab" data-folder="holders">大戶明細</button>
             <button class="tech-folder-tab" data-folder="broker">籌碼日報</button>
+            <button class="tech-folder-tab" data-folder="revenue">營收</button>
+            <button class="tech-folder-tab" data-folder="eps">EPS</button>
           </div>
 
           <!-- Panel A: 法人買賣 (外資 / 投信 / 自營商) -->
@@ -267,6 +269,44 @@
               <button type="button" class="broker-side-tab sell" data-side="sell">賣方Top15</button>
             </div>
             <div class="holder-table-wrap broker-table-wrap" id="broker-table-wrap"></div>
+          </div>
+
+          <!-- Panel E: 營收 (月營收 MoM/YoY,資料 data/revenue.json) -->
+          <div class="tech-folder-panel hidden" data-panel="revenue">
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">月營收</span>
+                <span class="tech-chart-meta" id="tech-revenue-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-revenue-chart"></canvas>
+              </div>
+            </div>
+            <div class="holder-controls revenue-year-nav">
+              <button type="button" class="holder-seg-btn big" id="revenue-year-prev" title="往前一年">&#9664;</button>
+              <span class="holder-ctrl-meta" id="revenue-year-label"></span>
+              <button type="button" class="holder-seg-btn big" id="revenue-year-next" title="往後一年">&#9654;</button>
+            </div>
+            <div class="holder-table-wrap revenue-table-wrap" id="revenue-table-wrap"></div>
+          </div>
+
+          <!-- Panel F: EPS (單季 EPS QoQ/YoY,資料 data/eps.json) -->
+          <div class="tech-folder-panel hidden" data-panel="eps">
+            <div class="tech-chart-sub">
+              <div class="tech-sub-head">
+                <span class="tech-sub-title">單季 EPS</span>
+                <span class="tech-chart-meta" id="tech-eps-meta"></span>
+              </div>
+              <div class="chart-container tech-chart-container">
+                <canvas id="tech-eps-chart"></canvas>
+              </div>
+            </div>
+            <div class="holder-controls revenue-year-nav">
+              <button type="button" class="holder-seg-btn big" id="eps-year-prev" title="往前一年">&#9664;</button>
+              <span class="holder-ctrl-meta" id="eps-year-label"></span>
+              <button type="button" class="holder-seg-btn big" id="eps-year-next" title="往後一年">&#9654;</button>
+            </div>
+            <div class="holder-table-wrap revenue-table-wrap" id="eps-table-wrap"></div>
           </div>
         </div>
       </div>

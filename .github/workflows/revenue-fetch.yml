@@ -1,0 +1,72 @@
+name: Monthly Revenue + EPS Fetch (月營收/EPS)
+
+# 個股月營收(含 MoM/YoY,前端「營收」tab 用)→ data/revenue.json
+# 個股單季 EPS (含 QoQ/YoY,前端「EPS」tab 用) → data/eps.json
+# 兩支腳本綁在同一個 workflow、同一個排程一起跑,見:
+#   scripts/build_revenue.py 開頭註解 (路徑1 TWSE OpenAPI 整批 + 路徑2 FinMind 逐檔回補新股號)
+#   scripts/build_eps.py 開頭註解 (同構,但用「季別過期」判斷要不要重抓,不是抓過就跳過)
+#
+# 月營收公告集中在每月 1~10 日(少數遞延到 15 日);EPS/財報公告是季頻率,大部分月份
+# 沒有新資料,但排程還是跟著月營收一起跑,遇到財報季自然就會抓到新一季。
+# 20:00 TPE = 12:00 UTC。
+
+on:
+  schedule:
+    - cron: '0 12 1-15 * *'
+  workflow_dispatch:
+    inputs:
+      full:
+        description: '強制全部股號重拉 FinMind 完整歷史 (久久跑一次即可,營收+EPS 都會套用)'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: revenue-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build revenue + EPS data
+        run: |
+          ARGS=""
+          if [ "${{ inputs.full }}" = "true" ]; then
+            ARGS="--full"
+          fi
+          PYTHONUTF8=1 python scripts/build_revenue.py $ARGS
+          PYTHONUTF8=1 python scripts/build_eps.py $ARGS
+
+      - name: Commit & push data/revenue.json + data/eps.json
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/revenue.json data/eps.json
+          if git diff --cached --quiet; then
+            echo "no revenue.json/eps.json changes"
+            exit 0
+          fi
+          git commit -m "Update data/revenue.json + data/eps.json @ $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+          for i in 1 2 3; do
+            if git push; then
+              echo "pushed on attempt $i"
+              exit 0
+            fi
+            echo "push attempt $i failed,rebase 後重試..."
+            git pull --rebase --autostash
+          done
+          echo "push failed after 3 retries"
+          exit 1

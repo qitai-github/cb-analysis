@@ -852,6 +852,10 @@ const App = (() => {
       renderTechHolders();
       // 籌碼日報 tab
       renderBrokerDaily();
+      // 營收 tab
+      renderRevenuePanel();
+      // EPS tab
+      renderEpsPanel();
     }, 60)));
   }
 
@@ -1074,6 +1078,194 @@ const App = (() => {
         renderBrokerDaily();
       });
     }
+  }
+
+  // ── 營收 tab (月營收 MoM/YoY,資料 data/revenue.json) ──────────────────
+  // 由 scripts/build_revenue.py 產生:{code: {n, m:{"YYYY-M": 千元}}}。
+  // 前端自算 MoM(對上月)/YoY(對去年同月),兩年併排表格(仿 uAnalyze 排版)+ 長條圖。
+  let revenueData = null;
+  let revenueYearEnd = null;
+  let revenueYearStock = null;
+
+  async function loadRevenueData() {
+    if (revenueData) return revenueData;
+    try { revenueData = await (await fetch('data/revenue.json')).json(); }
+    catch (e) { revenueData = {}; }
+    return revenueData;
+  }
+
+  function bindRevenueControls() {
+    const prev = document.getElementById('revenue-year-prev');
+    const next = document.getElementById('revenue-year-next');
+    if (prev && prev.dataset.bound !== '1') {
+      prev.dataset.bound = '1';
+      prev.addEventListener('click', () => { revenueYearEnd--; renderRevenuePanel(); });
+    }
+    if (next && next.dataset.bound !== '1') {
+      next.dataset.bound = '1';
+      next.addEventListener('click', () => { revenueYearEnd++; renderRevenuePanel(); });
+    }
+  }
+
+  async function renderRevenuePanel() {
+    if (!selectedStock) return;
+    const wrap = document.getElementById('revenue-table-wrap');
+    if (!wrap) return;
+    bindRevenueControls();
+    await loadRevenueData();
+    if (!selectedStock) return;
+    const code = String(selectedStock.code);
+    const entry = revenueData[code];
+    const meta = document.getElementById('tech-revenue-meta');
+    const label = document.getElementById('revenue-year-label');
+    const prevBtn = document.getElementById('revenue-year-prev');
+    const nextBtn = document.getElementById('revenue-year-next');
+    if (!entry || !entry.m || Object.keys(entry.m).length === 0) {
+      Charts.renderTechRevenueChart('tech-revenue-chart', [], []);
+      if (meta) meta.textContent = '';
+      if (label) label.textContent = '';
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      wrap.innerHTML = '<div class="broker-empty">尚無月營收資料</div>';
+      return;
+    }
+    const months = Object.keys(entry.m).map(k => {
+      const [y, m] = k.split('-').map(Number);
+      return { y, m, rev: entry.m[k] };
+    }).sort((a, b) => a.y - b.y || a.m - b.m);
+    const minYear = months[0].y, maxYear = months[months.length - 1].y;
+    if (revenueYearStock !== code || revenueYearEnd == null) {
+      revenueYearStock = code;
+      revenueYearEnd = maxYear;
+    }
+    revenueYearEnd = Math.max(minYear, Math.min(maxYear, revenueYearEnd));
+    if (prevBtn) prevBtn.disabled = revenueYearEnd <= minYear;
+    if (nextBtn) nextBtn.disabled = revenueYearEnd >= maxYear;
+    if (label) label.textContent = `${revenueYearEnd - 1} / ${revenueYearEnd}`;
+
+    // 長條圖只顯示目前表格對應的兩年(隨 ◀▶ 換年連動),不畫全歷史
+    const chartMonths = months.filter(r => r.y === revenueYearEnd - 1 || r.y === revenueYearEnd);
+    const chartLabels = chartMonths.map(r => `${r.y}/${String(r.m).padStart(2, '0')}`);
+    const chartValues = chartMonths.map(r => Math.round(r.rev / 1000));
+    Charts.renderTechRevenueChart('tech-revenue-chart', chartLabels, chartValues);
+    const last = months[months.length - 1];
+    if (meta) meta.innerHTML = `最新 ${last.y}/${String(last.m).padStart(2, '0')} ` +
+      `<strong>${Math.round(last.rev / 1000).toLocaleString()}百萬</strong>`;
+
+    const get = (y, m) => entry.m[`${y}-${m}`] ?? null;
+    const pct = (cur, base) => (cur == null || base == null || base === 0) ? null : (cur / base - 1) * 100;
+    const fmtPct = (v) => v == null ? '-' : `<span class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(1)}</span>`;
+    const fmtRev = (v) => v == null ? '-' : Math.round(v / 1000).toLocaleString();
+
+    const years = [revenueYearEnd - 1, revenueYearEnd];
+    const rows = [];
+    for (let m = 1; m <= 12; m++) {
+      const cells = years.map(y => {
+        const cur = get(y, m);
+        const mom = pct(cur, m === 1 ? get(y - 1, 12) : get(y, m - 1));
+        const yoy = pct(cur, get(y - 1, m));
+        return `<td>${fmtRev(cur)}</td><td>${fmtPct(mom)}</td><td>${fmtPct(yoy)}</td>`;
+      }).join('');
+      rows.push(`<tr><td class="broker-name">${m}</td>${cells}</tr>`);
+    }
+    wrap.innerHTML =
+      `<table class="holder-table revenue-table"><thead>` +
+      `<tr><th rowspan="2">月</th><th colspan="3">${years[0]}</th><th colspan="3">${years[1]}</th></tr>` +
+      `<tr><th>營收(百萬)</th><th>MoM%</th><th>YoY%</th><th>營收(百萬)</th><th>MoM%</th><th>YoY%</th></tr>` +
+      `</thead><tbody>${rows.join('')}</tbody></table>`;
+  }
+
+  // ── EPS tab (單季 EPS QoQ/YoY,資料 data/eps.json) ──────────────────────
+  // 由 scripts/build_eps.py 產生:{code: {n, q:{"YYYY-Q": 元/股}}},Q 為 1~4。
+  // 排版跟營收 tab 完全對稱,只是月→季 (1~4 列)、MoM→QoQ。
+  let epsData = null;
+  let epsYearEnd = null;
+  let epsYearStock = null;
+
+  async function loadEpsData() {
+    if (epsData) return epsData;
+    try { epsData = await (await fetch('data/eps.json')).json(); }
+    catch (e) { epsData = {}; }
+    return epsData;
+  }
+
+  function bindEpsControls() {
+    const prev = document.getElementById('eps-year-prev');
+    const next = document.getElementById('eps-year-next');
+    if (prev && prev.dataset.bound !== '1') {
+      prev.dataset.bound = '1';
+      prev.addEventListener('click', () => { epsYearEnd--; renderEpsPanel(); });
+    }
+    if (next && next.dataset.bound !== '1') {
+      next.dataset.bound = '1';
+      next.addEventListener('click', () => { epsYearEnd++; renderEpsPanel(); });
+    }
+  }
+
+  async function renderEpsPanel() {
+    if (!selectedStock) return;
+    const wrap = document.getElementById('eps-table-wrap');
+    if (!wrap) return;
+    bindEpsControls();
+    await loadEpsData();
+    if (!selectedStock) return;
+    const code = String(selectedStock.code);
+    const entry = epsData[code];
+    const meta = document.getElementById('tech-eps-meta');
+    const label = document.getElementById('eps-year-label');
+    const prevBtn = document.getElementById('eps-year-prev');
+    const nextBtn = document.getElementById('eps-year-next');
+    if (!entry || !entry.q || Object.keys(entry.q).length === 0) {
+      Charts.renderTechEpsChart('tech-eps-chart', [], []);
+      if (meta) meta.textContent = '';
+      if (label) label.textContent = '';
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      wrap.innerHTML = '<div class="broker-empty">尚無 EPS 資料</div>';
+      return;
+    }
+    const quarters = Object.keys(entry.q).map(k => {
+      const [y, q] = k.split('-').map(Number);
+      return { y, q, eps: entry.q[k] };
+    }).sort((a, b) => a.y - b.y || a.q - b.q);
+    const minYear = quarters[0].y, maxYear = quarters[quarters.length - 1].y;
+    if (epsYearStock !== code || epsYearEnd == null) {
+      epsYearStock = code;
+      epsYearEnd = maxYear;
+    }
+    epsYearEnd = Math.max(minYear, Math.min(maxYear, epsYearEnd));
+    if (prevBtn) prevBtn.disabled = epsYearEnd <= minYear;
+    if (nextBtn) nextBtn.disabled = epsYearEnd >= maxYear;
+    if (label) label.textContent = `${epsYearEnd - 1} / ${epsYearEnd}`;
+
+    const chartQuarters = quarters.filter(r => r.y === epsYearEnd - 1 || r.y === epsYearEnd);
+    const chartLabels = chartQuarters.map(r => `${r.y}/Q${r.q}`);
+    const chartValues = chartQuarters.map(r => r.eps);
+    Charts.renderTechEpsChart('tech-eps-chart', chartLabels, chartValues);
+    const last = quarters[quarters.length - 1];
+    if (meta) meta.innerHTML = `最新 ${last.y}/Q${last.q} <strong class="${cc(last.eps)}">${last.eps.toFixed(2)}元</strong>`;
+
+    const get = (y, q) => entry.q[`${y}-${q}`] ?? null;
+    const pct = (cur, base) => (cur == null || base == null || base === 0) ? null : (cur / base - 1) * 100;
+    const fmtPct = (v) => v == null ? '-' : `<span class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(1)}</span>`;
+    const fmtEps = (v) => v == null ? '-' : v.toFixed(2);
+
+    const years = [epsYearEnd - 1, epsYearEnd];
+    const rows = [];
+    for (let q = 1; q <= 4; q++) {
+      const cells = years.map(y => {
+        const cur = get(y, q);
+        const qoq = pct(cur, q === 1 ? get(y - 1, 4) : get(y, q - 1));
+        const yoy = pct(cur, get(y - 1, q));
+        return `<td>${fmtEps(cur)}</td><td>${fmtPct(qoq)}</td><td>${fmtPct(yoy)}</td>`;
+      }).join('');
+      rows.push(`<tr><td class="broker-name">Q${q}</td>${cells}</tr>`);
+    }
+    wrap.innerHTML =
+      `<table class="holder-table revenue-table"><thead>` +
+      `<tr><th rowspan="2">季</th><th colspan="3">${years[0]}</th><th colspan="3">${years[1]}</th></tr>` +
+      `<tr><th>EPS(元)</th><th>QoQ%</th><th>YoY%</th><th>EPS(元)</th><th>QoQ%</th><th>YoY%</th></tr>` +
+      `</thead><tbody>${rows.join('')}</tbody></table>`;
   }
 
   function renderTechHolders() {

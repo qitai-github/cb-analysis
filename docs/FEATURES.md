@@ -319,6 +319,27 @@ CB 端：
 - **踩坑**:金額單位曾誤存成百萬元導致買均價縮 1/1000(金像電顯示 1.00);金額欄一律是「千元」,均價 = 金額/張數。
 - 沒有券商進出資料的標的(不在抓取清單)整頁顯示「此標的在所選期間沒有券商進出資料」。
 
+### 3.1d 營收 tab (月營收 MoM/YoY)
+
+個股技術分析 modal 第 5 個 tab。[index.html](../index.html) Panel E、[js/app.js renderRevenuePanel](../js/app.js)、[js/charts.js renderTechRevenueChart](../js/charts.js)。
+
+- **資料**:`data/revenue.json`,格式 `{code: {n: 名稱, m: {"YYYY-M": 千元}}}`,由 `scripts/build_revenue.py` 產生。**只抓「網站標的池」**(見 10.3 白名單,約 4xx 檔),不是全市場 2000+ 檔。
+- **兩段式來源**(見腳本開頭註解):
+  1. **快速路徑**(每次都跑):TWSE OpenAPI 整批月營收 `t187ap05_L`(上市)+ `t187ap05_P`(上櫃),兩個 dataset 都掛在 `openapi.twse.com.tw`,不會撞到 `tpex.org.tw` 的 Cloudflare 封鎖(此站對部分 IP 會整域擋掉)。單月全市場一次拿齊,只挑標的池內的股號寫入。
+  2. **回補路徑**(只對「還沒抓過」的股號跑,用 `_bf` flag 標記):FinMind `TaiwanStockMonthRevenue` 逐檔拉完整歷史(預設回補到 2018-01)。FinMind 匿名配額很緊(實測連續打幾百檔就會 402/403),遇到連續配額錯誤會提早結束該輪、留到下次排程(每月 1~15 日)自動接著補,不會卡死或洗掉已抓到的資料。標的池若有股號被踢出白名單,下次執行會自動從檔案移除。
+- **前端顯示**:長條圖(只顯示目前表格對應的那兩年,隨 ◀▶ 連動)+ 兩年併排表格(仿 uAnalyze 排版:月 / 營收(百萬) / MoM% / YoY% × 2 年)。MoM/YoY 由前端從相鄰月份 / 去年同月自算,不存在後端。圖表區固定至少佔面板 1/3 高度(`.tech-chart-sub` / `.revenue-table-wrap` flex 1:2)。
+- 沒有月營收資料(ETF/TDR/債券等非發行公司股號、或還沒被抓過/還沒公告)顯示「尚無月營收資料」。
+
+### 3.1e EPS tab (單季 EPS QoQ/YoY)
+
+個股技術分析 modal 第 6 個 tab,排版與 3.1d 營收 tab 完全對稱(月→季、MoM→QoQ)。[index.html](../index.html) Panel F、[js/app.js renderEpsPanel](../js/app.js)、[js/charts.js renderTechEpsChart](../js/charts.js)。
+
+- **資料**:`data/eps.json`,格式 `{code: {n: 名稱, q: {"YYYY-Q": 元/股}}}` (Q 為 1~4),由 `scripts/build_eps.py` 產生,跟營收**同一個 workflow revenue-fetch.yml、同一個每月 1~15 日排程**一起跑。
+- **兩段式來源**(見腳本開頭註解),跟營收版邏輯對稱但有兩個差異:
+  1. **快速路徑**:TWSE OpenAPI 整批單季 EPS `t187ap14_L`,但**只有上市**——找不到上櫃對應的 bulk dataset,上櫃股號全靠路徑 2 FinMind。
+  2. **回補/更新路徑**:FinMind `TaiwanStockFinancialStatements`(篩 `type=="EPS"` 那幾列,已驗證是單季數字非累計)。跟營收不同,EPS **不是抓過一次就永久跳過**——用 `expected_quarter()` 依季報截止日(Q1 5/15、Q2 8/14、Q3 11/14、年報 3/31,留約 1 個月緩衝)粗估「這個時間點該有的最新一季」,股號目前最新一季落後這個推算值、或存的季數 < 5 (代表只有路徑 1 給的當季 1 筆、還沒做過 FinMind 全歷史回補)才會排進這輪回補。
+- **前端顯示**:同營收 tab 排版,長條圖只顯示目前兩年、可能有負值(虧損季),用紅漲綠跌配色;表格欄位 季 / EPS(元) / QoQ% / YoY%。
+
 ### 3.2 CB 技術分析
 
 **標題列**: ◀ CB代號 CB名 ▶,多 CB 時用 tab pills 切換 (active 藍底)
@@ -894,6 +915,7 @@ GAS 先建 0 bytes 空檔,SA 再覆蓋。空檔沒建成只是少一份 Drive �
 | `strength-scan.yml` | ~~19:40 TPE 強勢股 → data/strength.json~~ **已停用排程 (2026-08-14 封存)**, 只剩手動觸發 |
 | `mops-news.yml` | 每日 14:00 / 18:00 / 23:00 TPE 抓重大訊息 → data/mops_news.json (週六晚班加逐檔補漏) |
 | `tdcc-shareholding.yml` | **每週六 09:10 TPE** 集保股權分散表 → data/shareholding.json (增量 + 自動 commit) |
+| `revenue-fetch.yml` | **每月 1~15 日 20:00 TPE** 個股月營收 + 單季 EPS → data/revenue.json + data/eps.json (TWSE OpenAPI 整批 + FinMind 回補,自動 commit) |
 | `pages-rebuild.yml` | 手動觸發 Pages 重建 (空 commit) |
 
 ### 11.4 環境變數 (`scripts/.env`)
