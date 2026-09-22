@@ -158,6 +158,16 @@
 點按鈕會 fetch 對應歷史檔並整頁重繪（含評分表、評論、掉出榜單），點第一顆「週報」回到最新一期。
 `prompt_universe.md` 已同步要求連同 `data/signal_rank_history/` 一起 commit。
 
+**一鍵執行 + 上傳 (2026-09-22 新增)**：雙擊專案根目錄 `週報.exe`(原始碼
+`scripts/weekly_report_launcher.py`，用 PyInstaller 打包，跟 `券商進出.exe`／`日報.exe`
+同一種做法，exe 必須留在專案根目錄；exe 只是啟動器，實際邏輯都在既有的
+`scripts/schedule/weekly_universe.py`——平常週日 17:00 排程用的同一支，這裡只是包一層
+方便手動雙擊)。跟「日報」不同的是**這裡沒有跳過 Artifact 的備援路徑**：
+`prompt_universe.md` 要求 `claude -p` 一定要用 Artifact 發佈完整報告網頁、把網址寫進
+`signal_commentary.json` 的 `artifactUrl` 再 commit + push；`claude -p` 沒跑完（找不到
+CLI、逾時、失敗）就不會 push，不會讓半吊子的資料覆蓋網頁週報分頁，需要的話重新雙擊
+一次即可。
+
 ### 2.7 日報 · CB 漲幅／量能排行 分頁 ([js/dailyView.js](../js/dailyView.js), 2026-09-22 新增)
 
 「CB 分析」表格工具列裡「週報」左邊的分頁，套用同一套技術面(均線/量比/位階)＋籌碼面
@@ -180,7 +190,10 @@
   `build_daily_cb_rank_json.py` 並 commit + push。找不到 `claude` CLI、逾時
   (30 分鐘)、或它沒把 `data/daily_cb_rank.json` 更新成功，都不會擋住數字上傳——外層腳本
   驗證失敗就退回只上傳表格數字的備援路徑（`--no-claude` 可以直接跳過這步）。日期對不上
-  當次掃描日期的舊評論檔一律略過，不會把舊文字誤貼到新的一天。
+  當次掃描日期的舊評論檔一律略過，不會把舊文字誤貼到新的一天。**刻意不發 Artifact**
+  （跟 §2.6 週報不同）：評論文字本來就會整段顯示在網頁「日報」分頁裡，沒有「看完整報告」
+  按鈕，`dailyView.js` 也沒有渲染這顆按鈕的程式碼，就算評論檔哪天意外帶了 `artifactUrl`
+  也不會顯示。
 - **一鍵執行 + 上傳**：雙擊專案根目錄 `日報.exe`(原始碼 `scripts/daily_report_launcher.py`，
   用 PyInstaller 打包，跟 `券商進出.exe` 同一種做法，exe 必須留在專案根目錄；exe 本身只是
   啟動器，實際邏輯都在 `scripts/publish_daily_report.py`，改邏輯不用重新打包)。

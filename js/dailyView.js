@@ -125,13 +125,8 @@ const DailyView = (() => {
     h.appendChild(el('span', 'signal-report-title', rep.title || '日報評論'));
     if (rep.date) h.appendChild(el('span', 'signal-report-date', rep.date));
     bar.appendChild(h);
-    if (rep.artifactUrl) {
-      const link = el('a', 'btn-tech-analysis', '📄 看完整報告');
-      link.href = rep.artifactUrl;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      bar.appendChild(link);
-    }
+    // 日報評論刻意不發 Artifact(見 prompt_daily.md),所以這裡不放「看完整報告」按鈕——
+    // 就算評論檔哪天意外帶了 artifactUrl 也不顯示,跟週報(signalView.js)的行為不同。
     box.appendChild(bar);
 
     const body = el('div', 'signal-report-body');
