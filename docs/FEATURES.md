@@ -172,15 +172,22 @@
 - `scripts/build_daily_cb_rank_json.py` 把上面結果轉成網頁用的 `data/daily_cb_rank.json`，
   同時歸檔一份到 `data/daily_cb_rank_history/<YYYYMMDD>.json`（+ 維護 `index.json`），
   供頁面下方「日報」往期切換按鈕讀取，切換方式跟 §2.6 週報一致。
-- **評論**（可選）：`scripts/output/daily_commentary.json`（格式同 `signal_commentary.json`：
-  lede/stats/highlights/sections）存在且 `date` 對得上這次掃描日期才會併入；日期對不上
-  (例如排程無人值守跑了好幾天、忘了更新評論檔) 就自動略過，不會把舊評論誤貼到新的一天。
+- **評論由 `claude -p` 自動寫（2026-09-22 新增，headless，見 `scripts/schedule/prompt_daily.md`）**：
+  `publish_daily_report.py` 掃描完會呼叫 `claude -p --permission-mode bypassPermissions
+  --model opus`，餵 `prompt_daily.md`，讓它讀 `daily_cb_scan.json` 分析、寫
+  `scripts/output/daily_commentary.json`（格式同 `signal_commentary.json`：
+  lede/stats/highlights/sections，`date` 必須等於當次掃描日期）、自己跑
+  `build_daily_cb_rank_json.py` 並 commit + push。找不到 `claude` CLI、逾時
+  (30 分鐘)、或它沒把 `data/daily_cb_rank.json` 更新成功，都不會擋住數字上傳——外層腳本
+  驗證失敗就退回只上傳表格數字的備援路徑（`--no-claude` 可以直接跳過這步）。日期對不上
+  當次掃描日期的舊評論檔一律略過，不會把舊文字誤貼到新的一天。
 - **一鍵執行 + 上傳**：雙擊專案根目錄 `日報.exe`(原始碼 `scripts/daily_report_launcher.py`，
-  用 PyInstaller 打包，跟 `券商進出.exe` 同一種做法，exe 必須留在專案根目錄)。
-  實際流程在 `scripts/publish_daily_report.py`：git 同步 → `daily_cb_scan.py` →
-  `build_daily_cb_rank_json.py` → 只 commit `data/daily_cb_rank.json` +
-  `data/daily_cb_rank_history/` 並 push（跟 `all-data.json` 撞車時重試 3 次）。
-  也可以不打包直接跑：`PYTHONUTF8=1 python scripts/publish_daily_report.py [--top 100] [--no-push]`。
+  用 PyInstaller 打包，跟 `券商進出.exe` 同一種做法，exe 必須留在專案根目錄；exe 本身只是
+  啟動器，實際邏輯都在 `scripts/publish_daily_report.py`，改邏輯不用重新打包)。
+  完整流程：git 同步 → `daily_cb_scan.py` → `claude -p` 寫評論+build+push（見上）→
+  失敗才落回純數字的 `build_daily_cb_rank_json.py` + git commit/push 備援（跟
+  `all-data.json` 撞車時重試 3 次）。也可以不用 exe 直接跑：
+  `PYTHONUTF8=1 python scripts/publish_daily_report.py [--top 100] [--no-push] [--no-claude]`。
 
 ---
 
