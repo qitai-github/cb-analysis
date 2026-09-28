@@ -11,7 +11,7 @@
 1. 讀今日 `positive_scan.json` 與上一份快照，做**逐檔追蹤**：升級／降級／新進 70 分以上／掉出榜單的名單與分數變化。用 python 算，不要憑印象。
 2. 產「新進 70 分以上」的表格片段（作法參考 `scripts/build_positive_report.py` 裡的 `row()` 與 `HEAD`），以及追蹤表格。
 3. 以 `scripts/templates/universe_report_example.html` 為版型（CSS 直接沿用，**不要改動 CSS**）寫今天的報告，用佔位符插入表格。
-4. 用 Artifact 發佈，`favicon` 用 🎯，`title` 用「正向訊號榜 <MMDD>」。
+4. **不要用 Artifact 發佈**——這是無人值守的 headless `claude -p`，沒有 Artifact 工具權限，硬要發只會留白連結。改成把完整報告 HTML 存進網站本身：存到 `reports/weekly/<YYYYMMDD>.html`（`<title>` 用「正向訊號榜 <MMDD>」）。
    **這份報告不可以用任何個股名稱命名**（不要叫「XX 型態榜」），一律用中性的「正向訊號榜」。
 5. **寫評論給網頁**：把報告的文字內容另存成 `scripts/output/signal_commentary.json`，格式如下（網頁「週報」分頁會直接顯示，所以文字要能獨立閱讀，不要出現「如上表」這種指涉）：
 
@@ -19,7 +19,7 @@
 {
   "date": "YYYY-MM-DD",
   "title": "X 月 X 日正向訊號榜",
-  "artifactUrl": "剛才發佈的 Artifact 網址",
+  "artifactUrl": "https://qitai-github.github.io/cb-analysis/reports/weekly/<YYYYMMDD>.html",
   "lede": "這次最重要的變化，2-4 句",
   "stats": [{ "label": "80 分以上", "value": "N 檔", "note": "與上次比較" }],
   "highlights": [{ "code": "2455", "name": "全新", "score": 85.0, "tag": "新進 · 第一名",
@@ -31,8 +31,9 @@
 
 6. 更新網站資料：執行 `PYTHONUTF8=1 python scripts/build_signal_rank_json.py`，它會把掃描結果**加上上一步的評論**寫成 `data/signal_rank.json`，並自動歸檔一份到 `data/signal_rank_history/<日期>.json`（+ 更新同資料夾的 `index.json`），供網頁「週報」分頁下方的往期切換按鈕讀取。接著：
    - `git pull --rebase` （`data/all-data.json` 是單行 18MB 檔，每日 GHA 會推，先 pull 才不會衝突）
-   - 只 commit `data/signal_rank.json` 與 `data/signal_rank_history/`，訊息用 `data: 正向訊號榜 @ <YYYY-MM-DD HH:MM>`
-   - `git push`
+   - commit `data/signal_rank.json`、`data/signal_rank_history/`，**以及第 4 步存的 `reports/weekly/<YYYYMMDD>.html`**，訊息用 `data: 正向訊號榜 @ <YYYY-MM-DD HH:MM>`
+   - `git push`（push 後網站是 GitHub Pages，會自動重新部署，不用額外觸發）
+   - push 完務必確認 `signal_commentary.json` 裡的 `artifactUrl` 不是空字串，且對應檔案確實存在於 `reports/weekly/`——這是網頁「📄 看完整報告」按鈕的唯一來源，漏了按鈕就不會出現。
 
 ## 報告內容要求
 - 開頭 lede 要講出**這次最重要的變化**（誰上來、誰掉下去），不是流水帳。
@@ -44,5 +45,5 @@
 
 ## 注意
 - 這是無人值守的排程執行，不要問問題，遇到缺資料就在報告中註明並繼續。
-- 除了 `data/signal_rank.json` 之外，不要 commit 其他檔案。
+- 除了 `data/signal_rank.json`、`data/signal_rank_history/`、`reports/weekly/<YYYYMMDD>.html` 之外，不要 commit 其他檔案。
 - 最後在輸出中印出 Artifact 網址與 push 結果。
