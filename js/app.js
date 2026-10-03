@@ -2556,7 +2556,7 @@ const App = (() => {
     // 更新 tab 按鈕樣式
     // 用 optional chaining:某些 tab 只存在於本機版 index.html (未上線),
     // 缺按鈕時不能讓整個 switchTab 拋錯,否則所有分頁都切不動。
-    for (const t of ['cb', 'etf', 'vcp', 'strength', 'calendar', 'reports']) {
+    for (const t of ['cb', 'etf', 'vcp', 'strength', 'calendar', 'reports', 'sector']) {
       document.getElementById(`tab-${t}`)?.classList.toggle('active', tab === t);
     }
 
@@ -2576,6 +2576,31 @@ const App = (() => {
       initCalendarView();
     } else if (tab === 'reports') {
       initReportsView();
+    } else if (tab === 'sector') {
+      await initSectorView();
+    }
+  }
+
+  let sectorLoaded = false;
+  async function initSectorView() {
+    const statusEl = document.getElementById('header-status');
+    try {
+      if (!sectorLoaded) {
+        if (statusEl) statusEl.textContent = '載入產業族群資料...';
+        await SectorView.loadData();
+        sectorLoaded = true;
+      }
+      const st = SectorView.getStats();
+      if (statusEl) { statusEl.textContent = `產業族群 | 資料日 ${st.asOf} | ${st.groups} 個群組`; statusEl.style.color = ''; }
+      SectorView.mount('filter-panel', 'main-table', {
+        hasCB: (code) => !!(stockMap && stockMap.has(String(code))),
+        openStock: (code) => { const s = stockMap && stockMap.get(String(code)); if (s) switchTab('cb').then(() => showDetail(s)); },
+      });
+    } catch (err) {
+      console.error('[Sector] 載入失敗', err);
+      const mt = document.getElementById('main-table');
+      if (mt) mt.innerHTML = '<div style="padding:24px;color:#94a3b8">產業族群資料尚未產生 (data/sector_flow.json)。請先執行 scripts/build_sector_flow.py。</div>';
+      if (statusEl) statusEl.textContent = '產業族群資料未就緒';
     }
   }
 

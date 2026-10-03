@@ -122,6 +122,7 @@ def main():
             for f in ("amt", "share", "pct", "up"):
                 series[(g["kind"], g["id"])][f] = list(g[f])
 
+    latest = {}
     for d, rows in loaded:
         stk = {}
         for code in xq["stocks"]:
@@ -133,6 +134,7 @@ def main():
                 continue
             stk[code] = (r["turnover"], r["change_amt"] / prev * 100)
         mkt = sum(a for a, _ in stk.values()) or 1
+        latest = {c: [round(a / 1e8, 3), round(p, 2)] for c, (a, p) in stk.items()}  # 最新一日個股 [成交億, 漲跌%]
         days.append(d)
         total_amt.append(round(mkt / 1e8, 1))
         for k, codes in members.items():
@@ -150,7 +152,7 @@ def main():
     for k, sr in series.items():
         groups.append({"kind": k[0], "id": k[1], "name": meta[k], "n": len(members[k]),
                        **{f: v[cut:] for f, v in sr.items()}})
-    OUT.write_text(json.dumps({"dates": days, "market_amt": total_amt, "groups": groups},
+    OUT.write_text(json.dumps({"dates": days, "market_amt": total_amt, "latest": latest, "groups": groups},
                               ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     # 摘要: 今日占比 vs 前20日平均占比

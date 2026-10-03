@@ -76,6 +76,36 @@ def assign_from_xq(tax, stocks):
                                      "subs": subs, "basis": "xq", "confidence": "med" if ranked else "low"})
 
 
+def auto_chains(xq, stocks, max_roles=14, min_n=3):
+    """每個 XQ 大產業自動生成一條鏈: 角色 = 該大產業下檔數最多的細分群組 (其餘併「其他」)。
+    一檔只歸一個角色 (取它所屬群組中檔數最多者),所以各角色互不重疊、可加總。"""
+    gname = {g: v["name"] for g, v in xq["groups"].items()}
+    size = {g: len(v) for g, v in xq["members"].items()}
+    by_main = defaultdict(list)
+    for code, x in xq["stocks"].items():
+        by_main[x["main"]].append(code)
+    clusters = []
+    for mid, codes in sorted(by_main.items(), key=lambda kv: -len(kv[1])):
+        cnt = defaultdict(int)
+        for c in codes:
+            for g in xq["stocks"][c]["groups"]:
+                cnt[g] += 1
+        roles = [g for g, n in sorted(cnt.items(), key=lambda kv: -kv[1]) if n >= min_n][:max_roles]
+        rank = {g: i for i, g in enumerate(roles)}
+        cid = "m" + mid
+        for c in codes:
+            mine = [g for g in xq["stocks"][c]["groups"] if g in rank]
+            role = min(mine, key=lambda g: rank[g]) if mine else "other"
+            subs = [gname[g] for g in xq["stocks"][c]["groups"]][:3]
+            stocks[c]["memberships"].append({"cluster": cid, "role": role, "subs": subs,
+                                             "basis": "xq", "confidence": "low"})
+        rl = [{"id": g, "name": gname[g]} for g in roles]
+        if any(m["memberships"][-1]["role"] == "other" for m in (stocks[c] for c in codes) if m["memberships"][-1]["cluster"] == cid):
+            rl.append({"id": "other", "name": "其他"})
+        clusters.append({"id": cid, "name": gname[mid], "icon": "folder", "auto": True, "roles": rl})
+    return clusters
+
+
 def main():
     tax = json.loads((DIR / "taxonomy.json").read_text(encoding="utf-8"))
     curd = json.loads((DIR / "curated.json").read_text(encoding="utf-8"))
@@ -83,6 +113,11 @@ def main():
     valid = {c["id"]: {r["id"] for r in c["roles"]} for c in tax["clusters"]}
 
     stocks = {m["code"]: m for m in load_master()}
+    xq_path = ROOT / "data" / "industry_classification.json"
+    xq = json.loads(xq_path.read_text(encoding="utf-8")) if xq_path.exists() else None
+    if xq:  # 全市場: 主檔 (CB 對應個股) 以外的 XQ 個股也納入
+        for code, x in xq["stocks"].items():
+            stocks.setdefault(code, {"code": code, "name": x.get("name", code), "industry1": "", "industry2": "", "tags": []})
     for m in stocks.values():
         m["memberships"] = []
         m["candidates"] = []
@@ -98,6 +133,8 @@ def main():
         stocks[e["code"]]["memberships"].append(ms)
 
     assign_from_xq(tax, stocks)
+    auto = auto_chains(xq, stocks) if xq else []
+    tax["clusters"] = tax["clusters"] + auto
 
     cand = defaultdict(list)
     for code, m in stocks.items():
@@ -112,7 +149,8 @@ def main():
         for cl in m["candidates"]:
             cand[cl].append(code)
 
-    OUT.write_text(json.dumps({"taxonomy": tax["clusters"], "stocks": stocks},
+    slim = {c: {k: v for k, v in m.items() if k not in ("tags", "candidates", "xq_groups")} for c, m in stocks.items()}
+    OUT.write_text(json.dumps({"taxonomy": tax["clusters"], "stocks": slim},
                               ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     print(f"主檔 {len(stocks)} 檔 | 已確認 {sum(1 for m in stocks.values() if m['memberships'])} 檔")
