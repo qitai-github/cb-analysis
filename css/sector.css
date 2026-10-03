@@ -109,3 +109,4 @@
 .sec-crumb:hover { background: #1e293b; color: #e2e8f0; }
 .sec-crumb.cur { color: #f1f5f9; font-weight: 700; cursor: default; }
 .sec-bsel { margin: 8px 16px 0; font-size: 13px; color: #cbd5e1; min-height: 4px; }
+.sec-gap { display: inline-block; width: 14px; }

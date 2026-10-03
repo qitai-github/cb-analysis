@@ -6,15 +6,25 @@
 const SectorView = (() => {
   let flow = null, chain = null, cls = null;
   let opts = {};
-  const st = { mode: 'flow', cluster: 'pcb', view: 'bubble', bmode: 'inst', path: [], bz: null, bsel: null, kind: 'cluster', sortKey: 'delta', sortDir: 'desc', sel: null, selStock: null, selRole: null, selSub: null, subSortKey: 'share', subSortDir: 'desc', stkSortKey: 'amt', stkSortDir: 'desc', onlyCB: false, kw: '', showAll: false };
+  const st = { mode: 'flow', cluster: 'pcb', view: 'bubble', bmode: 'inst', path: [], bz: null, bsel: null, kind: 'sector', sortKey: 'delta', sortDir: 'desc', sel: null, selStock: null, selRole: null, selSub: null, subSortKey: 'share', subSortDir: 'desc', stkSortKey: 'amt', stkSortDir: 'desc', onlyCB: false, kw: '', showAll: false };
   let chart = null;
-  const KIND_LABEL = { cluster: '自訂族群', role: '族群×角色', main: '大產業', group: '細分族群' };
+  const KIND_LABEL = { sector: '細分板塊', chain: '上中下游產業鏈', role: '族群×角色', main: '大產業', group: '細分族群' };
+  // 全市場資金流向的分類切換: 細分板塊/上中下游產業鏈 = 族群→小分類→個股三層;族群×角色 = 所有角色平鋪 (族群｜角色) →個股;大產業/細分族群 = 群組→個股
+  const kindChips = () => ['sector', 'chain', 'role', 'main', 'group'].map((k, i) =>
+    `${i === 3 ? '<span class="sec-gap"></span>' : ''}<button class="sec-chip ${st.kind === k ? 'on' : ''}" data-kind="${k}">${KIND_LABEL[k]}</button>`).join('');
+  const isSectorId = (id) => chain.taxonomy.some(c => c.sector && c.id === id.split('.')[0]);
   const ROLE_COLOR = ['#14b8a6', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#22c55e'];
 
   async function loadData() {
     if (flow) return;
     const get = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); };
     [flow, chain, cls] = await Promise.all([get('data/sector_flow.json'), get('data/industry_chain.json'), get('data/industry_classification.json')]);
+    // 「族群×角色」把板塊與上中下游的角色平鋪在一起;族群名稱相同時 (如「半導體」) 加註來源避免重名
+    const cnt = {};
+    chain.taxonomy.forEach(c => { cnt[c.name] = (cnt[c.name] || 0) + 1; });
+    const tag = {};
+    chain.taxonomy.forEach(c => { tag[c.id] = cnt[c.name] > 1 ? `${c.name}(${c.sector ? '板塊' : '產業鏈'})` : c.name; });
+    flow.groups.forEach(g => { if (g.kind === 'role') { const cid = g.id.split('.')[0], rn = g.name.split('｜').pop(); if (tag[cid]) g.name = `${tag[cid]}｜${rn}`; } });
   }
 
   // ── 資料輔助 ────────────────────────────────────────────────────
@@ -81,9 +91,8 @@ const SectorView = (() => {
   function renderFlowTable(root) {
     const date = flow.dates[flow.dates.length - 1];
     // 自訂族群 / 族群×角色 只列「細分板塊」分類;上中下游產業鏈的同名族群 (如半導體) 另在側欄看,避免排行出現重名
-    const secIds = new Set(chain.taxonomy.filter(c => c.sector).map(c => c.id));
-    const isSec = (g) => secIds.has(g.id.split('.')[0]);
-    const rows = flow.groups.filter(g => g.kind === st.kind && g.n >= 3 && (!['cluster', 'role'].includes(g.kind) || isSec(g))).map(g => ({ g, m: metrics(g) }));
+    const rows = flow.groups.filter(g => g.n >= 3 && (st.kind === 'sector' ? g.kind === 'cluster' && isSectorId(g.id)
+      : st.kind === 'chain' ? g.kind === 'cluster' && !isSectorId(g.id) : g.kind === st.kind)).map(g => ({ g, m: metrics(g) }));  // role = 全部角色 (板塊小分類 + 上中下游角色),名稱為「族群｜角色」
     const COLS = [  // [key, 標題, 取值, 說明]
       ['name', '群組', r => r.g.name, ''],
       ['n', '檔數', r => r.g.n, '群組內股票檔數'],
@@ -104,7 +113,7 @@ const SectorView = (() => {
     root.innerHTML = `
       <div class="sec-head"><div><div class="sec-title">全市場資金流向</div>
         <div class="sec-sub">資料日 ${date.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3')} · 全市場成交 ${fmt(flow.market_amt[flow.market_amt.length - 1], 0)} 億 · 占大盤% = 群組成交 ÷ 全市場成交;「較20日均(pt)」= 今日占大盤% 減 前20日平均 (pt=百分點)。點欄位標題排序,再點切換正反序</div></div>
-        <div class="sec-chips">${viewToggle()}${Object.entries(KIND_LABEL).map(([k, l]) => `<button class="sec-chip ${st.kind === k ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div></div>
+        <div class="sec-chips">${viewToggle()}${kindChips()}</div></div>
       <div class="sec-tools"><input class="sec-input" id="sec-kw" placeholder="搜尋群組名稱" value="${st.kw}">
         ${st.kind === 'group' && !kw ? `<button class="sec-chip" id="sec-all">${st.showAll ? '只看前 60' : '顯示全部 ' + rows.length}</button>` : ''}
         ${st.kind === 'group' ? '<span class="sec-note">細分族群互相重疊,占比不可加總</span>' : ''}</div>
@@ -308,7 +317,7 @@ const SectorView = (() => {
     return Object.assign({ name, key, n, a20, a5, p5: sumLast(p, 5), n5, nTrend: n5d - n20d,
       tAmt: a[a.length - 1], tPct: p[p.length - 1], tNet: net[net.length - 1] }, extra);
   }
-  const groupNode = (g) => nodeOf(g.name.split('｜').pop(), g.id, g.n, g.amt, g.pct, g.net, { type: 'group' });
+  const groupNode = (g) => nodeOf(g.name.split('｜').pop(), g.id, g.n, g.amt, g.pct, g.net, { type: 'group', full: g.name });
   const stockNode = (c) => { const h = flow.stk[c]; return nodeOf(nameOf(c), c, 1, h[0], h[1], h[2], { type: 'stock', code: c }); };
   // 依版本取座標
   const MODES = {
@@ -321,23 +330,22 @@ const SectorView = (() => {
   };
 
   function bubbleLevel() {
-    const secIds = new Set(chain.taxonomy.filter(c => c.sector).map(c => c.id));
     const G = (k, id) => gMap()[k + ':' + id], path = st.path, kind = st.kind;
     const out = { nodes: [], type: 'group', ctx: null, crumbs: [] };
     const stocksOf = (k, id) => members(k, id).filter(cbOk).filter(c => flow.stk && flow.stk[c]).map(stockNode);
-    if (kind === 'cluster') {
+    if (kind === 'sector' || kind === 'chain') {
       const cl = path[0] && chain.taxonomy.find(c => c.id === path[0]);
-      if (path.length === 0) out.nodes = flow.groups.filter(g => g.kind === 'cluster' && secIds.has(g.id)).map(groupNode);
+      if (path.length === 0) out.nodes = flow.groups.filter(g => g.kind === 'cluster' && isSectorId(g.id) === (kind === 'sector')).map(groupNode);
       else if (path.length === 1) { out.nodes = cl.roles.map(r => G('role', cl.id + '.' + r.id)).filter(Boolean).map(groupNode); out.ctx = G('cluster', path[0]); }
       else { out.nodes = stocksOf('role', path[1]); out.type = 'stock'; out.ctx = G('role', path[1]); }
       if (path[0]) out.crumbs.push(cl.name);
       if (path[1]) out.crumbs.push(G('role', path[1]).name.split('｜').pop());
     } else {
       if (path.length === 0) {
-        let gs = flow.groups.filter(g => g.kind === kind && g.n >= 3 && (kind !== 'role' || secIds.has(g.id.split('.')[0])));
+        let gs = flow.groups.filter(g => g.kind === kind && g.n >= 3);
         if (kind === 'group') gs = gs.sort((a, b) => avg(b.amt.slice(-20)) - avg(a.amt.slice(-20))).slice(0, 80);
         out.nodes = gs.map(groupNode);
-      } else { out.nodes = stocksOf(kind, path[0]); out.type = 'stock'; out.ctx = G(kind, path[0]); out.crumbs.push(out.ctx.name.split('｜').pop()); }
+      } else { out.nodes = stocksOf(kind, path[0]); out.type = 'stock'; out.ctx = G(kind, path[0]); out.crumbs.push(kind === 'role' ? out.ctx.name : out.ctx.name.split('｜').pop()); }
     }
     out.nodes = out.nodes.filter(n => n.a20 > 0 || n.a5 > 0);
     return out;
@@ -369,7 +377,7 @@ const SectorView = (() => {
     root.innerHTML = `
       <div class="sec-head"><div><div class="sec-title">全市場資金流向</div>
         <div class="sec-sub">資料日 ${date.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3')} · 全市場成交 ${fmt(flow.market_amt[flow.market_amt.length - 1], 0)} 億 · ${M.hint} · 圓越大 = 近20日均成交額越大 · 紅漲(買)綠跌(賣)</div></div>
-        <div class="sec-chips">${viewToggle()}<span class="sec-seg">${Object.entries(MODES).map(([k, m]) => `<button class="sec-chip ${st.bmode === k ? 'on' : ''}" data-bmode="${k}">${m.label}</button>`).join('')}</span>${Object.entries(KIND_LABEL).map(([k, l]) => `<button class="sec-chip ${st.kind === k ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div></div>
+        <div class="sec-chips">${viewToggle()}<span class="sec-seg">${Object.entries(MODES).map(([k, m]) => `<button class="sec-chip ${st.bmode === k ? 'on' : ''}" data-bmode="${k}">${m.label}</button>`).join('')}</span>${kindChips()}</div></div>
       <div class="sec-tools"><span class="sec-crumbs">${crumbs.map((c, i) => `<span class="sec-crumb ${i === crumbs.length - 1 ? 'cur' : ''}" data-depth="${i}">${c}</span>`).join(' › ')}</span>
         <button class="sec-chip" id="sec-bz-reset">重設視圖</button><span class="sec-note">滾輪縮放 · 拖曳移動 · 點泡泡${L.type === 'group' ? '往下一層' : '選取個股'}</span>
         ${L.type === 'stock' && opts.hasCB ? `<label class="sec-cb" style="margin-left:auto"><input type="checkbox" id="sec-cbonly" ${st.onlyCB ? 'checked' : ''}> 只看有 CB</label>` : ''}</div>
@@ -388,6 +396,7 @@ const SectorView = (() => {
     drawBubble(root, L);
   }
 
+  let bdrag = null, bmoved = false;  // 拖曳狀態必須在 drawBubble 之外: 拖曳中每次移動都會重畫並重建 handler
   function drawBubble(root, L) {
     const svg = root.querySelector('#sec-bub'), wrap = root.querySelector('#sec-bub-wrap');
     if (!svg || !wrap) return;
@@ -417,10 +426,10 @@ const SectorView = (() => {
       if (x - lastPx >= 46) { g += `<text x="${x}" y="${H - 22}" class="sec-axt" text-anchor="middle">${v > 0 ? '+' : ''}${fmtTick(v)}</text>`; lastPx = x; }
     });
     const yUnit = Md.ySym ? '' : '%', yTicks = Md.ySym ? symTicks(symexp(V.y0, cy), symexp(V.y1, cy), cy).map(v => [v, symlog(v, cy)]) : niceTicksLinear(V.y0, V.y1, 7).map(v => [v, v]);
-    let lastPy = 1e9;
+    let lastPy = -1e9;
     yTicks.sort((a, b) => b[1] - a[1]).forEach(([v, t]) => {
       const y = PY(t); g += `<line x1="${Mg.l}" y1="${y}" x2="${Mg.l + pw}" y2="${y}" class="${v === 0 ? 'sec-ax0' : 'sec-grid'}"/>`;
-      if (lastPy - y >= 22) { g += `<text x="${Mg.l - 8}" y="${y + 4}" class="sec-axt" text-anchor="end">${v > 0 ? '+' : ''}${fmtTick(v)}${yUnit}</text>`; lastPy = y; }
+      if (y - lastPy >= 22) { g += `<text x="${Mg.l - 8}" y="${y + 4}" class="sec-axt" text-anchor="end">${v > 0 ? '+' : ''}${fmtTick(v)}${yUnit}</text>`; lastPy = y; }
     });
     g += `<text x="${Mg.l + 4}" y="${H - 6}" class="sec-axl">${Md.xl[0]}</text><text x="${Mg.l + pw - 4}" y="${H - 6}" class="sec-axl" text-anchor="end">${Md.xl[1]}</text>`;
     g += `<text x="${Mg.l + pw - 6}" y="${Mg.t + 14}" class="sec-qd" text-anchor="end">${Md.q[0]}</text><text x="${Mg.l + 6}" y="${Mg.t + ph - 6}" class="sec-qd">${Md.q[1]}</text>`;
@@ -442,7 +451,7 @@ const SectorView = (() => {
     const tip = root.querySelector('#sec-tip');
     const showTip = (n, e) => {
       const b = wrap.getBoundingClientRect();
-      tip.innerHTML = `<b>${n.name}</b>${n.code ? ' ' + n.code : ''}${opts.hasCB && n.code && opts.hasCB(n.code) ? ' <span class="sec-cbtag">CB</span>' : ''} · ${n.n} 檔<br>`
+      tip.innerHTML = `<b>${n.full || n.name}</b>${n.code ? ' ' + n.code : ''}${opts.hasCB && n.code && opts.hasCB(n.code) ? ' <span class="sec-cbtag">CB</span>' : ''} · ${n.n} 檔<br>`
         + `法人近5日累計 <span class="${cls_(n.n5)}">${sign(n.n5, 1)} 億</span> · 今日 <span class="${cls_(n.tNet)}">${sign(n.tNet, 1)} 億</span><br>`
         + `近5日日均買超 − 近20日日均 <span class="${cls_(n.nTrend)}">${sign(n.nTrend, 2)} 億/天</span><br>`
         + `近5日均成交 ${fmt(n.a5, 2)} 億 · 近20日均 ${fmt(n.a20, 2)} 億<br>`
@@ -450,21 +459,20 @@ const SectorView = (() => {
       tip.style.display = 'block';
       tip.style.left = Math.max(4, Math.min(e.clientX - b.left + 14, b.width - 270)) + 'px'; tip.style.top = Math.max(4, e.clientY - b.top + 14) + 'px';
     };
-    let drag = null, moved = false;
     svg.onmousemove = (e) => {
-      if (drag) {
-        const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-        if (moved) { const tw = (drag.V.x1 - drag.V.x0) / pw, th = (drag.V.y1 - drag.V.y0) / ph;
-          st.bz = { x0: drag.V.x0 - dx * tw, x1: drag.V.x1 - dx * tw, y0: drag.V.y0 + dy * th, y1: drag.V.y1 + dy * th }; drawBubble(root, L); }
+      if (bdrag) {
+        const dx = e.clientX - bdrag.x, dy = e.clientY - bdrag.y; if (Math.abs(dx) + Math.abs(dy) > 3) bmoved = true;
+        if (bmoved) { tip.style.display = 'none'; const tw = (bdrag.V.x1 - bdrag.V.x0) / pw, th = (bdrag.V.y1 - bdrag.V.y0) / ph;
+          st.bz = { x0: bdrag.V.x0 - dx * tw, x1: bdrag.V.x1 - dx * tw, y0: bdrag.V.y0 + dy * th, y1: bdrag.V.y1 + dy * th }; drawBubble(root, L); }
         return;
       }
       const el = e.target.closest && e.target.closest('.sec-bub');
       if (el) showTip(nodes[+el.dataset.i], e); else tip.style.display = 'none';
     };
-    svg.onmouseleave = () => { tip.style.display = 'none'; drag = null; };
-    svg.onmousedown = (e) => { drag = { x: e.clientX, y: e.clientY, V: Object.assign({}, st.bz) }; moved = false; };
+    svg.onmouseleave = () => { tip.style.display = 'none'; bdrag = null; };
+    svg.onmousedown = (e) => { if (e.button !== 0) return; e.preventDefault(); bdrag = { x: e.clientX, y: e.clientY, V: Object.assign({}, st.bz) }; bmoved = false; };
     svg.onmouseup = (e) => {
-      const was = moved; drag = null; if (was) return;
+      const was = bmoved; bdrag = null; bmoved = false; if (was) return;
       const el = e.target.closest && e.target.closest('.sec-bub'); if (!el) return;
       const n = nodes[+el.dataset.i];
       if (n.type === 'group') { st.path = st.path.concat(n.key); st.bz = null; st.bsel = null; render(); }
