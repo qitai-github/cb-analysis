@@ -23,3 +23,6 @@ scripts/templates/holdings_report_example.html
 
 # XQ 廠商授權資料,勿公開
 data/industry_chain/xq_industry.json
+
+# 他站參考資料,僅本機使用,勿 commit
+參考資料/

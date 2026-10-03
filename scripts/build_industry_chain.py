@@ -76,33 +76,30 @@ def assign_from_xq(tax, stocks):
                                      "subs": subs, "basis": "xq", "confidence": "med" if ranked else "low"})
 
 
-def auto_chains(xq, stocks, max_roles=14, min_n=3):
-    """每個 XQ 大產業自動生成一條鏈: 角色 = 該大產業下檔數最多的細分群組 (其餘併「其他」)。
-    一檔只歸一個角色 (取它所屬群組中檔數最多者),所以各角色互不重疊、可加總。"""
-    gname = {g: v["name"] for g, v in xq["groups"].items()}
-    size = {g: len(v) for g, v in xq["members"].items()}
-    by_main = defaultdict(list)
-    for code, x in xq["stocks"].items():
-        by_main[x["main"]].append(code)
+def sector_chains(stocks):
+    """板塊分類 (sectors.json): 每個大類一條鏈,角色=板塊。
+    一檔在同一條鏈內若屬多個板塊,取檔數最少 (最具體) 者當角色,其餘板塊名放進 subs。"""
+    path = DIR / "sectors.json"
+    if not path.exists():
+        return []
+    ref = json.loads(path.read_text(encoding="utf-8"))
+    size = {n: len(v) for n, v in ref["sectors"].items()}
     clusters = []
-    for mid, codes in sorted(by_main.items(), key=lambda kv: -len(kv[1])):
-        cnt = defaultdict(int)
-        for c in codes:
-            for g in xq["stocks"][c]["groups"]:
-                cnt[g] += 1
-        roles = [g for g, n in sorted(cnt.items(), key=lambda kv: -kv[1]) if n >= min_n][:max_roles]
-        rank = {g: i for i, g in enumerate(roles)}
-        cid = "m" + mid
-        for c in codes:
-            mine = [g for g in xq["stocks"][c]["groups"] if g in rank]
-            role = min(mine, key=lambda g: rank[g]) if mine else "other"
-            subs = [gname[g] for g in xq["stocks"][c]["groups"]][:3]
-            stocks[c]["memberships"].append({"cluster": cid, "role": role, "subs": subs,
-                                             "basis": "xq", "confidence": "low"})
-        rl = [{"id": g, "name": gname[g]} for g in roles]
-        if any(m["memberships"][-1]["role"] == "other" for m in (stocks[c] for c in codes) if m["memberships"][-1]["cluster"] == cid):
-            rl.append({"id": "other", "name": "其他"})
-        clusters.append({"id": cid, "name": gname[mid], "icon": "folder", "auto": True, "roles": rl})
+    for gi, (gname, names) in enumerate(ref["groups"].items(), 1):
+        cid = f"s{gi}"
+        rid = {n: f"{cid}r{i}" for i, n in enumerate(names, 1)}
+        mine = defaultdict(list)  # code -> [sector names in this group]
+        for n in names:
+            for c in ref["sectors"].get(n, []):
+                if c in stocks:
+                    mine[c].append(n)
+        for c, ns in mine.items():
+            ns.sort(key=lambda n: size[n])
+            stocks[c]["memberships"].append({"cluster": cid, "role": rid[ns[0]], "subs": ns,
+                                             "basis": "sector", "confidence": "med"})
+        used = {n for ns in mine.values() for n in ns[:1]}
+        clusters.append({"id": cid, "name": gname, "icon": "layers", "sector": True,
+                         "roles": [{"id": rid[n], "name": n} for n in names if n in used]})
     return clusters
 
 
@@ -133,8 +130,8 @@ def main():
         stocks[e["code"]]["memberships"].append(ms)
 
     assign_from_xq(tax, stocks)
-    auto = auto_chains(xq, stocks) if xq else []
-    tax["clusters"] = tax["clusters"] + auto
+    secs = sector_chains(stocks)
+    tax["clusters"] = tax["clusters"] + secs
 
     cand = defaultdict(list)
     for code, m in stocks.items():
