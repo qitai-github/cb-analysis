@@ -6,7 +6,7 @@
 const SectorView = (() => {
   let flow = null, chain = null, cls = null;
   let opts = {};
-  const st = { mode: 'flow', cluster: 'pcb', kind: 'cluster', sortKey: 'delta', sortDir: 'desc', sel: null, selStock: null, selRole: null, selSub: null, subSortKey: 'share', subSortDir: 'desc', stkSortKey: 'amt', stkSortDir: 'desc', onlyCB: false, kw: '', showAll: false };
+  const st = { mode: 'flow', cluster: 'pcb', view: 'bubble', bmode: 'inst', path: [], bz: null, bsel: null, kind: 'cluster', sortKey: 'delta', sortDir: 'desc', sel: null, selStock: null, selRole: null, selSub: null, subSortKey: 'share', subSortDir: 'desc', stkSortKey: 'amt', stkSortDir: 'desc', onlyCB: false, kw: '', showAll: false };
   let chart = null;
   const KIND_LABEL = { cluster: '自訂族群', role: '族群×角色', main: '大產業', group: '細分族群' };
   const ROLE_COLOR = ['#14b8a6', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#22c55e'];
@@ -23,7 +23,7 @@ const SectorView = (() => {
   const sign = (v, d = 2) => (v > 0 ? '+' : '') + fmt(v, d);
   const cls_ = (v) => (v > 0 ? 'sec-up' : v < 0 ? 'sec-down' : '');
   const nameOf = (c) => (chain.stocks[c] && chain.stocks[c].name) || (cls.stocks[c] && cls.stocks[c].name) || c;
-  const today = (c) => (flow.latest && flow.latest[c]) || [0, 0];
+  const today = (c) => { const h = flow.stk && flow.stk[c]; return h ? [h[0][h[0].length - 1], h[1][h[1].length - 1]] : [0, 0]; };
   const gMap = () => (flow._gm || (flow._gm = Object.fromEntries(flow.groups.map(g => [g.kind + ':' + g.id, g]))));
 
   function metrics(g) {
@@ -69,11 +69,16 @@ const SectorView = (() => {
       <div class="sec-side-sub">上中下游產業鏈 (${themed.length})</div>${themed.map(item).join('')}
       <div class="sec-side-note">右側數字 = 今日占大盤成交%,較前 20 日均的增減 (百分點)。細分板塊互不重疊、占比可加總;上中下游產業鏈則一檔可屬多條。</div></div>`;
     el.querySelectorAll('[data-cluster]').forEach(n => n.onclick = () => { st.mode = 'chain'; st.cluster = n.dataset.cluster; st.selStock = null; st.selRole = null; render(); });
-    el.querySelector('[data-flow]').onclick = () => { st.mode = 'flow'; render(); };
+    el.querySelector('[data-flow]').onclick = () => { st.mode = 'flow'; st.path = []; st.bz = null; st.bsel = null; render(); };
   }
 
   // ── 全市場資金流向 ───────────────────────────────────────────────
   function renderFlow(root) {
+    if (st.view === 'bubble') return renderBubble(root);
+    renderFlowTable(root);
+  }
+
+  function renderFlowTable(root) {
     const date = flow.dates[flow.dates.length - 1];
     // 自訂族群 / 族群×角色 只列「細分板塊」分類;上中下游產業鏈的同名族群 (如半導體) 另在側欄看,避免排行出現重名
     const secIds = new Set(chain.taxonomy.filter(c => c.sector).map(c => c.id));
@@ -99,7 +104,7 @@ const SectorView = (() => {
     root.innerHTML = `
       <div class="sec-head"><div><div class="sec-title">全市場資金流向</div>
         <div class="sec-sub">資料日 ${date.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3')} · 全市場成交 ${fmt(flow.market_amt[flow.market_amt.length - 1], 0)} 億 · 占大盤% = 群組成交 ÷ 全市場成交;「較20日均(pt)」= 今日占大盤% 減 前20日平均 (pt=百分點)。點欄位標題排序,再點切換正反序</div></div>
-        <div class="sec-chips">${Object.entries(KIND_LABEL).map(([k, l]) => `<button class="sec-chip ${st.kind === k ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div></div>
+        <div class="sec-chips">${viewToggle()}${Object.entries(KIND_LABEL).map(([k, l]) => `<button class="sec-chip ${st.kind === k ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div></div>
       <div class="sec-tools"><input class="sec-input" id="sec-kw" placeholder="搜尋群組名稱" value="${st.kw}">
         ${st.kind === 'group' && !kw ? `<button class="sec-chip" id="sec-all">${st.showAll ? '只看前 60' : '顯示全部 ' + rows.length}</button>` : ''}
         ${st.kind === 'group' ? '<span class="sec-note">細分族群互相重疊,占比不可加總</span>' : ''}</div>
@@ -109,6 +114,7 @@ const SectorView = (() => {
         <td class="${cls_(m.delta)}">${sign(m.delta)}</td><td class="${cls_(m.d5)}">${sign(m.d5)}</td>
         <td class="${cls_(m.pct)}">${sign(m.pct)}</td><td class="${cls_(m.pct5)}">${sign(m.pct5)}</td><td>${m.up}</td><td>${spark(g.share)}</td></tr>`).join('')}
       </tbody></table></div><div id="sec-detail"></div>`;
+    bindViewToggle(root);
     root.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { st.kind = b.dataset.kind; st.sel = null; st.selSub = null; st.showAll = false; render(); });
     root.querySelectorAll('[data-sort]').forEach(h => h.onclick = () => {
       const k = h.dataset.sort;
@@ -284,6 +290,202 @@ const SectorView = (() => {
       <div class="sec-h3">業務分類</div>${ms}
       <div class="sec-h3">細分族群</div><div class="sec-chips-s">${(x ? x.groups : []).map(g => `<span class="sec-tag">${cls.groups[g].name}</span>`).join('')}</div>
       ${hasCB ? `<button class="sec-btn" data-open="${code}">對應 CB / 個股分析</button>` : '<div class="sec-note">此股目前無對應 CB</div>'}`;
+  }
+
+
+  // ── 泡泡圖 (全市場資金流向) ──────────────────────────────────────
+  // 兩個版本可切換 (st.bmode):
+  //   inst 法人買賣超: X = 近5日三大法人累計買賣超 (億元);Y = 近5日日均買賣超 − 近20日日均 (億/天,越上越偏買);顏色 = 買超紅/賣超綠
+  //   amt  成交金額  : X = 近5日均成交額 − 近20日均成交額 (億/天);Y = 近5日累計漲跌%;顏色 = 漲紅跌綠
+  // 圓大小 = 近20日均成交額。層級: 自訂族群 族群→小分類→個股 / 其他分類 群組→個股。滾輪縮放、拖曳移動。
+  const viewToggle = () => `<span class="sec-seg"><button class="sec-chip ${st.view === 'bubble' ? 'on' : ''}" data-view="bubble">泡泡圖</button><button class="sec-chip ${st.view === 'table' ? 'on' : ''}" data-view="table">表格</button></span>`;
+  function bindViewToggle(root) {
+    root.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { st.view = b.dataset.view; render(); });
+  }
+  const sumLast = (a, n) => a.slice(-n).reduce((x, y) => x + y, 0);
+  function nodeOf(name, key, n, a, p, net, extra) {
+    const a20 = avg(a.slice(-20)), a5 = avg(a.slice(-5)), n5 = sumLast(net, 5), n5d = avg(net.slice(-5)), n20d = avg(net.slice(-20));
+    return Object.assign({ name, key, n, a20, a5, p5: sumLast(p, 5), n5, nTrend: n5d - n20d,
+      tAmt: a[a.length - 1], tPct: p[p.length - 1], tNet: net[net.length - 1] }, extra);
+  }
+  const groupNode = (g) => nodeOf(g.name.split('｜').pop(), g.id, g.n, g.amt, g.pct, g.net, { type: 'group' });
+  const stockNode = (c) => { const h = flow.stk[c]; return nodeOf(nameOf(c), c, 1, h[0], h[1], h[2], { type: 'stock', code: c }); };
+  // 依版本取座標
+  const MODES = {
+    inst: { label: '法人買賣超', x: n => n.n5, y: n => n.nTrend, ySym: true, color: n => n.n5,
+      xl: ['← 法人賣超 (億元)', '法人買超 (億元) →'], yl: '近5日日均買超 − 近20日日均 (億/天)',
+      q: ['買超加速', '賣超加速'], hint: '越右 = 近5日法人累計買超越多 · 越上 = 比近20日平均更偏買' },
+    amt: { label: '成交金額', x: n => n.a5 - n.a20, y: n => n.p5, ySym: false, color: n => n.p5,
+      xl: ['← 資金減少 (億/天)', '資金增加 (億/天) →'], yl: '近5日累計漲跌 (%)',
+      q: ['資金增加 · 上漲', '資金減少 · 下跌'], hint: '越右 = 近5日均成交額比20日均更大 · 越上 = 近5日累計漲幅越大' },
+  };
+
+  function bubbleLevel() {
+    const secIds = new Set(chain.taxonomy.filter(c => c.sector).map(c => c.id));
+    const G = (k, id) => gMap()[k + ':' + id], path = st.path, kind = st.kind;
+    const out = { nodes: [], type: 'group', ctx: null, crumbs: [] };
+    const stocksOf = (k, id) => members(k, id).filter(cbOk).filter(c => flow.stk && flow.stk[c]).map(stockNode);
+    if (kind === 'cluster') {
+      const cl = path[0] && chain.taxonomy.find(c => c.id === path[0]);
+      if (path.length === 0) out.nodes = flow.groups.filter(g => g.kind === 'cluster' && secIds.has(g.id)).map(groupNode);
+      else if (path.length === 1) { out.nodes = cl.roles.map(r => G('role', cl.id + '.' + r.id)).filter(Boolean).map(groupNode); out.ctx = G('cluster', path[0]); }
+      else { out.nodes = stocksOf('role', path[1]); out.type = 'stock'; out.ctx = G('role', path[1]); }
+      if (path[0]) out.crumbs.push(cl.name);
+      if (path[1]) out.crumbs.push(G('role', path[1]).name.split('｜').pop());
+    } else {
+      if (path.length === 0) {
+        let gs = flow.groups.filter(g => g.kind === kind && g.n >= 3 && (kind !== 'role' || secIds.has(g.id.split('.')[0])));
+        if (kind === 'group') gs = gs.sort((a, b) => avg(b.amt.slice(-20)) - avg(a.amt.slice(-20))).slice(0, 80);
+        out.nodes = gs.map(groupNode);
+      } else { out.nodes = stocksOf(kind, path[0]); out.type = 'stock'; out.ctx = G(kind, path[0]); out.crumbs.push(out.ctx.name.split('｜').pop()); }
+    }
+    out.nodes = out.nodes.filter(n => n.a20 > 0 || n.a5 > 0);
+    return out;
+  }
+
+  // 對稱對數軸 (中心附近一堆小泡泡才分得開): f(v) = sign · log10(1 + |v|/c)
+  const symlog = (v, c) => Math.sign(v) * Math.log10(1 + Math.abs(v) / c);
+  const symexp = (t, c) => Math.sign(t) * c * (Math.pow(10, Math.abs(t)) - 1);
+  const symTicks = (vmin, vmax, c) => {
+    const t = [0];
+    for (let k = Math.floor(Math.log10(c)) - 1; k <= Math.ceil(Math.log10(Math.max(Math.abs(vmin), Math.abs(vmax), c))) + 1; k++)
+      for (const m of [1, 2, 5]) { const v = m * Math.pow(10, k); t.push(v, -v); }
+    return t.filter(v => v >= vmin && v <= vmax).sort((a, b) => a - b);
+  };
+  function niceTicksLinear(lo, hi, want) {
+    const raw = (hi - lo) / want, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    const step = (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * mag, out = [];
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
+    return out;
+  }
+  const fmtTick = (v) => (Math.abs(v) >= 1 ? String(+v.toFixed(2)) : String(+v.toFixed(3)));
+  const quant = (arr, q, floor) => { const s = arr.map(Math.abs).sort((a, b) => a - b); return Math.max(floor, s[Math.floor(s.length * q)] || floor); };
+
+  function renderBubble(root) {
+    if (!flow.stk || !flow.groups[0].net) { root.innerHTML = '<div style="padding:24px;color:#94a3b8">法人買賣超資料尚未產生,請先執行 scripts/build_sector_flow.py --rebuild</div>'; return; }
+    const L = bubbleLevel(), date = flow.dates[flow.dates.length - 1], M = MODES[st.bmode];
+    const crumbs = [KIND_LABEL[st.kind]].concat(L.crumbs);
+    const ctxG = L.ctx, cm = ctxG && metrics(ctxG);
+    root.innerHTML = `
+      <div class="sec-head"><div><div class="sec-title">全市場資金流向</div>
+        <div class="sec-sub">資料日 ${date.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3')} · 全市場成交 ${fmt(flow.market_amt[flow.market_amt.length - 1], 0)} 億 · ${M.hint} · 圓越大 = 近20日均成交額越大 · 紅漲(買)綠跌(賣)</div></div>
+        <div class="sec-chips">${viewToggle()}<span class="sec-seg">${Object.entries(MODES).map(([k, m]) => `<button class="sec-chip ${st.bmode === k ? 'on' : ''}" data-bmode="${k}">${m.label}</button>`).join('')}</span>${Object.entries(KIND_LABEL).map(([k, l]) => `<button class="sec-chip ${st.kind === k ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div></div>
+      <div class="sec-tools"><span class="sec-crumbs">${crumbs.map((c, i) => `<span class="sec-crumb ${i === crumbs.length - 1 ? 'cur' : ''}" data-depth="${i}">${c}</span>`).join(' › ')}</span>
+        <button class="sec-chip" id="sec-bz-reset">重設視圖</button><span class="sec-note">滾輪縮放 · 拖曳移動 · 點泡泡${L.type === 'group' ? '往下一層' : '選取個股'}</span>
+        ${L.type === 'stock' && opts.hasCB ? `<label class="sec-cb" style="margin-left:auto"><input type="checkbox" id="sec-cbonly" ${st.onlyCB ? 'checked' : ''}> 只看有 CB</label>` : ''}</div>
+      <div class="sec-bub-wrap" id="sec-bub-wrap"><svg id="sec-bub"></svg><div id="sec-tip" class="sec-tip"></div></div>
+      <div id="sec-bsel" class="sec-bsel"></div>
+      ${ctxG ? `<div class="sec-card"><div class="sec-card-h"><b>${crumbs.slice(1).join(' › ')}</b><span class="sec-sub">${ctxG.n} 檔 · 今日占大盤 ${fmt(cm.share)}% (較20日均 ${sign(cm.delta)}pt) · 漲跌 ${sign(cm.pct)}%</span></div><div class="sec-chart"><canvas id="sec-chart"></canvas></div></div>` : ''}
+      ${L.type === 'stock' ? `<div class="sec-card"><div class="sec-card-h"><b>個股</b><span class="sec-sub">${L.nodes.length} 檔 · 點欄位標題排序</span></div>${memberTable(L.nodes.map(n => n.code), ctxG)}</div>` : ''}`;
+    bindViewToggle(root);
+    root.querySelectorAll('[data-bmode]').forEach(b => b.onclick = () => { st.bmode = b.dataset.bmode; st.bz = null; render(); });
+    root.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { st.kind = b.dataset.kind; st.path = []; st.bz = null; st.bsel = null; render(); });
+    root.querySelectorAll('.sec-crumb').forEach(c => c.onclick = () => { st.path = st.path.slice(0, +c.dataset.depth); st.bz = null; st.bsel = null; render(); });
+    const cb = root.querySelector('#sec-cbonly'); if (cb) cb.onchange = () => { st.onlyCB = cb.checked; render(); };
+    const rs = root.querySelector('#sec-bz-reset'); if (rs) rs.onclick = () => { st.bz = null; drawBubble(root, L); };
+    bindStockRows(root);
+    if (ctxG) drawChart(root.querySelector('#sec-chart'), ctxG);
+    drawBubble(root, L);
+  }
+
+  function drawBubble(root, L) {
+    const svg = root.querySelector('#sec-bub'), wrap = root.querySelector('#sec-bub-wrap');
+    if (!svg || !wrap) return;
+    const Md = MODES[st.bmode], W = Math.max(520, wrap.clientWidth || 900), H = Math.max(420, Math.min(640, Math.round(W * 0.52)));
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    const Mg = { l: 70, r: 18, t: 16, b: 40 }, nodes = L.nodes;
+    if (!nodes.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#94a3b8">沒有可顯示的項目</text>`; return; }
+    const vx = nodes.map(Md.x), vy = nodes.map(Md.y);
+    const cx = quant(vx, 0.3, 0.002), cy = Md.ySym ? quant(vy, 0.3, 0.002) : 1;
+    const tx = vx.map(v => symlog(v, cx)), ty = Md.ySym ? vy.map(v => symlog(v, cy)) : vy;
+    if (!st.bz) {
+      const ext = (a) => [Math.min(0, ...a), Math.max(0, ...a)], [xa, xb] = ext(tx), [ya, yb] = ext(ty);
+      const px = (xb - xa || 1) * 0.1, py = (yb - ya || 2) * 0.12;
+      st.bz = { x0: xa - px, x1: xb + px, y0: ya - py, y1: yb + py };
+    }
+    const V = st.bz, pw = W - Mg.l - Mg.r, ph = H - Mg.t - Mg.b;
+    const PX = (t) => Mg.l + (t - V.x0) / (V.x1 - V.x0) * pw, PY = (t) => Mg.t + (1 - (t - V.y0) / (V.y1 - V.y0)) * ph;
+    const maxA = Math.max(...nodes.map(n => n.a20)) || 1, rmax = L.type === 'stock' ? 36 : 50;
+    const rOf = (n) => 7 + (rmax - 7) * Math.pow(n.a20 / maxA, 0.5);
+    const cscale = quant(nodes.map(Md.color), 0.9, 0.01);
+    let g = '';
+    // 軸與格線
+    const vxmin = symexp(V.x0, cx), vxmax = symexp(V.x1, cx);
+    let lastPx = -1e9;
+    symTicks(vxmin, vxmax, cx).forEach(v => {
+      const x = PX(symlog(v, cx)); g += `<line x1="${x}" y1="${Mg.t}" x2="${x}" y2="${Mg.t + ph}" class="${v === 0 ? 'sec-ax0' : 'sec-grid'}"/>`;
+      if (x - lastPx >= 46) { g += `<text x="${x}" y="${H - 22}" class="sec-axt" text-anchor="middle">${v > 0 ? '+' : ''}${fmtTick(v)}</text>`; lastPx = x; }
+    });
+    const yUnit = Md.ySym ? '' : '%', yTicks = Md.ySym ? symTicks(symexp(V.y0, cy), symexp(V.y1, cy), cy).map(v => [v, symlog(v, cy)]) : niceTicksLinear(V.y0, V.y1, 7).map(v => [v, v]);
+    let lastPy = 1e9;
+    yTicks.sort((a, b) => b[1] - a[1]).forEach(([v, t]) => {
+      const y = PY(t); g += `<line x1="${Mg.l}" y1="${y}" x2="${Mg.l + pw}" y2="${y}" class="${v === 0 ? 'sec-ax0' : 'sec-grid'}"/>`;
+      if (lastPy - y >= 22) { g += `<text x="${Mg.l - 8}" y="${y + 4}" class="sec-axt" text-anchor="end">${v > 0 ? '+' : ''}${fmtTick(v)}${yUnit}</text>`; lastPy = y; }
+    });
+    g += `<text x="${Mg.l + 4}" y="${H - 6}" class="sec-axl">${Md.xl[0]}</text><text x="${Mg.l + pw - 4}" y="${H - 6}" class="sec-axl" text-anchor="end">${Md.xl[1]}</text>`;
+    g += `<text x="${Mg.l + pw - 6}" y="${Mg.t + 14}" class="sec-qd" text-anchor="end">${Md.q[0]}</text><text x="${Mg.l + 6}" y="${Mg.t + ph - 6}" class="sec-qd">${Md.q[1]}</text>`;
+    g += `<text transform="translate(14 ${Mg.t + ph / 2}) rotate(-90)" class="sec-axl" text-anchor="middle">${Md.yl}</text>`;
+    g += `<clipPath id="sec-clip"><rect x="${Mg.l}" y="${Mg.t}" width="${pw}" height="${ph}"/></clipPath><g clip-path="url(#sec-clip)">`;
+    nodes.map((n, i) => ({ n, i })).sort((a, b) => b.n.a20 - a.n.a20).forEach(({ n, i }) => {
+      const x = PX(tx[i]), y = PY(ty[i]), r = rOf(n), cv = Md.color(n), k = Math.min(1, Math.abs(cv) / cscale);
+      const col = k < 0.05 ? '148,163,184' : cv > 0 ? '239,68,68' : '34,197,94', sel = st.bsel && n.code === st.bsel;
+      g += `<g class="sec-bub" data-i="${i}"><circle cx="${x}" cy="${y}" r="${r}" fill="rgba(${col},${0.2 + 0.5 * k})" stroke="${sel ? '#fff' : `rgba(${col},0.95)`}" stroke-width="${sel ? 3.5 : 1.2}"/>`;
+      if (r >= 15) {
+        const fs = Math.max(9, Math.min(15, r / 3.1)), maxc = Math.max(2, Math.floor(r * 1.7 / fs)), nm = n.name.length > maxc ? n.name.slice(0, maxc - 1) + '…' : n.name, xv = vx[i];
+        g += `<text x="${x}" y="${y - (r >= 22 ? 1 : -4)}" text-anchor="middle" class="sec-bl" style="font-size:${fs}px">${nm}</text>`;
+        if (r >= 22) g += `<text x="${x}" y="${y + fs + 1}" text-anchor="middle" class="sec-bl2" style="font-size:${Math.max(9, fs - 2)}px">${xv > 0 ? '+' : ''}${Math.abs(xv) >= 10 ? xv.toFixed(0) : xv.toFixed(1)}億</text>`;
+      }
+      g += '</g>';
+    });
+    svg.innerHTML = g + '</g>';
+
+    const tip = root.querySelector('#sec-tip');
+    const showTip = (n, e) => {
+      const b = wrap.getBoundingClientRect();
+      tip.innerHTML = `<b>${n.name}</b>${n.code ? ' ' + n.code : ''}${opts.hasCB && n.code && opts.hasCB(n.code) ? ' <span class="sec-cbtag">CB</span>' : ''} · ${n.n} 檔<br>`
+        + `法人近5日累計 <span class="${cls_(n.n5)}">${sign(n.n5, 1)} 億</span> · 今日 <span class="${cls_(n.tNet)}">${sign(n.tNet, 1)} 億</span><br>`
+        + `近5日日均買超 − 近20日日均 <span class="${cls_(n.nTrend)}">${sign(n.nTrend, 2)} 億/天</span><br>`
+        + `近5日均成交 ${fmt(n.a5, 2)} 億 · 近20日均 ${fmt(n.a20, 2)} 億<br>`
+        + `近5日累計漲跌 <span class="${cls_(n.p5)}">${sign(n.p5, 1)}%</span> · 今日 <span class="${cls_(n.tPct)}">${sign(n.tPct, 1)}%</span>`;
+      tip.style.display = 'block';
+      tip.style.left = Math.max(4, Math.min(e.clientX - b.left + 14, b.width - 270)) + 'px'; tip.style.top = Math.max(4, e.clientY - b.top + 14) + 'px';
+    };
+    let drag = null, moved = false;
+    svg.onmousemove = (e) => {
+      if (drag) {
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+        if (moved) { const tw = (drag.V.x1 - drag.V.x0) / pw, th = (drag.V.y1 - drag.V.y0) / ph;
+          st.bz = { x0: drag.V.x0 - dx * tw, x1: drag.V.x1 - dx * tw, y0: drag.V.y0 + dy * th, y1: drag.V.y1 + dy * th }; drawBubble(root, L); }
+        return;
+      }
+      const el = e.target.closest && e.target.closest('.sec-bub');
+      if (el) showTip(nodes[+el.dataset.i], e); else tip.style.display = 'none';
+    };
+    svg.onmouseleave = () => { tip.style.display = 'none'; drag = null; };
+    svg.onmousedown = (e) => { drag = { x: e.clientX, y: e.clientY, V: Object.assign({}, st.bz) }; moved = false; };
+    svg.onmouseup = (e) => {
+      const was = moved; drag = null; if (was) return;
+      const el = e.target.closest && e.target.closest('.sec-bub'); if (!el) return;
+      const n = nodes[+el.dataset.i];
+      if (n.type === 'group') { st.path = st.path.concat(n.key); st.bz = null; st.bsel = null; render(); }
+      else { st.bsel = st.bsel === n.code ? null : n.code; drawBubble(root, L); }
+    };
+    svg.onwheel = (e) => {
+      e.preventDefault();
+      const r = svg.getBoundingClientRect(), mx = (e.clientX - r.left) * (W / r.width), my = (e.clientY - r.top) * (H / r.height);
+      const f = e.deltaY < 0 ? 0.8 : 1.25, u = V.x0 + (mx - Mg.l) / pw * (V.x1 - V.x0), v = V.y0 + (1 - (my - Mg.t) / ph) * (V.y1 - V.y0);
+      st.bz = { x0: u - (u - V.x0) * f, x1: u + (V.x1 - u) * f, y0: v - (v - V.y0) * f, y1: v + (V.y1 - v) * f }; drawBubble(root, L);
+    };
+    renderBsel(root, L);
+  }
+  function renderBsel(root, L) {
+    const el = root.querySelector('#sec-bsel'); if (!el) return;
+    const n = st.bsel && L.nodes.find(x => x.code === st.bsel);
+    if (!n) { el.innerHTML = ''; return; }
+    const hasCB = opts.hasCB && opts.hasCB(n.code);
+    el.innerHTML = `<b>${n.code} ${n.name}</b> · 法人近5日 <span class="${cls_(n.n5)}">${sign(n.n5, 1)} 億</span> · 今日 <span class="${cls_(n.tNet)}">${sign(n.tNet, 1)} 億</span> · 近5日漲跌 <span class="${cls_(n.p5)}">${sign(n.p5, 1)}%</span> · 今日成交 ${fmt(n.tAmt, 1)} 億
+      ${hasCB ? '<button class="sec-btn" style="width:auto;margin:0 0 0 12px;padding:5px 12px" id="sec-bsel-open">對應 CB / 個股分析</button>' : '<span class="sec-note" style="margin-left:12px">無對應 CB</span>'}`;
+    const b = el.querySelector('#sec-bsel-open'); if (b) b.onclick = () => opts.openStock && opts.openStock(n.code);
   }
 
   // ── 進入點 ──────────────────────────────────────────────────────

@@ -17,6 +17,7 @@
 """
 import argparse
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -25,33 +26,54 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_universe as bu  # noqa: E402  Drive 列檔/下載/憑證沿用
-from parsers import stock_price  # noqa: E402
+from parsers import stock_inst, stock_price  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 XQ = ROOT / "data" / "industry_classification.json"
 CHAIN = ROOT / "data" / "industry_chain.json"
 OUT = ROOT / "data" / "sector_flow.json"
+HIST_DAYS = 20
 MIN_ROWS = {"TWSE": 800, "TPEX": 500}  # 假日/抓取失敗的空殼檔用列數擋掉
 
 
+INST_RE = {"TWSE": re.compile(r"TWSE_T86_(\d{8})\.csv$", re.I), "TPEX": re.compile(r"TPEx_T86_(\d{8})\.csv$", re.I)}
+
+
 def drive_days():
-    """{market: {YYYYMMDD: file_id}}"""
+    """{market: {YYYYMMDD: file_id}} 價量;另含 INST_TWSE / INST_TPEX (三大法人 T86)"""
     fid = bu.folder_ids()
+    try:
+        extra = json.loads(os.environ.get("DRIVE_FOLDERS", "") or "{}")
+    except json.JSONDecodeError:
+        extra = {}
     out = {}
     for mk, key in (("TWSE", "STOCK_PRICE_TWSE"), ("TPEX", "STOCK_PRICE_TPEX")):
         pat = bu._FILE_RE[mk]
         out[mk] = {m.group(1): f["id"] for f in bu.list_folder(fid[key]) if (m := pat.search(f["name"]))}
+    for mk in ("TWSE", "TPEX"):
+        folder = extra.get("STOCK_INST_" + mk)
+        out["INST_" + mk] = ({m.group(1): f["id"] for f in bu.list_folder(folder) if (m := INST_RE[mk].search(f["name"]))}
+                             if folder else {})
     return out
 
 
 def load_day(d, files):
+    """回傳 {code: row};row 另帶 net_lots_amt = 三大法人合計買賣超金額 (元 = 股數 × 收盤價),法人檔缺則為 None"""
     rows = {}
     for mk in ("TWSE", "TPEX"):
         res = stock_price.parse(bu.download_bytes(files[mk][d]), market=mk, trade_date=d)
         if len(res.db_rows) < MIN_ROWS[mk]:
             return None
         for r in res.db_rows:
-            rows[r["stock_id"]] = r
+            rows[r["stock_id"]] = dict(r, inst_net=None)
+    for mk in ("TWSE", "TPEX"):
+        fid = files.get("INST_" + mk, {}).get(d)
+        if not fid:
+            continue
+        for r in stock_inst.parse(bu.download_bytes(fid), market=mk, trade_date=d).db_rows:
+            row = rows.get(r["stock_id"])
+            if row is not None and r["total_inst_net"] is not None and row["close_price"]:
+                row["inst_net"] = r["total_inst_net"] * row["close_price"]
     return rows
 
 
@@ -101,6 +123,10 @@ def main():
         print("分類 (群組集合) 與既有輸出不同 → 全量重建")
         old = None
 
+    if old and ("stk" not in old or "net" not in old["groups"][0] or len(next(iter(old["stk"].values()))) < 3):
+        print("既有輸出沒有法人買賣超欄位 → 全量重建")
+        old = None
+
     files = drive_days()
     avail = sorted(set(files["TWSE"]) & set(files["TPEX"]))
     last = old["dates"][-1] if old else ""
@@ -119,10 +145,14 @@ def main():
     series = defaultdict(lambda: defaultdict(list))
     if old:
         for g in old["groups"]:
-            for f in ("amt", "share", "pct", "up"):
+            for f in ("amt", "share", "pct", "up", "net"):
                 series[(g["kind"], g["id"])][f] = list(g[f])
 
-    latest = {}
+    # 個股近期明細: 每檔最近 HIST_DAYS 日 [成交億, 漲跌%] (泡泡圖個股層用); 與 sdates 對齊,缺資料日補 0
+    sdates = list(old["sdates"]) if old else []
+    hist = {c: [list(v[0]), list(v[1]), list(v[2])] for c, v in old["stk"].items()} if old else {}
+    for code in xq["stocks"]:
+        hist.setdefault(code, [[0] * len(sdates), [0] * len(sdates), [0] * len(sdates)])
     for d, rows in loaded:
         stk = {}
         for code in xq["stocks"]:
@@ -132,19 +162,28 @@ def main():
             prev = r["close_price"] - r["change_amt"]
             if prev <= 0:
                 continue
-            stk[code] = (r["turnover"], r["change_amt"] / prev * 100)
-        mkt = sum(a for a, _ in stk.values()) or 1
-        latest = {c: [round(a / 1e8, 3), round(p, 2)] for c, (a, p) in stk.items()}  # 最新一日個股 [成交億, 漲跌%]
+            stk[code] = (r["turnover"], r["change_amt"] / prev * 100, (r["inst_net"] or 0) / 1e8)
+        mkt = sum(v[0] for v in stk.values()) or 1
+        if not any(v[2] for v in stk.values()):
+            print(f"  ⚠ {d} 無法人買賣超資料 (法人檔缺或未發布),該日淨買超記 0")
+        sdates.append(d)
+        for code in xq["stocks"]:
+            v = stk.get(code)
+            hist[code][0].append(round(v[0] / 1e8, 3) if v else 0)
+            hist[code][1].append(round(v[1], 1) if v else 0)
+            hist[code][2].append(round(v[2], 2) if v else 0)
         days.append(d)
         total_amt.append(round(mkt / 1e8, 1))
         for k, codes in members.items():
             vals = [stk[c] for c in codes if c in stk]
-            amt = sum(a for a, _ in vals)
+            amt = sum(v[0] for v in vals)
+            net = sum(v[2] for v in vals)
             sr = series[k]
             sr["amt"].append(round(amt / 1e8, 2))
             sr["share"].append(round(amt / mkt * 100, 3))
-            sr["pct"].append(round(sum(a * p for a, p in vals) / amt, 2) if amt else 0)
-            sr["up"].append(round(sum(1 for _, p in vals if p > 0) / len(vals) * 100) if vals else 0)
+            sr["pct"].append(round(sum(v[0] * v[1] for v in vals) / amt, 2) if amt else 0)
+            sr["up"].append(round(sum(1 for v in vals if v[1] > 0) / len(vals) * 100) if vals else 0)
+            sr["net"].append(round(net, 2))
 
     cut = max(0, len(days) - n_days)
     days, total_amt = days[cut:], total_amt[cut:]
@@ -152,7 +191,9 @@ def main():
     for k, sr in series.items():
         groups.append({"kind": k[0], "id": k[1], "name": meta[k], "n": len(members[k]),
                        **{f: v[cut:] for f, v in sr.items()}})
-    OUT.write_text(json.dumps({"dates": days, "market_amt": total_amt, "latest": latest, "groups": groups},
+    OUT.write_text(json.dumps({"dates": days, "market_amt": total_amt, "sdates": sdates[-HIST_DAYS:],
+                               "stk": {c: [v[0][-HIST_DAYS:], v[1][-HIST_DAYS:], v[2][-HIST_DAYS:]] for c, v in hist.items() if c in xq["stocks"]},
+                               "groups": groups},
                               ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     # 摘要: 今日占比 vs 前20日平均占比

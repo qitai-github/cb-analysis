@@ -84,3 +84,28 @@
 .sec-srow.sel { background: #1d4ed8; box-shadow: inset 4px 0 0 #93c5fd; }
 .sec-srow.sel td { color: #fff; font-weight: 700; }
 .sec-srow.sel .sec-up, .sec-srow.sel .sec-down { color: #fff; }
+
+/* 泡泡圖 */
+.sec-seg { display: inline-flex; gap: 0; margin-right: 10px; }
+.sec-seg .sec-chip { border-radius: 0; }
+.sec-seg .sec-chip:first-child { border-radius: 6px 0 0 6px; }
+.sec-seg .sec-chip:last-child { border-radius: 0 6px 6px 0; }
+.sec-seg .sec-chip + .sec-chip { border-left: 0; }
+.sec-bub-wrap { position: relative; margin: 0 16px; background: #0a1220; border: 1px solid #1e293b; border-radius: 10px; overflow: hidden; user-select: none; }
+#sec-bub { display: block; width: 100%; cursor: grab; }
+#sec-bub:active { cursor: grabbing; }
+.sec-bub { cursor: pointer; }
+.sec-bub:hover circle { stroke-width: 3; filter: brightness(1.25); }
+.sec-grid { stroke: #1e293b; stroke-width: 1; }
+.sec-ax0 { stroke: #475569; stroke-width: 1.2; }
+.sec-axt { fill: #94a3b8; font-size: 11px; }
+.sec-axl { fill: #64748b; font-size: 12px; }
+.sec-qd { fill: #334155; font-size: 12px; font-weight: 700; }
+.sec-bl { fill: #f1f5f9; font-weight: 700; pointer-events: none; paint-order: stroke; stroke: rgba(10,18,32,.55); stroke-width: 2px; }
+.sec-bl2 { fill: #e2e8f0; pointer-events: none; paint-order: stroke; stroke: rgba(10,18,32,.55); stroke-width: 2px; }
+.sec-tip { display: none; position: absolute; z-index: 5; pointer-events: none; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: #e2e8f0; min-width: 230px; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+.sec-crumbs { font-size: 14px; color: #94a3b8; }
+.sec-crumb { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.sec-crumb:hover { background: #1e293b; color: #e2e8f0; }
+.sec-crumb.cur { color: #f1f5f9; font-weight: 700; cursor: default; }
+.sec-bsel { margin: 8px 16px 0; font-size: 13px; color: #cbd5e1; min-height: 4px; }
