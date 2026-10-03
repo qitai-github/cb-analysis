@@ -966,54 +966,68 @@ GitHub Actions 對應同名 Secret (改本機 .env 不會影響雲端,反之亦�
 
 ---
 
-## 14. 產業族群 tab ([js/sectorView.js](../js/sectorView.js), [css/sector.css](../css/sector.css), 2026-10-03 新增)
+## 14. 產業族群 tab ([js/sectorView.js](../js/sectorView.js), [css/sector.css](../css/sector.css), 2026-10-03 新增, 10-04 改泡泡圖)
 
-全台股 (1981 檔個股) 的產業分類 × 每日成交金額 → **看每天資金流向哪個族群**。左側選「全市場資金流向」或某條產業鏈。
+全台股 (1981 檔個股) 的產業分類 × 每日**成交金額 + 三大法人買賣超** → **看資金流向哪個族群**。左側選「全市場資金流向」或某條產業鏈。
 
 ### 14.1 兩種分類 (側欄兩區)
 - **細分板塊** (10 大類 → 110 小分類, 互不重疊, 占比可加總): 資料 `data/industry_chain/sectors.json`
   (由 `scripts/import_sector_reference.py` 把使用者存在 `參考資料/tide/` 的 `latest.json` + `sector_groups.json` 轉成; **快照式, 不自動更新**;
-  `參考資料/` 在 `.gitignore`, 不上傳, 只上傳轉出的 sectors.json (大類/板塊名/成員代號))。一檔在同一大類內屬多個小分類時, 角色取檔數最少者, 其餘放細分標籤。
-- **上中下游產業鏈** (6 條: PCB/載板, 半導體, 散熱, 網通, 電源, 自動化; 一檔可屬多條): 角色 (材料/設備/板廠…) 定義在 `data/industry_chain/taxonomy.json`;
-  歸屬 = `curated.json` (PCB 58 檔人工+網路查證, 優先) + `xq_mapping.json` (XQ 細分群組名 → 族群/角色)。
-- 另有 **XQ 大產業 (25) / XQ 細分族群 (762)** 只在「資金流向排行」的切換用 (一檔多群組, 不可加總), 來自 `data/industry_classification.json`。
-- 曾做過 8 條主題鏈 + 25 條「每個大產業一條」自動鏈, 2026-10-03 因與細分板塊重複而移除。
+  `參考資料/` 在 `.gitignore`, 不上傳, 只上傳轉出的 sectors.json (大類/板塊名/成員代號, 不含說明文字))。一檔在同一大類內屬多個小分類時, 角色取檔數最少者, 其餘放細分標籤。
+- **上中下游產業鏈** (**14 條**, 一檔可屬多條): PCB／載板、半導體、散熱、網通、電源、自動化、AI 伺服器、記憶體、被動元件、面板／光電、車用／電動車、綠能／重電、低軌衛星／航太、化合物半導體。
+  角色 (材料/設備/板廠…) 定義在 `data/industry_chain/taxonomy.json`; 歸屬 = `curated.json` (PCB 58 檔人工+網路查證, 優先) + `xq_mapping.json` (XQ 細分群組名 → 族群/角色)。
+- 另有 **大產業 (25) / 細分族群 (762)** 來自 `data/industry_classification.json` (XQ 匯出; 一檔多群組, 不可加總), 只用在資金流向的輔助分類。
+- 曾做過「每個大產業一條」的自動鏈, 2026-10-03 因與細分板塊重複而移除; 另有 8 條主題鏈曾被移除又於同日加回。
 
-### 14.2 畫面
-- **全市場資金流向**: 切換 `自訂族群` (= 細分板塊 10 大類) / `族群×角色` (= 107 小分類) / `大產業` / `細分族群`。
-  欄位: 檔數 / 今日成交(億) / **占大盤%** / **較20日均(pt)** / 5日均較20日均(pt) / 漲跌% / 5日累計% / 上漲家數% / 60 日占比走勢。
-  **點欄位標題排序** (再點切換正反序, 同外資買賣超操作)。點「自訂族群」一列 → 下方先出**小分類列表** (可排序、選到反白), 再點小分類才列**個股** (可排序); 再點一次取消。
-- **產業鏈頁**: 組織圖 (族群 → 角色 → 個股卡片, 依今日成交排序) + 下方成員表。點組織圖的角色 → 成員表只顯示該角色, 再點取消。「只看有 CB」依網站 stockMap 判斷。右側個股摘要可跳到 CB 詳情。
-- **指標定義**: 占大盤% = 群組成交金額 ÷ 全市場成交金額; 較20日均(pt) = 今日占大盤% − 前 20 日平均占大盤% (百分點), 正=資金較平常集中、負=較平常少;
-  漲跌% = 成交值加權的今日漲跌幅。⚠️ 這是「成交金額」不是買賣超 (尚未接法人資料)。
-- 紅漲綠跌。畫面上不顯示資料廠商名稱 (不出現「XQ」)。
+### 14.2 全市場資金流向 (預設畫面)
+- **分類切換**: `細分板塊` / `上中下游產業鏈` (兩者都是 族群 → 小分類 → 個股 三層) / `族群×角色` (所有角色平鋪, 名稱「族群｜角色」, 同名族群加註 (板塊)/(產業鏈)) / `大產業` / `細分族群` (群組 → 個股兩層)。
+- **泡泡圖 / 表格** 可切換 (右上)。
+- **泡泡圖兩個版本** (`法人買賣超` / `成交金額`):
+  | 版本 | X 軸 | Y 軸 | 顏色 |
+  |---|---|---|---|
+  | 法人買賣超 (預設) | 近 5 日三大法人累計買賣超 (億元) | 近 5 日日均 − 近 20 日日均買賣超 (億/天, 越上越偏買) | 買超紅 / 賣超綠 |
+  | 成交金額 | 近 5 日均成交額 − 近 20 日均 (億/天) | 近 5 日累計漲跌 % | 漲紅 / 跌綠 |
+  圓大小 = 近 20 日均成交額。軸為對稱對數 (symlog), 只畫 0 軸線不畫格線。滾輪縮放、**按住左鍵拖曳整張圖**、「重設視圖」。
+  點泡泡往下一層 (麵包屑可回上層); 個股層下方有圖表 + 個股表 + 「只看有 CB」; 點個股泡泡選取、可跳 CB 詳情。
+- **表格模式**: 欄位 檔數 / 今日成交 / **占大盤%** / **較20日均(pt)** / 5日均較20日均(pt) / 漲跌% / 5日累計% / 上漲家數% / 60 日占比走勢; **點欄位標題排序** (再點切換正反序)。
+  點族群列 → 下方先出小分類列表 (可排序、選到反白), 再點小分類才列個股 (可排序)。
+- **指標定義**: 占大盤% = 群組成交金額 ÷ 全市場成交金額; 較20日均(pt) = 今日占大盤% − 前 20 日平均占大盤% (百分點);
+  法人買賣超金額 = 三大法人合計買賣超股數 × 當日收盤價 (未拆外資/投信/自營)。
+- 紅漲綠跌 / 紅買綠賣。畫面上不顯示資料廠商名稱。
 
-### 14.3 資料與每日更新
+### 14.3 產業鏈頁 (側欄點某條鏈)
+組織圖 (族群 → 角色 → 個股卡片, 依今日成交排序) + 下方成員表; 點角色 → 成員表只顯示該角色 (再點取消); 右側個股摘要可跳 CB 詳情; 「只看有 CB」依網站 stockMap 判斷。
+
+### 14.4 資料與每日更新
 ```
-Drive 上市/上櫃每日成交明細 CSV (STOCK_PRICE_TWSE/TPEX, 與 build_universe 同一組資料夾, Service Account)
+Drive 上市/上櫃每日成交明細 CSV (STOCK_PRICE_TWSE/TPEX) + 三大法人 T86 (STOCK_INST_TWSE/TPEX), Service Account
   │ parse-and-export.yml 18:47 TPE → scripts/build_sector_flow.py
   │   增量: 讀既有 sector_flow.json, 只抓比最後一日新的交易日附加, 保留 120 日
-  │   分類 (群組集合) 變了 / --rebuild → 自動全量重建
+  │   分類 (群組集合) 變了 / 舊檔缺 net/stk 欄位 / --rebuild → 自動全量重建
   ▼
-data/sector_flow.json (dates / market_amt / latest 個股[成交億,漲跌%] / groups[kind,id,name,n,amt,share,pct,up])
-  kind = main | group | cluster | role   ──commit──▶ GH Pages
+data/sector_flow.json  ──commit──▶ GH Pages
+  dates, market_amt, groups[kind,id,name,n,amt,share,pct,up,net] (kind = main|group|cluster|role, 各 120 日),
+  sdates + stk{code: [成交億[20], 漲跌%[20], 法人淨買超億[20]]}  (個股近 20 日, 泡泡圖個股層用)
 ```
 - 前端載入 `sector_flow.json` + `industry_chain.json` (taxonomy + 每檔 memberships) + `industry_classification.json` (XQ 群組/成員)。
-- 假日/抓取失敗的空殼 CSV 用列數門檻擋掉 (TWSE ≥800, TPEx ≥500)。
+- 假日/抓取失敗的空殼 CSV 用列數門檻擋掉 (TWSE ≥800, TPEx ≥500); 法人檔缺 (未發布) 該日淨買超記 0 並印警告。
+- 檔案約 3.7MB / 978 群組, gzip 後約 1.1MB; 每個交易日會重寫。repo 目前約 112MB (真正的大戶是 20MB 單行 all-data.json)。若要瘦身: 拿掉 `share`/`up` 欄位, 或降低 `--days`。
 
-### 14.4 更新產業分類 (**分類是固定快照, 不會自動更新**)
+### 14.5 更新產業分類 (**分類是固定快照, 不會自動更新**)
 1. 有 XQ 的本機: `python scripts/export_xq_industry.py` → `data/industry_classification.json` (唯讀 `C:\SysJust\XQLite\SvrData\SymbolCache\SymbolCache.db`, 不連網)
-2. `python scripts/build_industry_chain.py` → `data/industry_chain.json`
-3. 更新細分板塊: 重新下載參考檔放進 `參考資料/tide/` → `python scripts/import_sector_reference.py`, 再做第 2 步
+2. 更新細分板塊: 重新下載參考檔放進 `參考資料/tide/` → `python scripts/import_sector_reference.py`
+3. `python scripts/build_industry_chain.py` → `data/industry_chain.json`
 4. `python scripts/build_sector_flow.py --rebuild` (走 Drive API, 需 scripts/.env 憑證) → 120 日歷史用新分類重算, **更新前後曲線可能不連續**
 5. `git pull --rebase` 後 commit 分類相關檔 (industry_classification.json / industry_chain.json / industry_chain/* / sector_flow.json) 再 push
 - 新上市櫃股 Drive 有價量但舊分類沒有 → 每日計算會略過, 直到重新匯出。
 - ⚠️ repo 是**公開**的, `industry_classification.json` 含 XQ 的分類/成員 (使用者已於 2026-10-03 決定 commit)。
 
-### 14.5 設計決策 / 踩坑
+### 14.6 設計決策 / 踩坑
 - 重繪會整個換掉 innerHTML → 先記住可捲動容器位置, 畫完還原; 「捲到詳情」只在點列時 (`st.jump`) 才做, 否則排序一點畫面就往下跳。
-- 資金流向排行的「自訂族群/族群×角色」只列細分板塊, 因為上中下游鏈有同名族群 (如「半導體」) 會重名。
-- sector_flow.json 約 2.3MB 且每個交易日會重寫; 若 repo 變大可降低保留天數 (`--days`) 或拿掉 `up` 欄位。
+- 泡泡圖拖曳時每次 mousemove 都會重畫並重建 handler → 拖曳狀態 (`bdrag`) 必須放在 `drawBubble` 之外, 否則只會動一下。
+- 縱軸刻度由上往下 y 遞增, 間距判斷要用 `y - lastPy >= 22` (寫反會只剩第一個標籤)。
+- 「族群×角色」平鋪板塊+產業鏈角色, 族群名稱相同時 (「半導體」) 於 `loadData` 加註 (板塊)/(產業鏈), 避免重名。
+- 指標是成交金額與法人買賣超金額, 不含融資融券等其他籌碼。
 
 ---
 
