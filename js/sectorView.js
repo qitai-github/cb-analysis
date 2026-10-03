@@ -422,13 +422,13 @@ const SectorView = (() => {
     const vxmin = symexp(V.x0, cx), vxmax = symexp(V.x1, cx);
     let lastPx = -1e9;
     symTicks(vxmin, vxmax, cx).forEach(v => {
-      const x = PX(symlog(v, cx)); g += `<line x1="${x}" y1="${Mg.t}" x2="${x}" y2="${Mg.t + ph}" class="${v === 0 ? 'sec-ax0' : 'sec-grid'}"/>`;
+      const x = PX(symlog(v, cx)); if (v === 0) g += `<line x1="${x}" y1="${Mg.t}" x2="${x}" y2="${Mg.t + ph}" class="sec-ax0"/>`;  // 只畫 0 軸,不畫其他格線
       if (x - lastPx >= 46) { g += `<text x="${x}" y="${H - 22}" class="sec-axt" text-anchor="middle">${v > 0 ? '+' : ''}${fmtTick(v)}</text>`; lastPx = x; }
     });
     const yUnit = Md.ySym ? '' : '%', yTicks = Md.ySym ? symTicks(symexp(V.y0, cy), symexp(V.y1, cy), cy).map(v => [v, symlog(v, cy)]) : niceTicksLinear(V.y0, V.y1, 7).map(v => [v, v]);
     let lastPy = -1e9;
     yTicks.sort((a, b) => b[1] - a[1]).forEach(([v, t]) => {
-      const y = PY(t); g += `<line x1="${Mg.l}" y1="${y}" x2="${Mg.l + pw}" y2="${y}" class="${v === 0 ? 'sec-ax0' : 'sec-grid'}"/>`;
+      const y = PY(t); if (v === 0) g += `<line x1="${Mg.l}" y1="${y}" x2="${Mg.l + pw}" y2="${y}" class="sec-ax0"/>`;
       if (y - lastPy >= 22) { g += `<text x="${Mg.l - 8}" y="${y + 4}" class="sec-axt" text-anchor="end">${v > 0 ? '+' : ''}${fmtTick(v)}${yUnit}</text>`; lastPy = y; }
     });
     g += `<text x="${Mg.l + 4}" y="${H - 6}" class="sec-axl">${Md.xl[0]}</text><text x="${Mg.l + pw - 4}" y="${H - 6}" class="sec-axl" text-anchor="end">${Md.xl[1]}</text>`;
