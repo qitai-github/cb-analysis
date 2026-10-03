@@ -31,7 +31,7 @@
 ## 1. 頂部導覽
 
 - **Logo + 標題**「CB 可轉債分析平台」
-- **tab**: `CB 分析` / `ETF 持股` / `VCP 選股` / `CB 日曆` / `報告清單`
+- **tab**: `CB 分析` / `ETF 持股` / `VCP 選股` / `CB 日曆` / `報告清單` / `產業族群` (§14)
   (`強勢股` 已於 2026-08-14 暫時封存, 見 §7)
 - **右上區**:
   - 資料日期 (從 stockTrading 末日推算)
@@ -909,7 +909,8 @@ GAS 先建 0 bytes 空檔,SA 再覆蓋。空檔沒建成只是少一份 Drive �
 | Workflow | 排程 |
 |---|---|
 | `fetch-stocks.yml` | 每日 18:23 TPE 抓 raw → Drive |
-| `parse-and-export.yml` | 每日 18:47 TPE 合併 + 寫 all-data.json |
+| `parse-and-export.yml` | 每日 18:47 TPE 合併 + 寫 all-data.json; **同一 run 內另跑 `build_sector_flow.py` 增量更新 data/sector_flow.json** (`continue-on-error`, 失敗不擋 all-data) |
+| `sector-flow.yml` | **僅手動觸發** (`rebuild=true` 全量重建 sector_flow.json); 每日更新已併入 parse-and-export |
 | `margin-late.yml` | 21:10 TPE 延遲抓融資融券 |
 | `vcp-scan.yml` | 19:35 TPE VCP 選股 → data/vcp.json |
 | `strength-scan.yml` | ~~19:40 TPE 強勢股 → data/strength.json~~ **已停用排程 (2026-08-14 封存)**, 只剩手動觸發 |
@@ -962,6 +963,57 @@ GitHub Actions 對應同名 Secret (改本機 .env 不會影響雲端,反之亦�
 - **集保 TDCC 的 SYNCHRONIZER_TOKEN 一次性** → 每次 POST 都要換成回應裡的新 token,舊的回空表
 - **集保網頁版 16/17 列數不固定** → 合計看分級名稱判斷,不能用序號
 - **Chart.js v4「Canvas already in use」** → sub-charts 用 Map 管理,`_claimTechSubCanvas` helper 在 `new Chart()` 前 destroy 舊的
+
+---
+
+## 14. 產業族群 tab ([js/sectorView.js](../js/sectorView.js), [css/sector.css](../css/sector.css), 2026-10-03 新增)
+
+全台股 (1981 檔個股) 的產業分類 × 每日成交金額 → **看每天資金流向哪個族群**。左側選「全市場資金流向」或某條產業鏈。
+
+### 14.1 兩種分類 (側欄兩區)
+- **細分板塊** (10 大類 → 110 小分類, 互不重疊, 占比可加總): 資料 `data/industry_chain/sectors.json`
+  (由 `scripts/import_sector_reference.py` 把使用者存在 `參考資料/tide/` 的 `latest.json` + `sector_groups.json` 轉成; **快照式, 不自動更新**;
+  `參考資料/` 在 `.gitignore`, 不上傳, 只上傳轉出的 sectors.json (大類/板塊名/成員代號))。一檔在同一大類內屬多個小分類時, 角色取檔數最少者, 其餘放細分標籤。
+- **上中下游產業鏈** (6 條: PCB/載板, 半導體, 散熱, 網通, 電源, 自動化; 一檔可屬多條): 角色 (材料/設備/板廠…) 定義在 `data/industry_chain/taxonomy.json`;
+  歸屬 = `curated.json` (PCB 58 檔人工+網路查證, 優先) + `xq_mapping.json` (XQ 細分群組名 → 族群/角色)。
+- 另有 **XQ 大產業 (25) / XQ 細分族群 (762)** 只在「資金流向排行」的切換用 (一檔多群組, 不可加總), 來自 `data/industry_classification.json`。
+- 曾做過 8 條主題鏈 + 25 條「每個大產業一條」自動鏈, 2026-10-03 因與細分板塊重複而移除。
+
+### 14.2 畫面
+- **全市場資金流向**: 切換 `自訂族群` (= 細分板塊 10 大類) / `族群×角色` (= 107 小分類) / `大產業` / `細分族群`。
+  欄位: 檔數 / 今日成交(億) / **占大盤%** / **較20日均(pt)** / 5日均較20日均(pt) / 漲跌% / 5日累計% / 上漲家數% / 60 日占比走勢。
+  **點欄位標題排序** (再點切換正反序, 同外資買賣超操作)。點「自訂族群」一列 → 下方先出**小分類列表** (可排序、選到反白), 再點小分類才列**個股** (可排序); 再點一次取消。
+- **產業鏈頁**: 組織圖 (族群 → 角色 → 個股卡片, 依今日成交排序) + 下方成員表。點組織圖的角色 → 成員表只顯示該角色, 再點取消。「只看有 CB」依網站 stockMap 判斷。右側個股摘要可跳到 CB 詳情。
+- **指標定義**: 占大盤% = 群組成交金額 ÷ 全市場成交金額; 較20日均(pt) = 今日占大盤% − 前 20 日平均占大盤% (百分點), 正=資金較平常集中、負=較平常少;
+  漲跌% = 成交值加權的今日漲跌幅。⚠️ 這是「成交金額」不是買賣超 (尚未接法人資料)。
+- 紅漲綠跌。畫面上不顯示資料廠商名稱 (不出現「XQ」)。
+
+### 14.3 資料與每日更新
+```
+Drive 上市/上櫃每日成交明細 CSV (STOCK_PRICE_TWSE/TPEX, 與 build_universe 同一組資料夾, Service Account)
+  │ parse-and-export.yml 18:47 TPE → scripts/build_sector_flow.py
+  │   增量: 讀既有 sector_flow.json, 只抓比最後一日新的交易日附加, 保留 120 日
+  │   分類 (群組集合) 變了 / --rebuild → 自動全量重建
+  ▼
+data/sector_flow.json (dates / market_amt / latest 個股[成交億,漲跌%] / groups[kind,id,name,n,amt,share,pct,up])
+  kind = main | group | cluster | role   ──commit──▶ GH Pages
+```
+- 前端載入 `sector_flow.json` + `industry_chain.json` (taxonomy + 每檔 memberships) + `industry_classification.json` (XQ 群組/成員)。
+- 假日/抓取失敗的空殼 CSV 用列數門檻擋掉 (TWSE ≥800, TPEx ≥500)。
+
+### 14.4 更新產業分類 (**分類是固定快照, 不會自動更新**)
+1. 有 XQ 的本機: `python scripts/export_xq_industry.py` → `data/industry_classification.json` (唯讀 `C:\SysJust\XQLite\SvrData\SymbolCache\SymbolCache.db`, 不連網)
+2. `python scripts/build_industry_chain.py` → `data/industry_chain.json`
+3. 更新細分板塊: 重新下載參考檔放進 `參考資料/tide/` → `python scripts/import_sector_reference.py`, 再做第 2 步
+4. `python scripts/build_sector_flow.py --rebuild` (走 Drive API, 需 scripts/.env 憑證) → 120 日歷史用新分類重算, **更新前後曲線可能不連續**
+5. `git pull --rebase` 後 commit 分類相關檔 (industry_classification.json / industry_chain.json / industry_chain/* / sector_flow.json) 再 push
+- 新上市櫃股 Drive 有價量但舊分類沒有 → 每日計算會略過, 直到重新匯出。
+- ⚠️ repo 是**公開**的, `industry_classification.json` 含 XQ 的分類/成員 (使用者已於 2026-10-03 決定 commit)。
+
+### 14.5 設計決策 / 踩坑
+- 重繪會整個換掉 innerHTML → 先記住可捲動容器位置, 畫完還原; 「捲到詳情」只在點列時 (`st.jump`) 才做, 否則排序一點畫面就往下跳。
+- 資金流向排行的「自訂族群/族群×角色」只列細分板塊, 因為上中下游鏈有同名族群 (如「半導體」) 會重名。
+- sector_flow.json 約 2.3MB 且每個交易日會重寫; 若 repo 變大可降低保留天數 (`--days`) 或拿掉 `up` 欄位。
 
 ---
 
