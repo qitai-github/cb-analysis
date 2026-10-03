@@ -1,0 +1,829 @@
+{
+ "note": "basis: seed=初始範例 / web=網路來源+判斷 / manual=人工。confidence: high 多來源或公司業務明確;med 單一來源;low 只靠名單歸類、需人工複核。",
+ "source_refs": {
+  "sd": "https://statementdog.com/taiex/8-pcb-industry",
+  "md": "https://moneydaily.com.tw/pcb-concept-stocks-taiwan-guide/",
+  "ebc": "https://fnc.ebc.net.tw/fncnews/business/218556",
+  "st": "https://www.sinotrade.com.tw/richclub/industry/-64db2edfb69055858cecb512",
+  "cnyes": "https://www.cnyes.com/twstock/{code}/company/profile"
+ },
+ "entries": [
+  {
+   "code": "3037",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "IC 載板",
+    "HDI",
+    "PCB"
+   ],
+   "basis": "seed",
+   "confidence": "high",
+   "sources": [
+    "md",
+    "st"
+   ]
+  },
+  {
+   "code": "1303",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "玻纖布",
+    "銅箔",
+    "CCL",
+    "樹脂"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "st"
+   ]
+  },
+  {
+   "code": "1717",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "乾膜",
+    "樹脂"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "1802",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "玻纖布"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "st"
+   ]
+  },
+  {
+   "code": "1815",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "玻纖紗/布"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "st"
+   ]
+  },
+  {
+   "code": "2383",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "CCL",
+    "無鹵素",
+    "高頻高速"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "md",
+    "st"
+   ]
+  },
+  {
+   "code": "6274",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "CCL",
+    "高頻高速"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "md"
+   ]
+  },
+  {
+   "code": "6213",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "CCL"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "md"
+   ]
+  },
+  {
+   "code": "3010",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "材料通路"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3388",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "材料通路",
+    "玻纖布",
+    "銅箔"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3645",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "PI 薄膜"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "4989",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "電解銅箔"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "cnyes"
+   ]
+  },
+  {
+   "code": "8358",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "電解銅箔"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "st"
+   ]
+  },
+  {
+   "code": "5340",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "玻纖布"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd",
+    "cnyes"
+   ]
+  },
+  {
+   "code": "5475",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "玻纖布"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd",
+    "cnyes"
+   ]
+  },
+  {
+   "code": "6672",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "軟板基材",
+    "FCCL"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "8039",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "FCCL",
+    "軟板基材"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3354",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "FCCL",
+    "保護膠片"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "cnyes"
+   ]
+  },
+  {
+   "code": "4939",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "覆蓋膜",
+    "FCCL",
+    "補強板"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "cnyes"
+   ]
+  },
+  {
+   "code": "4909",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "高頻微波基板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "cnyes"
+   ]
+  },
+  {
+   "code": "8021",
+   "cluster": "pcb",
+   "role": "material",
+   "subs": [
+    "鑽針",
+    "耗材"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "st"
+   ]
+  },
+  {
+   "code": "3189",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "IC 載板",
+    "BT 載板"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "md",
+    "st"
+   ]
+  },
+  {
+   "code": "8046",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "IC 載板",
+    "ABF 載板"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "md",
+    "st"
+   ]
+  },
+  {
+   "code": "4958",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板",
+    "HDI",
+    "載板"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "md",
+    "st"
+   ]
+  },
+  {
+   "code": "2313",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "HDI",
+    "軟硬結合板"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "md",
+    "sd"
+   ]
+  },
+  {
+   "code": "3044",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板",
+    "HDI",
+    "伺服器"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "md",
+    "sd"
+   ]
+  },
+  {
+   "code": "2368",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "高層板",
+    "伺服器/交換器"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd",
+    "st"
+   ]
+  },
+  {
+   "code": "5469",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板",
+    "HDI"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "2316",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "2355",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "2367",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板",
+    "軟板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "6108",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3229",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "HDI"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "5439",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板",
+    "高頻高速"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "6210",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "8155",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "8213",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "4927",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "cnyes"
+   ]
+  },
+  {
+   "code": "3715",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "多層板",
+    "HDI"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3276",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "5291",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "硬板"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "6269",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "md",
+    "st"
+   ]
+  },
+  {
+   "code": "6153",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "2402",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3390",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3321",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "6141",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "6835",
+   "cluster": "pcb",
+   "role": "board",
+   "subs": [
+    "軟板",
+    "線束"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "cnyes"
+   ]
+  },
+  {
+   "code": "2467",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "曝光",
+    "烘烤",
+    "壓膜"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "ebc",
+    "sd"
+   ]
+  },
+  {
+   "code": "3167",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "鑽孔",
+    "成型",
+    "檢測"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "ebc"
+   ]
+  },
+  {
+   "code": "3563",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "AOI 檢測",
+    "載板檢測"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "ebc",
+    "sd"
+   ]
+  },
+  {
+   "code": "6664",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "塗佈",
+    "烘烤設備",
+    "壓膜"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "ebc",
+    "sd"
+   ]
+  },
+  {
+   "code": "6438",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "自動化",
+    "智慧搬運"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "ebc",
+    "sd"
+   ]
+  },
+  {
+   "code": "3030",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "電測",
+    "AOI"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "3455",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "AOI 檢測"
+   ],
+   "basis": "web",
+   "confidence": "med",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "6658",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "濕製程",
+    "智慧製造"
+   ],
+   "basis": "web",
+   "confidence": "high",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "4542",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "濕製程"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  },
+  {
+   "code": "6706",
+   "cluster": "pcb",
+   "role": "equipment",
+   "subs": [
+    "檢測設備"
+   ],
+   "basis": "web",
+   "confidence": "low",
+   "sources": [
+    "sd"
+   ]
+  }
+ ]
+}

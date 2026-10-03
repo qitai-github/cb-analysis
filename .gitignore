@@ -20,3 +20,6 @@ scripts/output/
 # 個人持股清單與其報告版型 (repo 是 public,不可外流)
 持股清單/
 scripts/templates/holdings_report_example.html
+
+# XQ 廠商授權資料,勿公開
+data/industry_chain/xq_industry.json

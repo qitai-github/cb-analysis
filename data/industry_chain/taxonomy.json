@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "note": "族群 → 產業角色(role) 兩層。細分族群(subs)是每檔個股自己的自由標籤,不在此定義。新增族群/角色只改這支檔。",
+  "clusters": [
+    {"id": "pcb", "name": "PCB／載板", "icon": "chip",
+     "roles": [{"id": "material", "name": "材料"}, {"id": "equipment", "name": "設備"}, {"id": "board", "name": "板廠／載板"}]},
+    {"id": "semi", "name": "半導體", "icon": "cpu",
+     "roles": [{"id": "design", "name": "IC 設計"}, {"id": "foundry", "name": "晶圓代工"}, {"id": "osat", "name": "封測"}, {"id": "equipment", "name": "設備"}, {"id": "material", "name": "材料／耗材"}, {"id": "ip_eda", "name": "IP／EDA／通路"}]},
+    {"id": "thermal", "name": "散熱", "icon": "fan",
+     "roles": [{"id": "module", "name": "散熱模組"}, {"id": "liquid", "name": "水冷／液冷"}, {"id": "component", "name": "風扇／零組件"}, {"id": "material", "name": "材料"}]},
+    {"id": "network", "name": "網通", "icon": "signal",
+     "roles": [{"id": "device", "name": "交換器／設備"}, {"id": "optical", "name": "光通訊／矽光子"}, {"id": "satellite", "name": "衛星／無線"}, {"id": "chip", "name": "網通晶片"}, {"id": "connector", "name": "線纜／連接器"}]},
+    {"id": "power", "name": "電源", "icon": "bolt",
+     "roles": [{"id": "psu", "name": "電源供應器"}, {"id": "ic_passive", "name": "電源 IC／被動元件"}, {"id": "storage", "name": "BBU／儲能"}, {"id": "material", "name": "材料／零組件"}]},
+    {"id": "automation", "name": "自動化", "icon": "robot",
+     "roles": [{"id": "robot", "name": "機器人"}, {"id": "drive", "name": "傳動／減速機"}, {"id": "control", "name": "控制／感測"}, {"id": "integrator", "name": "系統整合／智慧搬運"}]}
+  ]
+}
