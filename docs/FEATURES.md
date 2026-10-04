@@ -1038,6 +1038,18 @@ data/sector_flow.json  ──commit──▶ GH Pages
 
 ---
 
+## 15. 首頁載入效能 (2026-10-04)
+
+- **附加資料並行載入**:[js/sheetsApi.js](../js/sheetsApi.js) `loadAll` 的 twsa / mops_news / stock_capital / shareholding / company_reports 改 `Promise.all`(原本串行 await),各自失敗不影響主流程。
+- **localStorage 整包快取已停用**:all-data 序列化約 20MB,遠超 localStorage 約 5MB 上限,寫入必定失敗卻白花主執行緒。`saveToStorage` 現在只清掉舊 key `cb_data_cache`。使用者自選清單 `cb_watchlist_v2` 是獨立 key,**不可動**。
+- **一般新聞 (Sheet stockNews) 拆檔、開詳情才載入**:
+  - pipeline:[scripts/parse_and_export.py](../scripts/parse_and_export.py) Phase 5 把 stockNews 另存 `data/stock_news.json`(格式同原本的 rows),並從 all-data.json 排除;本輪沒抓到新聞(如 `--only-sources`)時不覆寫舊檔。`parse-and-export.yml`、`margin-late.yml` 的 `git add` 都要含 `data/stock_news.json`(workflow 是明列檔名,漏了就不會 commit)。
+  - 前端:`DataProcessor.attachSheetNews`(可重複呼叫,保留 MOPS 重訊、依日期混排);app.js `renderDetailNews` 開詳情才 `SheetsAPI.fetchStockNews()`(失敗退回 Google Sheet);`silentRefresh` 重建 stockMap 後用 `reattachSheetNews` 重新套用。仍相容舊格式(all-data 內含 stockNews 時直接用)。
+  - MOPS 重訊 (`mops_news.json`) 不變,仍在首頁載入(`capitalRaise` 也靠它)。
+- **實測(線上,gzip)**:首頁 all-data 6.0MB → 4.18MB;首頁不再請求 stock_news.json,開詳情才載入 2.0MB。
+- **評估過、暫不做**:五個時間序列矩陣(stockTrading/cbInstitutional/marginTrading/cbDailyTrading/cbBondInstitutional,約 14MB 序列化,占 70%)改成「首頁 lite 版 ~130 天 + 完整歷史按需載入」。構想:pipeline 另產 `all-data-lite.json`,all-data.json 維持完整(它是 GHA 增量資料庫,且 CB 快訊/持股體檢/券商標的等腳本都讀它)。需先用 node 對 lite/full 各跑 `mergeAllData` 逐檔比對列表欄位;補載完整歷史要避免洗掉 stockMap 選取狀態;競拍報告 (auctionView) 用完整 `stock.ohlcv`。
+- **相依提醒**:`scripts/web_stock_list.js`(券商進出標的清單)直接用 node 載入 dataProcessor.js 跑 `mergeAllData`,改 dataProcessor 後要跑 `gen_broker_targets.py` 確認標的數仍一致(目前 188+174=362)。
+
 ## 修改本檔的時機
 
 加新功能 / 改變現有功能行為時,**順手** 更新對應段落。檔案位置:
