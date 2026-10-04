@@ -150,7 +150,6 @@ const SheetsAPI = (() => {
           await Promise.all([
             loadJson('twsaAuction', 'data/twsa.json', 10000),
             loadSheet('stockIndustry'),
-            loadSheet('stockNews'),
             loadJson('mopsNews', 'data/mops_news.json', 10000),
             loadJson('stockCapital', 'data/stock_capital.json', 10000),
             loadJson('shareholding', 'data/shareholding.json', 20000),
@@ -213,6 +212,22 @@ const SheetsAPI = (() => {
     return results;
   }
 
+  /**
+   * 一般新聞改成開詳情才載入:優先 data/stock_news.json,沒有就退回 Google Sheet。
+   */
+  async function fetchStockNews() {
+    try {
+      const r = await fetchWithTimeout('data/stock_news.json', 20000);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const rows = await r.json();
+      if (Array.isArray(rows)) return rows;
+    } catch (e) {
+      console.warn('[fetchStockNews] stock_news.json 失敗,改用 Sheet:', e.message);
+    }
+    const src = DATA_SOURCES.stockNews;
+    return fetchSheet(src.sheetId, src.gid);
+  }
+
   function clearCache() {
     cache.clear();
   }
@@ -246,5 +261,5 @@ const SheetsAPI = (() => {
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  return { fetchSheet, fetchCBIssuance, loadAll, clearCache, saveToStorage, loadFromStorage, clearStorage };
+  return { fetchSheet, fetchCBIssuance, fetchStockNews, loadAll, clearCache, saveToStorage, loadFromStorage, clearStorage };
 })();

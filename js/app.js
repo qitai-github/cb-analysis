@@ -37,6 +37,7 @@ const App = (() => {
       updateStatus('從快取載入...');
       const result = DataProcessor.mergeAllData(cached.data);
       stockMap = result.stockMap;
+      reattachSheetNews(cached.data);
       latestDataDate = result.latestDataDate;
       rawCBIssuance = cached.data.cbIssuance || null;
       rawCalendar = cached.data.cbasCalendar || null;
@@ -62,6 +63,7 @@ const App = (() => {
       updateStatus('正在處理資料...');
       const result = DataProcessor.mergeAllData(rawResults);
       stockMap = result.stockMap;
+      reattachSheetNews(rawResults);
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
       rawCalendar = rawResults.cbasCalendar || null;
@@ -507,6 +509,36 @@ const App = (() => {
     applyCurrentFilters();
   }
 
+  // 一般新聞 (Sheet) 延後到開詳情才載入;已載入的原始資料留著,silentRefresh 重建 stockMap 後重新套用
+  let sheetNewsRaw = null;
+  let sheetNewsLoading = null;
+
+  function reattachSheetNews(rawResults) {
+    if (rawResults && rawResults.stockNews) sheetNewsRaw = rawResults.stockNews; // 舊格式 all-data 仍內含
+    if (sheetNewsRaw) DataProcessor.attachSheetNews(stockMap, sheetNewsRaw);
+  }
+
+  function ensureSheetNews() {
+    if (sheetNewsRaw || sheetNewsLoading) return sheetNewsLoading;
+    sheetNewsLoading = SheetsAPI.fetchStockNews().then(rows => {
+      sheetNewsRaw = rows;
+      DataProcessor.attachSheetNews(stockMap, rows);
+    }).catch(e => {
+      console.warn('新聞載入失敗:', e.message);
+    }).finally(() => { sheetNewsLoading = null; });
+    return sheetNewsLoading;
+  }
+
+  async function renderDetailNews(stock) {
+    const box = document.getElementById('detail-news-info');
+    if (!sheetNewsRaw) {
+      box.innerHTML = buildNewsHTML(stock) + '<div class="text-muted">新聞載入中…</div>';
+      await ensureSheetNews();
+      if (selectedStock !== stock) return;
+    }
+    box.innerHTML = buildNewsHTML(stock);
+  }
+
   function showDetail(stock) {
     selectedStock = stock;
     const panel = document.getElementById('detail-panel');
@@ -515,7 +547,7 @@ const App = (() => {
     renderDetailTitle(stock);
     document.getElementById('detail-price-info').innerHTML = buildPriceInfoHTML(stock);
     document.getElementById('detail-cb-info').innerHTML = buildCBInfoHTML(stock);
-    document.getElementById('detail-news-info').innerHTML = buildNewsHTML(stock);
+    renderDetailNews(stock);
     renderCapitalRaise(stock);
 
     // 預設選的 CB (給 CB 技術分析 Modal 用)
@@ -2512,6 +2544,7 @@ const App = (() => {
       const rawResults = await SheetsAPI.loadAll();
       const result = DataProcessor.mergeAllData(rawResults);
       stockMap = result.stockMap;
+      reattachSheetNews(rawResults);
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
       rawCalendar = rawResults.cbasCalendar || null;

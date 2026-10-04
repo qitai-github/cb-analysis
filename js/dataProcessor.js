@@ -734,6 +734,32 @@ const DataProcessor = (() => {
   }
 
   /**
+   * 把 Sheet 一般新聞 (rows) 套到 stockMap — 可重複呼叫:先清掉舊的一般新聞、保留 MOPS 重訊,
+   * 再依日期混合排序。新聞改成開詳情才載入 (data/stock_news.json),silentRefresh 重建
+   * stockMap 後也靠它重新套用。
+   */
+  function attachSheetNews(stockMap, rawNews) {
+    if (!rawNews) return;
+    const nameToCode = new Map();
+    for (const [code, stock] of stockMap) {
+      if (stock.name) nameToCode.set(stock.name, code);
+    }
+    for (const [, entry] of stockMap) {
+      if (entry.news) entry.news = entry.news.filter(n => n.source === 'mops');
+    }
+    for (const item of parseStockNews(rawNews)) {
+      const entry = stockMap.get(nameToCode.get(item.stockName));
+      if (!entry) continue;
+      if (!entry.news) entry.news = [];
+      entry.news.push(item);
+    }
+    const ts = (d) => { const t = Date.parse(String(d || '').replace(/\//g, '-')); return isNaN(t) ? -Infinity : t; };
+    for (const [, entry] of stockMap) {
+      if (entry.news && entry.news.length > 1) entry.news.sort((a, b) => ts(b.date) - ts(a.date));
+    }
+  }
+
+  /**
    * 解析 twsa 競拍資料 → Map<cbCode, auctionObj>
    */
   function parseTwsaAuction(twsaData) {
@@ -1422,6 +1448,7 @@ const DataProcessor = (() => {
   }
 
   return {
+    attachSheetNews,
     parseTimeSeries,
     parseCBDailyReport,
     parseFubonPrimary,
