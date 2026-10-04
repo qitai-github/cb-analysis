@@ -128,59 +128,34 @@ const SheetsAPI = (() => {
         const data = await resp.json();
         if (data && Object.keys(data).length > 1) {
           data._errors = [];
-          // 併發載入 twsa 競拍資料 (靜態 JSON，失敗不影響主流程)
-          try {
-            const twsaResp = await fetchWithTimeout('data/twsa.json', 10000);
-            data.twsaAuction = await twsaResp.json();
-          } catch (e) {
-            console.warn('[loadAll] twsa.json 載入失敗:', e.message);
-          }
-          // 併發載入台股公司主檔 (產業分類) — 靜態 JSON 可能尚未包含此 key
-          if (!data.stockIndustry) {
+          // 附加資料真正併發載入 — 各自失敗不影響主流程
+          const loadJson = async (key, url, timeout) => {
             try {
-              const s = DATA_SOURCES.stockIndustry;
-              data.stockIndustry = await fetchSheet(s.sheetId, s.gid);
+              const r = await fetchWithTimeout(url, timeout);
+              data[key] = await r.json();
             } catch (e) {
-              console.warn('[loadAll] stockIndustry 載入失敗:', e.message);
+              console.warn(`[loadAll] ${url} 載入失敗:`, e.message);
             }
-          }
-          // 併發載入新聞資訊 — 靜態 JSON 可能尚未包含此 key
-          if (!data.stockNews) {
+          };
+          // 靜態 JSON 可能尚未包含此 key 時才改走 Google Sheets
+          const loadSheet = async (key) => {
+            if (data[key]) return;
             try {
-              const s = DATA_SOURCES.stockNews;
-              data.stockNews = await fetchSheet(s.sheetId, s.gid);
+              const s = DATA_SOURCES[key];
+              data[key] = await fetchSheet(s.sheetId, s.gid);
             } catch (e) {
-              console.warn('[loadAll] stockNews 載入失敗:', e.message);
+              console.warn(`[loadAll] ${key} 載入失敗:`, e.message);
             }
-          }
-          // MOPS 重大訊息 (data/mops_news.json) — 失敗不影響主流程
-          try {
-            const mnResp = await fetchWithTimeout('data/mops_news.json', 10000);
-            data.mopsNews = await mnResp.json();
-          } catch (e) {
-            console.warn('[loadAll] mops_news.json 載入失敗:', e.message);
-          }
-          // 全上市櫃股本 (data/stock_capital.json) — 失敗不影響主流程
-          try {
-            const scResp = await fetchWithTimeout('data/stock_capital.json', 10000);
-            data.stockCapital = await scResp.json();
-          } catch (e) {
-            console.warn('[loadAll] stock_capital.json 載入失敗:', e.message);
-          }
-          // 集保股權分散表 (data/shareholding.json,每週五資料) — 失敗不影響主流程
-          try {
-            const shResp = await fetchWithTimeout('data/shareholding.json', 20000);
-            data.shareholding = await shResp.json();
-          } catch (e) {
-            console.warn('[loadAll] shareholding.json 載入失敗:', e.message);
-          }
-          // 企業報告 (Drive 簡易報告 PNG + 完整報告 PDF) 索引 — 失敗不影響主流程
-          try {
-            const crResp = await fetchWithTimeout('data/company_reports.json', 10000);
-            data.companyReports = await crResp.json();
-          } catch (e) {
-            console.warn('[loadAll] company_reports.json 載入失敗:', e.message);
-          }
+          };
+          await Promise.all([
+            loadJson('twsaAuction', 'data/twsa.json', 10000),
+            loadSheet('stockIndustry'),
+            loadSheet('stockNews'),
+            loadJson('mopsNews', 'data/mops_news.json', 10000),
+            loadJson('stockCapital', 'data/stock_capital.json', 10000),
+            loadJson('shareholding', 'data/shareholding.json', 20000),
+            loadJson('companyReports', 'data/company_reports.json', 10000),
+          ]);
           if (onProgress) onProgress(1, 1, '完成');
           console.log('[loadAll] 靜態JSON載入成功');
           return data;
@@ -246,17 +221,10 @@ const SheetsAPI = (() => {
   const STORAGE_KEY = 'cb_data_cache';
   const STORAGE_EXPIRY = 60 * 60 * 1000; // 1 小時過期
 
-  function saveToStorage(rawResults) {
-    try {
-      const payload = {
-        data: rawResults,
-        time: Date.now()
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch (e) {
-      // localStorage 滿了就忽略
-      console.warn('localStorage 儲存失敗:', e);
-    }
+  // 整包資料序列化後約 20MB,遠超 localStorage 約 5MB 上限,寫入必定失敗卻白花主執行緒時間,
+  // 故不再寫入;僅清掉舊版殘留 key。自選清單 (cb_watchlist_v2) 是獨立 key,不受影響。
+  function saveToStorage() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
   }
 
   function loadFromStorage() {
