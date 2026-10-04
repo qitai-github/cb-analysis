@@ -10,6 +10,11 @@
     volRatio/posIn60/ma20/ma60/score/hits/inst(foreign5/trust5)/holder(big100_chg4w)/
     margin(bal/chg1/chg5pct/short/shortChg1/shortChg5)/broker(buy/sell/top5NetPct)/cbs`
   - `cbVolRatio` 是 CB 量 ÷ 60 日均量；`cbVolMA60 < 5` 時倍數沒有意義
+  - 每筆 `x['flags']` 是掃描階段**已自動打好的失真/注意旗標**（CB基期過小、CB爆量不漲、個股量縮上漲、個股爆量收黑、融資餘額<300張、融券基期小、無週報分）。評論提到該檔時要把旗標講進去，不要把有旗標的訊號寫成乾淨訊號
+- 掃描 JSON 另有三個預先算好的分析區塊（**引用數字，不要重算**）：
+  - `offmarket`：「盤下鎖碼」偵測——CB 盤面量很小，但三大法人(多為自營商＝券商做 CBAS 拆解)淨買超遠大於盤面量或佔發行餘額很高。`flagged` 是今日觸發名單，`accum5` 是 5 日累計佔餘額最高者。案例：晟田五 2026-09-30 盤面僅 309 張，自營商淨買 1,375 張，佔發行 3,000 張的 46%。**這是資料現象，不等於一定有特定人鎖碼**，歷史回測單日觸發的中位數超額報酬接近 0，僅作觀察
+  - `resonance`：兩榜個股在「細分板塊」的族群共振（命中檔數/比例、成員今日漲跌中位數、近 5 日法人淨買億元）
+  - `followup`：前一交易日日報點名個股到今天的實際表現（`median`、`up`、對照 `market` 中位數、`beat`）
 
 ## 你的工作
 1. **用 python 讀 `daily_cb_scan.json` 統計**（不要憑印象）：CB 漲停／大漲檔數、A／B 兩榜重疊檔數、
@@ -37,6 +42,10 @@
 忽略，不會顯示在網頁上。`sections` 至少要有「榜首與異常值」「量價關係摘要」「籌碼面觀察（含融資
 券）」「使用前要知道的事」四段。想參考風格可以看 `data/daily_cb_rank_history/` 底下最近一份有
 `report` 欄位的舊日報。
+
+   評論另外要加三段 sections（有資料才寫）：「盤下鎖碼觀察」（引用 `offmarket`，點名 `flagged` 逐檔講盤面量、法人淨買、佔餘額%，並明講只是現象）、「族群共振」（引用 `resonance`）、「昨日點名追蹤」（引用 `followup`，只陳述事實，單日樣本小不下結論）。「使用前要知道的事」要涵蓋今天出現過的旗標類型。
+
+3.5 **對帳（build 之前必做）**：執行 `PYTHONUTF8=1 python scripts/verify_commentary.py daily`，有 `ERROR`（分數/名稱與掃描資料不符、date 對不上）就修正評論檔重跑到 0 個錯誤；`WARN` 看過即可。
 
 4. 更新網站資料：執行 `PYTHONUTF8=1 python scripts/build_daily_cb_rank_json.py`，它會把掃描結果
    **加上上一步的評論**寫成 `data/daily_cb_rank.json`，並自動歸檔一份到

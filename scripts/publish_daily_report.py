@@ -3,6 +3,7 @@
 """CB 日報一鍵產生 + 跑評論 + 上傳網頁。
 
 流程:
+  0. 觸發 GitHub Actions「Margin Late (融資融券)」並等它跑完(--no-margin 可跳過)。
   1. git 同步 data/ 到 origin/main 最新版(在 main 上 pull;不在 main 只簽出 data/)。
   2. scripts/daily_cb_scan.py —— CB 當日漲幅/量能前 N 檔 + 對應個股技術面/籌碼面/券商分點。
   3. 呼叫 `claude -p`(headless,見 scripts/schedule/prompt_daily.md)分析今天的
@@ -17,7 +18,7 @@
      data/daily_cb_rank_history/,commit + push。跟 all-data.json 撞車(GHA 常常在推)
      時最多重試 3 次。
 
-用法: PYTHONUTF8=1 python scripts/publish_daily_report.py [--top 100] [--no-push] [--no-claude]
+用法: PYTHONUTF8=1 python scripts/publish_daily_report.py [--top 100] [--no-push] [--no-claude] [--no-margin] [--if-trading-day]
 """
 import os
 import shutil
@@ -32,9 +33,39 @@ ENV = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
 CLAUDE_TIMEOUT = 1800  # 秒;比週報短,日報分析量小很多
 
 
+def _alert(title, body=""):
+    """失敗告警(Telegram 管理員);任何錯誤都不擋日報主流程"""
+    try:
+        sys.path.insert(0, str(SCRIPTS))
+        from lib import notify
+        notify.alert(title, body)
+    except Exception as e:  # noqa: BLE001
+        print(f"  [警告] 告警送出失敗: {e}")
+
+
+def _verify_commentary():
+    """評論對帳:分數/名單誤引只告警(評論已經 push,不回滾)"""
+    p = subprocess.run([sys.executable, str(SCRIPTS / "verify_commentary.py"), "daily"], cwd=str(ROOT), env=ENV,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    print(p.stdout.strip())
+    if p.returncode != 0:
+        errs = [l for l in p.stdout.splitlines() if l.startswith("ERROR")]
+        _alert("日報評論對帳有誤", " | ".join(errs)[:600]
+               + " 評論已上傳,請核對後修正 scripts/output/daily_commentary.json 並重 build")
+
+
 def run(cmd, **kw):
     return subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", **kw)
+
+
+def run_margin_workflow():
+    """觸發 GitHub Actions「Margin Late (融資融券)」並等它跑完,日報才讀得到當天融資券。
+    失敗只警告、不擋日報,沿用 GitHub 上現有資料。"""
+    print("[0/5] 融資融券更新 (margin-late)...", flush=True)
+    sys.path.insert(0, str(SCRIPTS))
+    from gha_dispatch import dispatch_and_wait
+    dispatch_and_wait("margin-late.yml", "Margin Late (融資融券)", inputs={"date": ""})
 
 
 def git_sync():
@@ -159,6 +190,16 @@ def main():
     no_push = "--no-push" in sys.argv
     no_claude = "--no-claude" in sys.argv
 
+    if "--if-trading-day" in sys.argv:   # 排程用:休市日直接結束,不觸發 GHA、不掃描
+        sys.path.insert(0, str(SCRIPTS))
+        from lib import calendar_tw
+        today = datetime.now().strftime("%Y%m%d")
+        if not calendar_tw.is_trading_day(today):
+            print(f"{today} 非交易日,跳過日報。")
+            return 0
+
+    if "--no-margin" not in sys.argv:
+        run_margin_workflow()
     git_sync()
 
     if not run_step("[2/5] 掃描 CB 漲幅/量能榜", ["scripts/daily_cb_scan.py", "--top", top]):
@@ -170,8 +211,11 @@ def main():
         print("\n--no-push,不上傳,到此為止。")
         return 0
 
-    if not no_claude and run_claude_commentary():
-        return 0   # claude 自己已經 build + push 完了
+    if not no_claude:
+        if run_claude_commentary():
+            _verify_commentary()
+            return 0   # claude 自己已經 build + push 完了
+        _alert("日報評論未產出(改只上傳數字)", "claude -p 沒完成評論,網頁日報分頁今天只有表格沒有文字評論。")
 
     # 備援:claude 沒跑、失敗、或 --no-claude —— 至少把數字資料上傳,不能讓評論步驟卡住整個流程
     if not run_step("[4/5] 產生網頁資料 data/daily_cb_rank.json", ["scripts/build_daily_cb_rank_json.py"]):

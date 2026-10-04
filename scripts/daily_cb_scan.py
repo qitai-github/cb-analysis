@@ -15,6 +15,29 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from holdings_review import analyze, load, index_table, trim_zero_tail, BASE  # noqa: E402
 from positive_scan import score_one, CRITERIA  # noqa: E402
+from lib import cb_offmarket, sector_resonance, pick_followup  # noqa: E402
+
+
+def distortion_flags(cb, s):
+    """掃描階段就把「數字會失真/需要小心」的情況打旗標,不留給評論文字去記得提醒。"""
+    f = []
+    if cb.get('cbVolMA60') is not None and cb['cbVolMA60'] < 5 and cb['cbVol'] > 0:
+        f.append('CB基期過小(60日均量<5張,量比無意義)')
+    if cb.get('cbVolRatio') and cb['cbVolRatio'] >= 3 and cb['cbVolMA60'] >= 5 and cb['cbChg'] <= 0:
+        f.append('CB爆量不漲')
+    if s.get('ok'):
+        if s['volRatio'] < 0.5 and s['chg1'] > 0:
+            f.append('個股量縮上漲(量比%.2f,可信度低)' % s['volRatio'])
+        if s['volRatio'] >= 2 and s['chg1'] < 0:
+            f.append('個股爆量收黑(量比%.1f)' % s['volRatio'])
+        m = s.get('margin') or {}
+        if m and m.get('bal', 0) < 300:
+            f.append('融資餘額<300張(百分比失真)')
+        if m and m.get('short', 0) < 50 and abs(m.get('shortChg1', 0)) >= 50:
+            f.append('融券基期小(單日增減放大)')
+        if not s.get('score'):
+            f.append('日均量<50張或資料不足(無週報分)')
+    return f
 
 
 def broker_today(date):
@@ -35,6 +58,39 @@ def broker_today(date):
             'sell': [[n, round(v)] for n, v in sell],
             'top5NetPct': round(sum(v for _, v in buy) / vol * 100, 1) if vol else 0,
         }
+    return out
+
+
+def extras(ad, today, prev, stocks, res):
+    """盤下鎖碼 / 族群共振 / 昨日點名追蹤 — 每項各自包 try,失敗不擋主流程"""
+    out = {}
+    try:
+        d, rows = cb_offmarket.scan(ad, today)
+        out['offmarket'] = {'date': d, 'scanned': len(rows), 'flagged': cb_offmarket.flagged(rows, 30),
+                            # 5 日累計淨買最大者(不一定單日觸發),供「持續吃貨」觀察
+                            'accum5': sorted((r for r in rows if r['net5'] > 0 and r['net5PctBal']),
+                                             key=lambda r: -r['net5PctBal'])[:10]}
+        print('盤下鎖碼:法人有動作 CB %d 檔,觸發 %d 檔' % (len(rows), len(out['offmarket']['flagged'])))
+    except Exception as e:
+        print('警告:盤下鎖碼偵測失敗(%s)' % e)
+    try:
+        names = {c: (res.get(c) or {}).get('name', '') for c in stocks}
+        out['resonance'] = sector_resonance.resonance(stocks, min_hits=2, top=10, names=names)
+    except Exception as e:
+        print('警告:族群共振失敗(%s)' % e)
+    try:
+        hp = os.path.join(BASE, 'data', 'daily_cb_rank_history', '%s.json' % prev)
+        if os.path.exists(hp):
+            hl = (json.load(open(hp, encoding='utf-8')).get('report') or {}).get('highlights') or []
+            codes = [h['code'] for h in hl]
+            if codes:
+                fu = pick_followup.followup(codes, prev, today, ad)
+                fu['source'] = '前一交易日日報 highlights'
+                out['followup'] = fu
+                print('昨日點名 %d 檔今日:上漲 %d、勝全市場中位數 %d(中位數 %s%% vs 市場 %s%%)'
+                      % (fu['n'], fu['up'], fu['beat'], fu['median'], fu['market']))
+    except Exception as e:
+        print('警告:昨日點名追蹤失敗(%s)' % e)
     return out
 
 
@@ -81,11 +137,12 @@ def main():
         out = []
         for i, cb in enumerate(rows, 1):
             s = res.get(cb['stock'], {})
-            out.append(dict(cb, rank=i, s=s))
+            out.append(dict(cb, rank=i, s=s, flags=distortion_flags(cb, s)))
         return out
 
     out = {'date': today, 'prev': prev, 'top': top, 'brokerDate': today if brk else None,
            'A': attach(rankA), 'B': attach(rankB)}
+    out.update(extras(ad, today, prev, stocks, res))
     o = os.path.join(BASE, 'scripts', 'output')
     with open(os.path.join(o, 'daily_cb_scan.json'), 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False, indent=1)

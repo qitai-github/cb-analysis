@@ -20,14 +20,15 @@ def slim(x):
     if not s.get('ok'):
         return {'rank': x['rank'], 'cbCode': x['cbCode'], 'cbName': x['cbName'],
                 'stock': x['stock'], 'cbClose': x['cbClose'], 'cbChg': x['cbChg'],
-                'cbVol': x['cbVol'], 'cbVolRatio': x.get('cbVolRatio'), 'ok': False}
+                'cbVol': x['cbVol'], 'cbVolRatio': x.get('cbVolRatio'), 'ok': False,
+                'flags': x.get('flags') or []}
     i, h, m, b = s.get('inst', {}), s.get('holder', {}), s.get('margin', {}), s.get('broker') or {}
     return {
         'rank': x['rank'], 'cbCode': x['cbCode'], 'cbName': x['cbName'],
         'stock': x['stock'], 'name': s.get('name', ''),
         'cbClose': x['cbClose'], 'cbChg': x['cbChg'], 'cbVol': x['cbVol'],
         'cbVolMA60': x['cbVolMA60'], 'cbVolRatio': x.get('cbVolRatio'),
-        'ok': True,
+        'ok': True, 'flags': x.get('flags') or [],
         'close': s['close'], 'chg1': s['chg1'], 'chg5': s['chg5'], 'chg20': s['chg20'],
         'volRatio': s['volRatio'], 'pos': s['posIn60'], 'ma20': s['ma20'], 'ma60': s['ma60'],
         'score': s.get('score'),
@@ -74,6 +75,10 @@ def main():
     }
     if commentary:
         payload['report'] = commentary
+    # 掃描階段算好的附加分析(盤下鎖碼 / 族群共振 / 昨日點名追蹤),沒有就略過
+    extras = {k: d[k] for k in ('offmarket', 'resonance', 'followup') if d.get(k)}
+    if extras:
+        payload['extras'] = extras
 
     out = os.path.join(DATA, 'daily_cb_rank.json')
     with open(out, 'w', encoding='utf-8') as f:

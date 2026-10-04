@@ -93,6 +93,12 @@ def main():
     allscored = [x for x in (score_one(r) for r in rows) if x]
     scored = [r for r in allscored if r['bullGate']]
     rejected = [r for r in allscored if not r['bullGate'] and r['score'] >= 70]
+    # 被多頭門檻擋掉的(含 60 分以上),週報做「掉榜原因」用 → positive_rejected.json
+    gated = [{'code': r['code'], 'name': r['name'], 'score': r['score'], 'close': r['close'],
+              'ma20': r['ma20'], 'chg20': r['chg20'], 'asOf': r.get('asOf'),
+              'hits': r['hits']} for r in allscored if not r['bullGate'] and r['score'] >= 60]
+    with open(os.path.join(BASE, 'scripts', 'output', 'positive_rejected.json'), 'w', encoding='utf-8') as f:
+        json.dump(gated, f, ensure_ascii=False)
     scored.sort(key=lambda r: -r['score'])
     rejected.sort(key=lambda r: -r['score'])
     print('通過多頭門檻 %d / %d 檔;籌碼佳但線型未過關 %d 檔'

@@ -86,6 +86,8 @@ const DailyView = (() => {
     if (switcher) container.appendChild(switcher);
     const commentary = buildCommentary();
     if (commentary) container.appendChild(commentary);
+    const extras = buildExtras();
+    if (extras) container.appendChild(extras);
     container.appendChild(buildControls(container));
     container.appendChild(buildTable(getFiltered()));
   }
@@ -178,6 +180,98 @@ const DailyView = (() => {
     return box;
   }
 
+  // ── 附加分析:盤下鎖碼 / 族群共振 / 昨日點名追蹤(掃描階段算好,放在 payload.extras)──
+  function miniTable(heads, rows) {
+    const wrap = el('div', 'signal-table-wrap');
+    const table = el('table', 'signal-table');
+    const tr = el('tr');
+    heads.forEach(([label, align]) => tr.appendChild(el('th', align === 'right' ? 'text-right' : null, label)));
+    const thead = el('thead'); thead.appendChild(tr); table.appendChild(thead);
+    const tbody = el('tbody');
+    for (const cells of rows) {
+      const row = el('tr', 'signal-row');
+      cells.forEach(([text, cls]) => row.appendChild(el('td', cls || null, text)));
+      if (cells.onClick) row.addEventListener('click', cells.onClick);
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody); wrap.appendChild(table);
+    return wrap;
+  }
+
+  function extraSection(title, note, node) {
+    const sec = el('div', 'signal-report-sec');
+    sec.appendChild(el('h4', 'signal-report-sec-h', title));
+    if (note) sec.appendChild(el('p', 'signal-report-sec-b', note));
+    sec.appendChild(node);
+    return sec;
+  }
+
+  function buildExtras() {
+    const ex = current().extras;
+    if (!ex) return null;
+    const box = el('div', 'signal-report');
+    const body = el('div', 'signal-report-body');
+    const secs = el('div', 'signal-report-secs');
+
+    const om = ex.offmarket;
+    if (om) {
+      const rows = (om.flagged || []).map(r => {
+        const cells = [
+          [r.cbCode], [r.cbName], [Math.round(r.vol).toLocaleString(), 'text-right'],
+          [fmtNum(r.dealer1), 'text-right ' + sign(r.dealer1)], [fmtNum(r.net1), 'text-right ' + sign(r.net1)],
+          [r.net1PctBal != null ? r.net1PctBal.toFixed(1) + '%' : '—', 'text-right'],
+          [fmtNum(r.net5), 'text-right ' + sign(r.net5)],
+          [r.net5PctBal != null ? r.net5PctBal.toFixed(1) + '%' : '—', 'text-right'],
+        ];
+        cells.onClick = () => onRowClick && onRowClick(r.stock);
+        return cells;
+      });
+      const node = rows.length
+        ? miniTable([['CB'], ['名稱'], ['盤面量', 'right'], ['自營淨買', 'right'], ['法人淨買', 'right'],
+            ['佔發行餘額', 'right'], ['5日淨買', 'right'], ['5日佔餘額', 'right']], rows)
+        : el('p', 'signal-report-sec-b', '今日沒有符合條件的 CB。');
+      secs.appendChild(extraSection('盤下鎖碼偵測(盤面量小、法人卻大買)',
+        `盤面成交量很小,但收盤後三大法人(多為自營商=券商做 CBAS 拆解)淨買超遠大於盤面量,或單日吃下發行餘額 ≥3%。`
+        + `掃描 ${om.scanned} 檔有法人動作的 CB,觸發 ${(om.flagged || []).length} 檔。`
+        + `這是資料現象,不等於一定是特定人鎖碼,僅供研究。`, node));
+    }
+
+    const rs = ex.resonance;
+    if (rs && rs.length) {
+      const rows = rs.map(r => [
+        [r.sector], [r.group], [r.hitNames.join('、')],
+        [`${r.hits.length}/${r.n}（${r.hitPct}%）`, 'text-right'],
+        [r.sectorPct != null ? fmtPct(r.sectorPct) : '—', 'text-right ' + sign(r.sectorPct || 0)],
+        [r.net5 != null ? r.net5.toFixed(0) + ' 億' : '—', 'text-right ' + sign(r.net5 || 0)],
+      ]);
+      secs.appendChild(extraSection('族群共振(同族群多檔同時上榜)',
+        '漲幅榜+量能榜的個股,依「細分板塊」歸類,同族群命中比例越高越有族群行情的味道;'
+        + '成員漲跌為族群成員今日中位數,法人為族群成員近 5 日三大法人合計淨買超。',
+        miniTable([['族群'], ['大類'], ['上榜個股'], ['命中', 'right'], ['成員漲跌', 'right'], ['5日法人', 'right']], rows)));
+    }
+
+    const fu = ex.followup;
+    if (fu && fu.rows && fu.rows.length) {
+      const rows = fu.rows.map(r => {
+        const cells = [[`${r.code} ${r.name}`],
+          [r.chg != null ? fmtPct(r.chg) : '—', 'text-right ' + sign(r.chg || 0)],
+          [r.cbChg != null ? fmtPct(r.cbChg) : '—', 'text-right ' + sign(r.cbChg || 0)]];
+        cells.onClick = () => onRowClick && onRowClick(r.code);
+        return cells;
+      });
+      secs.appendChild(extraSection('昨日點名追蹤',
+        `前一交易日日報點名的 ${fu.n} 檔,${fmtDate(fu.from)} 收盤 → ${fmtDate(fu.to)} 收盤:`
+        + `上漲 ${fu.up} 檔,中位數 ${fu.median}%,對照網站內 CB 個股中位數 ${fu.market}%(${fu.marketN} 檔),`
+        + `勝過對照 ${fu.beat} 檔。單日樣本很小,僅呈現事實,不代表條件有效或無效。`,
+        miniTable([['個股'], ['個股漲跌', 'right'], ['CB漲跌', 'right']], rows)));
+    }
+
+    if (!secs.children.length) return null;
+    body.appendChild(secs);
+    box.appendChild(body);
+    return box;
+  }
+
   function buildControls(container) {
     const bar = el('div', 'signal-controls');
     const rerender = () => render(container);
@@ -257,7 +351,8 @@ const DailyView = (() => {
 
       tr.appendChild(el('td', 'text-right', String(r.rank)));
       const cbCell = el('td', null, r.cbCode);
-      cbCell.title = r.cbName || '';
+      cbCell.title = (r.cbName || '') + ((r.flags && r.flags.length) ? ' ⚠ ' + r.flags.join(' ⚠ ') : '');
+      if (r.flags && r.flags.length) cbCell.textContent = r.cbCode + ' ⚠';
       tr.appendChild(cbCell);
 
       if (!r.ok) {
