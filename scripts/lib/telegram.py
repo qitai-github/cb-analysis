@@ -183,6 +183,10 @@ def format_pipeline_summary(s: dict[str, Any]) -> str:
                 f"基本{yr.get('basicCount',0):,} 贖回{yr.get('callRights',0)} "
                 f"停轉{yr.get('conversionStop',0)}"
             )
+            if yr.get("stale"):
+                lines.append(
+                    f"  ⚠️ 檔案日期落後 {yr.get('ageDays')} 天,請檢查 Drive 檔名/資料夾"
+                )
         else:
             lines.append(f"*元大證選擇權:* ❌ {yr.get('error','unknown')}")
         lines.append("")

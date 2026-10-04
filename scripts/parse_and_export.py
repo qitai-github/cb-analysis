@@ -443,6 +443,9 @@ def fetch_sheets(trade_date: str, all_data: dict, *,
 
 
 # ── Phase 4.6: 元大證選擇權 xlsx → yuantaReport ──────────────────────
+YUANTA_STALE_DAYS = 10   # 元大約每週一份,超過此天數視為異常
+
+
 def fetch_yuanta_report(trade_date: str, all_data: dict, *,
                         record_db: bool) -> dict:
     """從 Drive 撈最新一份元大證選擇權 xlsx,解析後覆寫 all_data['yuantaReport']。
@@ -465,8 +468,20 @@ def fetch_yuanta_report(trade_date: str, all_data: dict, *,
         all_data["yuantaReport"] = result
         _record(trade_date, "yuantaReport", "fetch", "ok",
                 count=bi, enabled=record_db)
+        # 檔案日期落後太多 = 元大檔名/資料夾可能又變了 (曾因檔名改版悄悄用舊檔兩個多月)
+        age = None
+        try:
+            age = (datetime.strptime(trade_date, "%Y%m%d")
+                   - datetime.strptime(date_str, "%Y%m%d")).days
+        except ValueError:
+            pass
+        stale = age is not None and age > YUANTA_STALE_DAYS
+        if stale:
+            log(f"     ⚠️  元大 xlsx 日期 {date_str} 落後 {age} 天 "
+                f"(> {YUANTA_STALE_DAYS}),請檢查 Drive 檔名/資料夾")
         return {"status": "ok", "reportDate": date_str,
-                "basicCount": bi, "callRights": cr, "conversionStop": cs}
+                "basicCount": bi, "callRights": cr, "conversionStop": cs,
+                "ageDays": age, "stale": stale}
     except Exception as e:  # noqa: BLE001
         log(f"     ✗ {e}")
         _record(trade_date, "yuantaReport", "fetch", "fail",
