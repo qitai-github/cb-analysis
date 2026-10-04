@@ -1,6 +1,6 @@
 """個股狀態抓取 (新高 / 強勢 / 三線開花) → dict[stock_code, details]。
 
-資料來源: 藏鋒資本趨勢選股 https://jacky99714.github.io/ZF_TrendPicking/
+資料來源: 藏鋒資本趨勢選股 https://glaciercapitaltw-tech.github.io/glacier/
   - data/index.json          → {generated_at, months[], stocks:{id:{n,m,i,e,ms}}}
   - data/months/YYYY-MM.json → [{d, id, t, s, h, r, g}, ...]
 
@@ -31,7 +31,7 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-BASE_URL = "https://jacky99714.github.io/ZF_TrendPicking/data"
+BASE_URL = "https://glaciercapitaltw-tech.github.io/glacier/data"
 TIMEOUT = 60
 MONTHS_BACK = 3          # 近 3 個月 (~60 交易日) 足夠算 streak,也不用扛 20+MB
 MARKET = "tw"            # 只要台股 (該站另有美股 'us')

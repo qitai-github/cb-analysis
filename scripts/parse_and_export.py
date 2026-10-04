@@ -604,7 +604,7 @@ def merge_mops_cb_events(all_data: dict) -> dict:
 # ── Phase 4.5: 個股狀態 (新高 / 強勢 / 三線開花) ───────────────────────
 def fetch_status_sheets(trade_date: str, all_data: dict, *,
                         record_db: bool) -> list[dict]:
-    """抓 新高 / 強勢 / 三線開花 (ZF_TrendPicking),寫入 all_data['stockStatus']。
+    """抓 新高 / 強勢 / 三線開花 (glacier),寫入 all_data['stockStatus']。
 
     回傳 list of {key, name, status, rows}。任一失敗不影響另一個,也不影響
     主 pipeline (呼叫端只把摘要送 TG)。

@@ -161,7 +161,8 @@
 **一鍵執行 + 上傳 (2026-09-22 新增)**：雙擊專案根目錄 `週報.exe`(原始碼
 `scripts/weekly_report_launcher.py`，用 PyInstaller 打包，跟 `券商進出.exe`／`日報.exe`
 同一種做法，exe 必須留在專案根目錄；exe 只是啟動器，實際邏輯都在既有的
-`scripts/schedule/weekly_universe.py`——平常週日 17:00 排程用的同一支，這裡只是包一層
+`scripts/schedule/weekly_universe.py`(2026-10-02 起開頭會先透過 `scripts/gha_dispatch.py`
+觸發 GitHub Actions「TDCC Shareholding Weekly」並等跑完，失敗只警告，`--no-tdcc` 可跳過)——排程用的同一支(Windows 工作排程器「CB週報_週六14點」，週六 14:00，經 `scripts/schedule/run_universe.cmd`；舊的週日 17:00 排程已於 2026-10 取消)，這裡只是包一層
 方便手動雙擊)。跟「日報」不同的是**這裡沒有跳過 Artifact 的備援路徑**：
 `prompt_universe.md` 要求 `claude -p` 一定要用 Artifact 發佈完整報告網頁、把網址寫進
 `signal_commentary.json` 的 `artifactUrl` 再 commit + push；`claude -p` 沒跑完（找不到
@@ -197,7 +198,13 @@ CLI、逾時、失敗）就不會 push，不會讓半吊子的資料覆蓋網頁
 - **一鍵執行 + 上傳**：雙擊專案根目錄 `日報.exe`(原始碼 `scripts/daily_report_launcher.py`，
   用 PyInstaller 打包，跟 `券商進出.exe` 同一種做法，exe 必須留在專案根目錄；exe 本身只是
   啟動器，實際邏輯都在 `scripts/publish_daily_report.py`，改邏輯不用重新打包)。
-  完整流程：git 同步 → `daily_cb_scan.py` → `claude -p` 寫評論+build+push（見上）→
+  **排程(2026-10-02 新增)**：Windows 工作排程器「CB日報_每交易日21點」，週一~五 21:00，經
+  `scripts/schedule/run_daily.cmd` 直接跑 `publish_daily_report.py --if-trading-day`(休市日自動跳過；
+  不跑 exe 是因為 exe 結尾的「按 Enter 關閉視窗」會卡住排程)；已開「錯過就補跑」，僅登入狀態執行。
+  補跑若已跨到非交易日會被 `--if-trading-day` 跳過，需手動跑。
+  完整流程：(2026-10-02 新增)先用 git credential 的 token 呼叫 GitHub API 觸發
+  `margin-late.yml`(融資融券)並等它跑完(最多 20 分鐘；失敗只警告不擋日報，`--no-margin` 可跳過)
+  → git 同步 → `daily_cb_scan.py` → `claude -p` 寫評論+build+push（見上）→
   失敗才落回純數字的 `build_daily_cb_rank_json.py` + git commit/push 備援（跟
   `all-data.json` 撞車時重試 3 次）。也可以不用 exe 直接跑：
   `PYTHONUTF8=1 python scripts/publish_daily_report.py [--top 100] [--no-push] [--no-claude]`。
@@ -782,7 +789,7 @@ stockNews            新聞
 stockIndustry        台股公司主檔 (產業)
 cbIssuance           CB 發行資訊
 yuantaReport         元大選擇權 (basicInfo, 競拍, 流通餘額...)
-stockStatus          新高 / 強勢 / 三線開花 (來源 ZF_TrendPicking)
+stockStatus          新高 / 強勢 / 三線開花 (來源 glaciercapitaltw-tech.github.io/glacier)
 cbasCalendar         CBAS 日曆 (events, issuedInfo, plannedPrimary, yuantaCrosscheck)
 _meta                pipeline 時間戳
 ```

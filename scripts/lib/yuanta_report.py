@@ -41,7 +41,7 @@ for _s in (sys.stdout, sys.stderr):
 
 # Drive folder ID:CB選擇權-元大 (xlsx_uploads 子目錄)
 DEFAULT_FOLDER_ID = "1xHJ5OEnBxyRKSkQYCOZRpZrUs9cRgyHX"
-FILE_NAME_RE = re.compile(r"元大證選擇權(\d{8})\.xlsx$")
+FILE_NAME_RE = re.compile(r"元大證選擇權(?:報價單)?(\d{8})(?:-[^.]*)?\.xlsx$")
 
 
 # ── tools ────────────────────────────────────────────────────────────
