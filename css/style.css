@@ -3356,6 +3356,10 @@ input[type="number"] { -moz-appearance: textfield; }
 .signal-report-secs {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;
 }
+/* 日報附加分析(盤下鎖碼/族群共振/昨日點名):各佔一整列、表格完整呈現不出現卷軸 */
+.signal-report-secs.signal-extras { grid-template-columns: 1fr; gap: 20px; }
+.signal-extras .signal-table-wrap { overflow: visible; max-height: none; }
+.signal-extras .signal-table th { position: static; }
 .signal-report-sec-h { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .signal-report-sec-b { font-size: 12px; line-height: 1.8; color: var(--text-muted); }
 

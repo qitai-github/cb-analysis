@@ -211,7 +211,7 @@ const DailyView = (() => {
     if (!ex) return null;
     const box = el('div', 'signal-report');
     const body = el('div', 'signal-report-body');
-    const secs = el('div', 'signal-report-secs');
+    const secs = el('div', 'signal-report-secs signal-extras');
 
     const om = ex.offmarket;
     if (om) {
