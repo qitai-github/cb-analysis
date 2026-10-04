@@ -818,6 +818,12 @@ body {
   border-color: rgba(34, 197, 94, 0.45);
 }
 
+.badge-volsurge {
+  background: rgba(168, 85, 247, 0.15);
+  color: #d8b4fe;
+  border-color: rgba(168, 85, 247, 0.45);
+}
+
 /* === 新聞列表 === */
 .news-list {
   display: flex;

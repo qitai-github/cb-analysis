@@ -65,7 +65,7 @@ const Filters = (() => {
       apply: (stock, val) => {
         if (!val) return true;
         const f = stock.statusFlags;
-        return !!(f && (f.newhigh || f.strong || f.sanxian));
+        return !!(f && (f.newhigh || f.strong || f.sanxian || f.volsurge));
       }
     },
     recentStatusFlag: {
@@ -79,7 +79,7 @@ const Filters = (() => {
         if (!(n > 0)) return true;
         const f = stock.statusFlags;
         if (!f) return false;
-        const streaks = [f.newhigh, f.strong, f.sanxian]
+        const streaks = [f.newhigh, f.strong, f.sanxian, f.volsurge]
           .map(x => Number(x?.streak) || 0);
         return streaks.some(v => v >= 1 && v <= n);
       }

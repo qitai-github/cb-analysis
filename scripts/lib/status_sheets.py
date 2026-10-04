@@ -7,6 +7,7 @@
 欄位語意 (對齊該站前端):
   t = 'vcp' → 強勢/新高 系列, 旗標 s=強勢, h=新高
   t = 'sx'  → 三線開花
+  t = 'vol' → 量大強漲
   r = 近20日漲幅(%), g = 差距比
 
 抓法:
@@ -52,6 +53,11 @@ SOURCES: dict[str, dict[str, Any]] = {
         "name": "三線開花",
         "matcher": lambda e: e.get("t") == "sx",
         "fields": {"r": "gain20", "g": "diffPct"},
+    },
+    "volsurge": {
+        "name": "量大強漲",
+        "matcher": lambda e: e.get("t") == "vol",
+        "fields": {"r": "gain20"},
     },
 }
 

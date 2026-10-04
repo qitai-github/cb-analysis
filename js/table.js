@@ -16,6 +16,7 @@ const Table = (() => {
     { key: 'newhighStreak', label: '新高', width: '60px', format: 'badge_newhigh', align: 'center' },
     { key: 'strongStreak',  label: '強勢', width: '60px', format: 'badge_strong',  align: 'center' },
     { key: 'sanxianStreak', label: '三線', width: '60px', format: 'badge_sanxian', align: 'center' },
+    { key: 'volsurgeStreak', label: '量價', width: '60px', format: 'badge_volsurge', align: 'center' },
     { key: 'industryCategory', label: '產業分類', width: '105px', format: 'industry' },
     { key: 'latestClose', label: '收盤價', width: '65px', format: 'price', align: 'right' },
     { key: 'priceChangePercent', label: '漲跌%', width: '60px', format: 'percent_color', align: 'right' },
@@ -309,6 +310,10 @@ const Table = (() => {
       renderSingleBadge(td, item, 'sanxian');
       return;
     }
+    if (format === 'badge_volsurge') {
+      renderSingleBadge(td, item, 'volsurge');
+      return;
+    }
 
     if (val == null || val === '') {
       td.textContent = '-';
@@ -460,7 +465,8 @@ for (const pubName of PublicWatchlist.getLists()) {
   const STATUS_BADGES = {
     newhigh: { label: '新高', cls: 'badge-newhigh' },
     strong:  { label: '強勢', cls: 'badge-strong'  },
-    sanxian: { label: '三線', cls: 'badge-sanxian' }
+    sanxian: { label: '三線', cls: 'badge-sanxian' },
+    volsurge: { label: '量價', cls: 'badge-volsurge' }
   };
 
   function renderStatusBadges(td, stock) {
@@ -503,7 +509,7 @@ for (const pubName of PublicWatchlist.getLists()) {
 
   function buildStatusTooltip(type, info) {
     const lines = [];
-    const HEAD = { newhigh: '新高', strong: '強勢', sanxian: '三線開花' };
+    const HEAD = { newhigh: '新高', strong: '強勢', sanxian: '三線開花', volsurge: '量大強漲' };
     lines.push(`${HEAD[type] || type} — ${info.date || ''}`.trim());
     if (info.streak != null) {
       lines.push(`連續 ${info.streak} 天 / 累計 ${info.total ?? info.streak} 天`);

@@ -683,6 +683,7 @@ const DataProcessor = (() => {
         if (type === 'newhigh') entry.newhighStreak = streak;
         else if (type === 'strong') entry.strongStreak = streak;
         else if (type === 'sanxian') entry.sanxianStreak = streak;
+        else if (type === 'volsurge') entry.volsurgeStreak = streak;
       }
     }
   }

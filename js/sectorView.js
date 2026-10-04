@@ -250,9 +250,20 @@ const SectorView = (() => {
     }
     const roles = cd.roles.map((r, i) => ({ ...r, color: ROLE_COLOR[i % ROLE_COLOR.length], codes: byRole[r.id] || [] })).filter(r => r.codes.length);
     if (byRole._) roles.push({ id: '_', name: '角色待定', color: '#64748b', codes: byRole._ });
+    const badges = (c) => {
+      const f = opts.statusFlags && opts.statusFlags(c);
+      if (!f) return '';
+      const mk = (cls, full, short, info) => {
+        if (!info) return '';
+        const streak = Number(info.streak) || 0;
+        return `<span class="badge ${cls}" title="${full} 連續 ${streak} 天 / 累計 ${info.total ?? streak} 天">${short}${streak > 0 ? '-' + streak : ''}</span>`;
+      };
+      return mk('badge-newhigh', '新高', '新', f.newhigh) + mk('badge-strong', '強勢', '強', f.strong) + mk('badge-sanxian', '三線', '三', f.sanxian) + mk('badge-volsurge', '量大強漲', '量', f.volsurge);
+    };
     const card = (c, color) => { const t = today(c); const ms = chain.stocks[c].memberships.find(x => x.cluster === cd.id);
+      const bd = badges(c);
       return `<div class="sec-stock ${st.selStock === c ? 'sel' : ''}" data-code="${c}" style="--rc:${color}">
-        <div class="sec-stock-t"><b>${c} ${nameOf(c)}</b><span class="${cls_(t[1])}">${sign(t[1])}%</span></div>
+        <div class="sec-stock-t"><b>${c} ${nameOf(c)}</b><span class="${cls_(t[1])}">${sign(t[1])}%</span></div>${bd ? `<div class="sec-stock-b">${bd}</div>` : ''}
         <div class="sec-stock-s">${(ms.subs || []).slice(0, 3).join('·')}</div></div>`; };
     if (st.selRole && !roles.some(r => r.id === st.selRole)) st.selRole = null;
     const selR = roles.find(r => r.id === st.selRole);

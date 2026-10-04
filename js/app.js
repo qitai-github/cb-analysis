@@ -8,6 +8,7 @@ const App = (() => {
   let etfLoaded = false;
   let calendarLoaded = false;
   let rawCBIssuance = null; // 保留 CB 發行資訊供 ETF 交叉比對
+  let rawStockStatus = null; // 新高/強勢/三線/量價 全市場原始上榜資料 (產業族群標示用)
   let rawCalendar = null;   // 保留 CBAS 日曆事件供日曆頁使用
   // twsa 競拍資料 — 給 PM 卡片按鈕 / CB 日曆統計表用。
   // 為了讓「CB 已開標但還沒掛牌」的檔(例: 47491 掛牌前)也能顯示開標資訊,
@@ -66,6 +67,7 @@ const App = (() => {
       reattachSheetNews(rawResults);
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
+      rawStockStatus = rawResults.stockStatus || null;
       rawCalendar = rawResults.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
       companyReportsByCode = (rawResults.companyReports && rawResults.companyReports.stocks) || {};
@@ -1932,7 +1934,8 @@ const App = (() => {
     };
     return mk('badge-newhigh', '新高', flags.newhigh)
          + mk('badge-strong', '強勢', flags.strong)
-         + mk('badge-sanxian', '三線', flags.sanxian);
+         + mk('badge-sanxian', '三線', flags.sanxian)
+         + mk('badge-volsurge', '量價', flags.volsurge);
   }
 
   // 初級市場資訊 — 三大階段 (近期掛牌 / 近期生效 / 董事會公告)
@@ -2547,6 +2550,7 @@ const App = (() => {
       reattachSheetNews(rawResults);
       latestDataDate = result.latestDataDate;
       rawCBIssuance = rawResults.cbIssuance || null;
+      rawStockStatus = rawResults.stockStatus || null;
       rawCalendar = rawResults.cbasCalendar || null;
       auctionByCbCode = _buildAuctionByCbCode(rawResults.twsaAuction);
       companyReportsByCode = (rawResults.companyReports && rawResults.companyReports.stocks) || {};
@@ -2627,6 +2631,16 @@ const App = (() => {
       if (statusEl) { statusEl.textContent = `產業族群 | 資料日 ${st.asOf} | ${st.groups} 個群組`; statusEl.style.color = ''; }
       SectorView.mount('filter-panel', 'main-table', {
         hasCB: (code) => !!(stockMap && stockMap.has(String(code))),
+        statusFlags: (code) => {
+          // 全市場上榜都標示 (不限有 CB):直接讀原始 stockStatus
+          if (!rawStockStatus) return null;
+          const out = {};
+          for (const [type, p] of Object.entries(rawStockStatus)) {
+            const d = p && p.stocks && p.stocks[String(code)];
+            if (d) out[type] = { date: p.date || '', ...d };
+          }
+          return Object.keys(out).length ? out : null;
+        },
         openStock: (code) => { const s = stockMap && stockMap.get(String(code)); if (s) switchTab('cb').then(() => showDetail(s)); },
       });
     } catch (err) {
