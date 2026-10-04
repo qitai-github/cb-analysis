@@ -24,6 +24,11 @@ on:
 permissions:
   contents: write   # 需要 commit data/all-data.json
 
+# 同時只跑一個寫 all-data.json 的 workflow (與 margin-late 共用),避免 push 撞車
+concurrency:
+  group: all-data-writer
+  cancel-in-progress: false
+
 jobs:
   parse:
     runs-on: ubuntu-latest

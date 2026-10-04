@@ -25,6 +25,11 @@ on:
         required: false
         default: ''
 
+# 避免 GAS 派送與 cron 重疊重複抓取
+concurrency:
+  group: fetch-stocks
+  cancel-in-progress: false
+
 jobs:
   fetch:
     runs-on: ubuntu-latest

@@ -26,6 +26,11 @@ on:
 permissions:
   contents: write   # 需要 commit data/all-data.json
 
+# 與 parse-and-export 共用群組,避免同時改寫 all-data.json
+concurrency:
+  group: all-data-writer
+  cancel-in-progress: false
+
 jobs:
   margin:
     runs-on: ubuntu-latest
