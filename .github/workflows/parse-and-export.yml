@@ -71,7 +71,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # cb_board_dates.json 是董事會公告日的長期存檔 (CBAS 表上會消失),
           # 一定要跟著 commit,不然每次 runner 都從空的重來
-          git add data/all-data.json data/cb_board_dates.json data/sector_flow.json
+          git add data/all-data.json data/stock_news.json data/cb_board_dates.json data/sector_flow.json
           if git diff --cached --quiet; then
             echo "no JSON changes"
             exit 0

@@ -887,8 +887,17 @@ def main(argv=None) -> int:
             log(f"[Phase 5] 寫回 {out_json}")
             try:
                 out_json.parent.mkdir(parents=True, exist_ok=True)
+                # 一般新聞 (約 4.6MB) 只有詳情面板用,拆成獨立檔讓首頁不必載入。
+                # 只在本輪有新聞資料時才覆寫,--only-sources 沒抓新聞時沿用既有檔。
+                news_rows = all_data.get("stockNews")
+                if isinstance(news_rows, list) and len(news_rows) > 1:
+                    news_path = out_json.parent / "stock_news.json"
+                    with open(news_path, "w", encoding="utf-8") as fh:
+                        json.dump(news_rows, fh, ensure_ascii=False, separators=(",", ":"))
+                    log(f"  ✓ 已寫 {news_path.name} ({news_path.stat().st_size / 1024 / 1024:.2f} MB)")
+                dump_data = {k: v for k, v in all_data.items() if k != "stockNews"}
                 with open(out_json, "w", encoding="utf-8") as fh:
-                    json.dump(all_data, fh, ensure_ascii=False, separators=(",", ":"))
+                    json.dump(dump_data, fh, ensure_ascii=False, separators=(",", ":"))
                 size_mb = out_json.stat().st_size / 1024 / 1024
                 try:
                     shown = out_json.relative_to(REPO_ROOT)
