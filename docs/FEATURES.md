@@ -163,9 +163,11 @@
 同一種做法，exe 必須留在專案根目錄；exe 只是啟動器，實際邏輯都在既有的
 `scripts/schedule/weekly_universe.py`(2026-10-02 起開頭會先透過 `scripts/gha_dispatch.py`
 觸發 GitHub Actions「TDCC Shareholding Weekly」並等跑完，失敗只警告，`--no-tdcc` 可跳過)——排程用的同一支(Windows 工作排程器「CB週報_週六14點」，週六 14:00，經 `scripts/schedule/run_universe.cmd`；舊的週日 17:00 排程已於 2026-10 取消)，這裡只是包一層
-方便手動雙擊)。跟「日報」不同的是**這裡沒有跳過 Artifact 的備援路徑**：
-`prompt_universe.md` 要求 `claude -p` 一定要用 Artifact 發佈完整報告網頁、把網址寫進
-`signal_commentary.json` 的 `artifactUrl` 再 commit + push；`claude -p` 沒跑完（找不到
+方便手動雙擊)。跟「日報」不同的是**週報多一份完整報告頁，且不用 Artifact**
+(2026-10-04 統一，以 `prompt_universe.md` 為準：headless `claude -p` 沒有 Artifact 權限)：
+`claude -p` 把完整報告 HTML 存成 `reports/weekly/<YYYYMMDD>.html`(GitHub Pages 自動部署)、
+把該頁網址寫進 `signal_commentary.json` 的 `artifactUrl`(欄位名沿用舊稱，網頁「看完整報告」
+按鈕的唯一來源)，再連同 `data/signal_rank*` 一起 commit + push；`claude -p` 沒跑完（找不到
 CLI、逾時、失敗）就不會 push，不會讓半吊子的資料覆蓋網頁週報分頁，需要的話重新雙擊
 一次即可。
 
@@ -233,6 +235,28 @@ CB 端：
 
 以上全部沿用 `holdings_review.analyze` 的計算，跟 §2.6 週報表格是同一套公式，只是週報算的是
 「股票 20 日量比」、日報這裡另外多算了「CB 60 日量比」。
+
+### 2.8 日報/週報強化 (2026-10-04)
+
+針對「自動報告的比較段不可信、失真只靠文字提醒、沒驗證」做的一批改動，全部是**腳本先算好、claude 只解讀**：
+
+| 項目 | 檔案 | 說明 |
+|---|---|---|
+| **盤下鎖碼偵測** | `scripts/lib/cb_offmarket.py` | 網路技巧(鄭大 CB 社團)：盤面成交量很小，但三大法人(多為自營商＝券商做 CBAS 拆解)淨買遠大於盤面量。資料 = `cbBondInstitutional`(CB 本身法人買賣超，合併儲存格代號欄留空) + `cbDailyTrading` 成交量 + `cbasCalendar.issuedInfo.balThisWeek`(發行餘額)。觸發：單日淨買 ≥100 張且(≥盤面量 1.5 倍 或 ≥餘額 3%)，或 5 日累計 ≥200 張且 ≥盤面 5 日量 1.5 倍且 ≥餘額 8%。驗收案例：晟田五 2026-09-30 盤面 309、自營 +1,375、佔 3,000 張的 45.8%。**資料現象，不等於特定人鎖碼** |
+| **族群共振** | `scripts/lib/sector_resonance.py` | 上榜個股依 `industry_chain/sectors.json`(細分板塊 110 類)歸類，排除「…・其他」大雜燴板塊，**命中比例優先**排序；附成員今日漲跌中位數與近 5 日法人淨買(億，來自 `sector_flow.json` stk) |
+| **點名後追蹤** | `scripts/lib/pick_followup.py` | 日報：昨天 highlights → 今天；週報：上週 70+/80+ → 本週。對照「網站內 CB 個股中位數」(stockTrading 只含 CB 白名單個股，約 415 檔，不是全市場) |
+| **失真旗標** | `daily_cb_scan.py distortion_flags()` | 掃描階段打 `flags`：CB基期過小(60日均量<5)、CB爆量不漲、個股量縮上漲、個股爆量收黑、融資餘額<300張、融券基期小、無週報分。網頁 CB 欄位顯示 ⚠，hover 看原因 |
+| **週報差異預算** | `scripts/weekly_diff.py` → `scripts/output/weekly_diff.json` | 升級/降級/新進 70+/掉榜(含原因 score/gate/nodata)/族群共振/點名追蹤/本週盤下鎖碼。掉榜 gate 原因需要 `positive_scan.py` 新存的 `positive_rejected.json`(被多頭門檻擋掉的 60+)。`prompt_universe.md` 規定「與上次比較」數字一律引用此檔 |
+| **評論對帳** | `scripts/verify_commentary.py daily\|weekly` | build 前跑：date/段落/highlights 與資料一致、文字裡「股名…NN.N 分」只能是本期或上期分數、週報 highlights 須恰為 80+ 全部、artifactUrl 與 reports/weekly 檔存在。ERROR → 結束碼 1；兩份 prompt 都要求修到 0 個 ERROR |
+| **失敗告警** | `scripts/lib/notify.py` | Telegram 只發管理員(`TG_CB_CHAT_ID`，不廣播白名單)。週報：scan/diff 失敗、claude 跑完驗收不過(評論缺、artifactUrl 空、頁面不存在、未 push、對帳 ERROR)；日報：掃描失敗、評論未產出退回純數字、對帳 ERROR |
+| **訊號回測** | `scripts/backtest_signal.py` → `scripts/output/backtest_signal.json` | 見下 |
+
+網頁日報分頁在評論下方多一塊「附加分析」(`js/dailyView.js buildExtras`)：盤下鎖碼表、族群共振表、昨日點名追蹤；資料在 `daily_cb_rank.json` 的 `extras`。
+
+**回測結果 (2026-10-04，只陳述事實；進場=訊號日收盤，未計成本/滑價/流動性)**：
+- 盤下鎖碼 2026 全年重建，去重後 225 件事件：之後 5/10/20 日 CB 超額(對全部 CB 中位數)**平均 +1.4/+1.6/+2.9%，但中位數 ≈ 0、勝率 ≈ 50%**——平均被少數大贏家(最大 +56%)拉高；「淨買 ≥1.5 倍盤面量」子集反而中位數為負(勝率 40~46%)；佔餘額 5~15% 子集勝率 70% 但只有 20 件。結論：**目前不能當進場訊號，只當觀察清單**，條件待更多樣本再調。
+- 日報榜單個股分數：≥70 / 60~69 / <60 之後 1/3/5 日平均報酬 1.01/3.44/4.45% vs 0.47/1.39/2.66% vs 0.29/0.80/1.25%(全市場 0.42/1.38/2.31%)——**分數越高報酬越高，單調**，但樣本只有 8 個資料日且同一檔重複計入、含動能效應。
+- 週報分級只有 6 份快照(A 級僅 0~5 檔)，樣本太小不下結論。**分數無法用歷史資料重算**，只能靠每期快照累積；要更準得開始每天存分數快照。
 
 ---
 
@@ -789,7 +813,7 @@ stockNews            新聞
 stockIndustry        台股公司主檔 (產業)
 cbIssuance           CB 發行資訊
 yuantaReport         元大選擇權 (basicInfo, 競拍, 流通餘額...)
-stockStatus          新高 / 強勢 / 三線開花 (來源 glaciercapitaltw-tech.github.io/glacier)
+stockStatus          新高 / 強勢 / 三線開花 / 量大強漲 `volsurge` (來源 glaciercapitaltw-tech.github.io/glacier, 月檔 t='vol'; CB 頁欄名「量價」, 2026-10-04 加入)
 cbasCalendar         CBAS 日曆 (events, issuedInfo, plannedPrimary, yuantaCrosscheck)
 _meta                pipeline 時間戳
 ```
@@ -1004,6 +1028,9 @@ GitHub Actions 對應同名 Secret (改本機 .env 不會影響雲端,反之亦�
 
 ### 14.3 產業鏈頁 (側欄點某條鏈)
 組織圖 (族群 → 角色 → 個股卡片, 依今日成交排序) + 下方成員表; 點角色 → 成員表只顯示該角色 (再點取消); 右側個股摘要可跳 CB 詳情; 「只看有 CB」依網站 stockMap 判斷。
+- **個股卡狀態標示 (2026-10-04)**: 卡片「代號 名稱 漲跌%」下方顯示 `新-N` / `強-N` / `三-N` / `量-N` (新高/強勢/三線開花/量大強漲, N=連續上榜天數; 顏色同 CB 頁徽章, 量=紫)。
+  **全市場上榜都標, 不限有 CB**: app.js 保留 `rawStockStatus` (all-data.json 的 stockStatus 全市場資料), 經 `opts.statusFlags(code)` 傳給 sectorView。
+  CB 頁的徽章/欄位只掛在 stockMap (有 CB) 個股上。
 
 ### 14.4 資料與每日更新
 ```
