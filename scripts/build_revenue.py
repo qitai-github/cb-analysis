@@ -173,6 +173,47 @@ def finmind_backfill(data, codes, names, sleep_s):
     return ok, err
 
 
+def expected_latest_month():
+    """依今天日期推算「應該已有的」最新營收月份 = 上個月 (公告期 1~10 日)。回傳 (year, month)。"""
+    now = datetime.now(TAIPEI)
+    return (now.year, now.month - 1) if now.month > 1 else (now.year - 1, 12)
+
+
+def finmind_recent(data, codes, sleep_s):
+    """路徑 1.5: TWSE OpenAPI 整批資料常比公司公告晚 (月初~中旬仍是上上個月),
+    對「還沒有上個月資料」的股號改用 FinMind 只抓最近 3 個月補上。
+    只改 entry['m'],不碰 _bf。連續 402/403 提早結束。"""
+    ey, em = expected_latest_month()
+    key = f"{ey}-{em}"
+    start = (datetime(ey, em, 1) - timedelta(days=62)).strftime("%Y-%m-01")
+    todo = sorted(c for c in codes if key not in data.get(c, {}).get("m", {}))
+    if not todo:
+        return 0
+    print(f"路徑 1.5: {key} 尚缺 {len(todo)} 檔,改用 FinMind 近期補抓 ...")
+    got = quota = 0
+    for code in todo:
+        url = ("https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockMonthRevenue"
+               f"&data_id={code}&start_date={start}")
+        res, status = _get_json_status(url, retries=1, timeout=20)
+        if status in (402, 403):
+            quota += 1
+            if quota >= 5:
+                print("  連續配額錯誤,提早結束近期補抓")
+                break
+            continue
+        quota = 0
+        for r in (res or {}).get("data") or []:
+            y, mo, rev = r.get("revenue_year"), r.get("revenue_month"), r.get("revenue")
+            if y and mo and rev is not None:
+                entry = data.setdefault(code, {"n": "", "m": {}})
+                if f"{y}-{mo}" == key:
+                    got += 1
+                entry["m"][f"{y}-{mo}"] = round(rev / 1000)
+        time.sleep(sleep_s)
+    print(f"  補到 {got} 檔 {key}")
+    return got
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="強制標的池內全部股號重拉 FinMind 完整歷史")
@@ -197,6 +238,9 @@ def main():
     print("路徑 1/2: TWSE OpenAPI 整批月營收 ...")
     touched = bulk_update(data, site_codes)
     print(f"  更新 {touched} 筆股號x月份")
+
+    finmind_recent(data, sorted(site_codes) if not args.codes else
+                   [c.strip() for c in args.codes.split(",") if c.strip()], args.sleep)
 
     if args.codes:
         want = [c.strip() for c in args.codes.split(",") if c.strip()]
