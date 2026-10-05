@@ -25,7 +25,7 @@ DB_TABLE = "stock_inst"
 
 def parse(csv_bytes: bytes, *, market: str, trade_date: str) -> ParsedSource:
     """market 必須是 'TWSE' 或 'TPEX',trade_date 為 YYYYMMDD。"""
-    text = csv_bytes.decode("big5", errors="replace")
+    text = csv_bytes.decode("cp950", errors="replace")
     if market == "TWSE":
         return _parse_twse(text, trade_date)
     if market == "TPEX":

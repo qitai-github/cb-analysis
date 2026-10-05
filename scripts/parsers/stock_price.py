@@ -30,7 +30,7 @@ def parse(csv_bytes: bytes, *, market: str, trade_date: str) -> ParsedSource:
     try:
         text = csv_bytes.decode("utf-8")
     except UnicodeDecodeError:
-        text = csv_bytes.decode("big5", errors="replace")
+        text = csv_bytes.decode("cp950", errors="replace")
     if market == "TWSE":
         return _parse_twse(text, trade_date)
     if market == "TPEX":

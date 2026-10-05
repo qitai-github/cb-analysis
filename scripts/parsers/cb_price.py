@@ -34,7 +34,7 @@ DB_TABLE = "cb_quotes"
 
 
 def parse(csv_bytes: bytes, *, trade_date: str) -> ParsedSource:
-    text = csv_bytes.decode("big5", errors="replace")
+    text = csv_bytes.decode("cp950", errors="replace")
     out = ParsedSource(
         db_table=DB_TABLE,
         timeseries_key=TIMESERIES_KEY,
