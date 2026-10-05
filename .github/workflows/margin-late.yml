@@ -1,9 +1,10 @@
 name: Margin Late (融資融券 21:10)
+# 排程已移到 GAS (GoogleAppScript/GitHubCloudSchedule.gs.txt),此檔無 cron,僅 workflow_dispatch。
 
 # 融資融券資料 TWSE/TPEX 通常傍晚才公布,
-# 18:23 主 cron 抓會拿到舊資料或失敗,所以分離出來在 21:10 單獨跑。
+# 傍晚的主 pipeline 抓會拿到舊資料或失敗,所以分離出來晚點單獨跑。
 #
-# 21:10 TPE = 13:10 UTC,週一~五。
+# 由 GAS GitHubCloudSchedule 的 margin pipeline 派送:21:10 起輪詢,TWSE 融資融券當日資料出來才跑 (21:10~23:30 內)。
 #
 # 流程:
 #   1. fetch_stocks (SOURCES=MARGIN_TWSE,MARGIN_TPEX) → Drive
@@ -14,8 +15,6 @@ name: Margin Late (融資融券 21:10)
 # TG 標題客製為「融資融券」以區分主 pipeline 通知。
 
 on:
-  schedule:
-    - cron: '10 13 * * 1-5'
   workflow_dispatch:
     inputs:
       date:

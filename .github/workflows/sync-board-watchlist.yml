@@ -1,11 +1,10 @@
 name: Sync Board Announcements → 芭樂報告待跑
+# 排程已移到 GAS (GoogleAppScript/GitHubCloudSchedule.gs.txt),此檔無 cron,僅 workflow_dispatch。
 
 # CB 日曆「董事會公告(board)」個股 → Supabase「芭樂報告待跑」自動化。
-# 排在 Parse+Export (10:47 UTC,會 commit 最新 data/all-data.json) 之後,
-# 讓本 job checkout 到最新 all-data.json 再同步。11:25 UTC = 19:25 TPE,週一~五。
+# 由 GAS GitHubCloudSchedule 在 main pipeline 最後一步派送 (Parse+Export 已 commit 最新 data/all-data.json),
+# 讓本 job checkout 到最新 all-data.json 再同步。週一~五。
 on:
-  schedule:
-    - cron: '25 11 * * 1-5'
   workflow_dispatch:
     inputs:
       dry_run:

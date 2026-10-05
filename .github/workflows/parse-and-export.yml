@@ -1,15 +1,13 @@
 name: Parse + Export (CSV → DB + JSON)
+# 排程已移到 GAS (GoogleAppScript/GitHubCloudSchedule.gs.txt),此檔無 cron,僅 workflow_dispatch。
 
-# 自己 cron 觸發,不依賴 fetch-stocks workflow。
-# 排在 fetch-stocks (18:23) 之後 24 分鐘,GAS publishAllData (14:40 TPE) 之後,
+# 由 GAS GitHubCloudSchedule 在 fetch-stocks 成功後派送。
+# 在 GAS publishAllData (14:40 TPE) 之後,
 # TWSE T86 充分發布時間 (~16:00) 之後。
-# 18:47 TPE = 10:47 UTC,週一~五。用奇怪分鐘避開 GHA :00/:30 排程高峰。
 #
 # 注意: 融資融券 (MARGIN_TWSE/TPEX) 用 --only-sources 排除,
-#       改由 margin-late.yml 在 21:10 TPE (融資融券公布之後) 單獨補抓。
+#       改由 margin-late.yml 在 21:10 TPE 後 (融資融券公布之後) 單獨補抓。
 on:
-  schedule:
-    - cron: '47 10 * * 1-5'
   workflow_dispatch:
     inputs:
       date:

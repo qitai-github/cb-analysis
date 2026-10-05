@@ -1,4 +1,5 @@
 name: VCP Scan (VCP 選股)
+# 排程已移到 GAS (GoogleAppScript/GitHubCloudSchedule.gs.txt),此檔無 cron,僅 workflow_dispatch。
 
 # 全台股 VCP (Volatility Contraction Pattern) 掃描 → data/vcp.json。
 # 與 strength-scan.yml 共用同一份全市場快取 (scripts/cache/universe/),
@@ -10,15 +11,13 @@ name: VCP Scan (VCP 選股)
 #   3. vcp_scanner.py --no-excel            → 產 data/vcp.json
 #   4. commit + push → 觸發 GH Pages rebuild
 #
-# 排程 19:35 TPE = 11:35 UTC, 週一~五 (比強勢股 19:40 早 5 分, 錯開 Drive 存取)。
-#   資料來源 STOCK_PRICE_TWSE/TPEX 由 fetch-stocks.yml 於 18:23 TPE 寫進 Drive。
+# 由 GAS GitHubCloudSchedule 在 parse-and-export 成功後派送 (週一~五)。
+#   資料來源 STOCK_PRICE_TWSE/TPEX 由 fetch-stocks.yml 先寫進 Drive。
 #
 # 快取: key 帶 run_id 每次存新快取, restore-keys 前綴還原最近一份 (與強勢股共享池)。
 #   cache miss 時 build_universe.py 會自動全量重建 (無狀態 fallback)。
 
 on:
-  schedule:
-    - cron: '35 11 * * 1-5'
   workflow_dispatch:
     inputs:
       as_of:

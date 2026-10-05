@@ -1,19 +1,17 @@
 name: Fetch Stocks Backup
+# 排程已移到 GAS (GoogleAppScript/GitHubCloudSchedule.gs.txt),此檔無 cron,僅 workflow_dispatch。
 
-# GAS 主路徑之外的備援。每日 18:23 TPE 自動觸發,把 6 個 CSV 抓網頁覆蓋到 Drive。
+# GAS 主路徑之外的備援。由 GAS GitHubCloudSchedule 在 TWSE 當日行情公布後(17:00 起)派送,把 6 個 CSV 抓網頁覆蓋到 Drive。
 # 前提: GAS CreatePlaceholders.gs 已每日 00:30 預建 8 個空檔
 #       (SA 只能覆蓋既存檔,不能建新檔 - storage quota 限制)。
-# 18:23 TPE = 10:23 UTC,週一~五。用奇怪分鐘避開 GHA :00/:30 排程高峰
-# (官方文件說明 schedule 不保證準時,實測 :00 / :30 延遲可達 1-2 小時)。
-# 接著 18:47 TPE parse-and-export.yml 自己 cron 觸發 (相隔 24 分鐘)。
+# 觸發順序(main pipeline): fetch-stocks → parse-and-export → vcp-scan → sync-board-watchlist,
+# 每步等前一步成功才派送。
 #
-# 注意: 融資融券 (MARGIN_TWSE/TPEX) 排除在此 cron 之外!
-#       TWSE/TPEX 融資融券通常 21:00 後才公布,18:23 抓會拿到舊資料或失敗,
-#       改由 margin-late.yml 在 21:10 TPE 單獨抓。
+# 注意: 融資融券 (MARGIN_TWSE/TPEX) 排除在此 workflow 之外!
+#       TWSE/TPEX 融資融券通常 21:00 後才公布,傍晚抓會拿到舊資料或失敗,
+#       改由 margin-late.yml 在 21:10 後單獨抓 (GAS margin pipeline)。
 
 on:
-  schedule:
-    - cron: '23 10 * * 1-5'
   workflow_dispatch:
     inputs:
       date:
@@ -25,7 +23,7 @@ on:
         required: false
         default: ''
 
-# 避免 GAS 派送與 cron 重疊重複抓取
+# 避免 GAS 派送與手動觸發重疊重複抓取
 concurrency:
   group: fetch-stocks
   cancel-in-progress: false
