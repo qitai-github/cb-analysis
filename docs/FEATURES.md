@@ -403,8 +403,13 @@ CB 端：
 
 **📄 企業報告流程**:
 - 後端 [build_company_reports_index.py](../scripts/build_company_reports_index.py) 掃 Drive 根 folder `1pck7m3BIKw69CtvByhhMV6D_wmbhHW1w`
-- 每個子資料夾命名 `{name}{4-6位股號}/`,內含 `V1/`, `V2/`... 子資料夾 (新版本→更大號碼)
-- 挑最大 Vn,從內找 `{code}.png` (簡易報告) 跟 `{code}_報告.pdf` (完整報告) 的 file id
+- 每個子資料夾命名 `{name}{4-6位股號}/`,內含**依內容命名的版本子資料夾** (2026-10-24 起取代 V1/V2…):
+  `26Q2` = 最新財報 2026Q2;`26Q2F1`/`26Q2F2` = 再含 Q2 季底後第 1/2 場法說;`26Q3`、`26Q3F1`…
+  排序 = (年, 季, F)。同內容基礎的舊重跑版放 `_封存/` (不收)。`_產業鏈總覽` 無財報季別,仍用 `V{n}`
+- 版本名由企業報告 skill 的 `scripts/report_version.py` 依 sources 推算 (最新 `季報_YYYYQn.pdf` + 逐字稿日期);
+  uAnalyze 逐字稿檔名帶法說日期 `{folder}_法說逐字稿_uAnalyze_{YYYYMMDD}.txt`
+- 挑最新版本,從內找 `{code}.png` (簡易報告) 跟 `{code}_報告.pdf` (完整報告) 的 file id;>1 版時收 `versions` 供 modal 切換
+- 報告清單頁版本篩選鈕依「財報季」分組 (26Q2 含 26Q2F1/F2);modal 版本列用 `_reportVerCmp` 排序 (不可再用 parseInt 數字)
 - 寫 [data/company_reports.json](../data/company_reports.json): `{ stocks: { "3324": {png_id, pdf_id, version, folder_name}, ... }, _meta: {...} }`
 - 整合到 `parse_and_export.py` **Phase 4.9**,每日 pipeline 自動重建索引
 - 前端 [sheetsApi.js](../js/sheetsApi.js) `loadAll()` 併發載入,塞進 `data.companyReports`

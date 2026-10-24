@@ -2682,11 +2682,18 @@ const App = (() => {
     }
     // 多版本(info.versions):由新到舊排序,預設顯示最新
     const verMap = (info.versions && Object.keys(info.versions).length > 1) ? info.versions : null;
-    const verKeys = verMap ? Object.keys(verMap).sort((a, b) =>
-      (parseInt(b.replace(/\D/g, '')) || 0) - (parseInt(a.replace(/\D/g, '')) || 0)) : null;
+    const verKeys = verMap ? Object.keys(verMap).sort(_reportVerCmp) : null;
     _renderReportVersion(code, info, verMap, (verKeys ? verKeys[0] : info.version));
     document.getElementById('company-report-modal')?.classList.add('show');
   }
+
+  /** 報告版本排序(新→舊):個股 26Q2F1 > 26Q2 > 26Q1F2(季別→法說場次);產業鏈總覽 V5 > V1 */
+  function _reportVerKey(v) {
+    const m = /^(\d{2})Q([1-4])(?:F(\d+))?$/.exec(v || '');
+    if (m) return (+m[1]) * 10000 + (+m[2]) * 100 + (+(m[3] || 0));
+    return parseInt(String(v).replace(/\D/g, '')) || 0;
+  }
+  function _reportVerCmp(a, b) { return _reportVerKey(b) - _reportVerKey(a); }
 
   /** 渲染指定版本的報告(png + PDF 按鈕 + 版本切換列) */
   function _renderReportVersion(code, info, verMap, ver) {
@@ -2705,7 +2712,7 @@ const App = (() => {
     // 版本切換列(多版本才顯示)
     let verBar = '';
     if (verMap) {
-      const keys = Object.keys(verMap).sort((a, b) => (parseInt(b.replace(/\D/g,''))||0) - (parseInt(a.replace(/\D/g,''))||0));
+      const keys = Object.keys(verMap).sort(_reportVerCmp);
       verBar = `<div class="crm-ver-bar">版本：${keys.map(k =>
         `<button class="crm-ver-btn${k===ver?' on':''}" data-ver="${k}">${k}${k===keys[0]?'（最新）':''}</button>`).join('')}</div>`;
     }

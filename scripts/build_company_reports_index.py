@@ -2,13 +2,15 @@
 
 Drive 結構:
   Telegram Bot/企業報告/{name}{4位股號}/
-                          ├── V1/  ├── {code}.png      (簡易報告)
-                          │        └── {code}_報告.pdf (完整報告)
-                          ├── V2/  (如有新版本)
+                          ├── 26Q1/    ├── {code}.png      (簡易報告)
+                          │            └── {code}_報告.pdf (完整報告)
+                          ├── 26Q2F1/  (版本依內容命名:最新財報季 + 季底後第 k 場法說 F<k>)
+                          ├── _封存/   (同內容基礎的舊重跑版,不收)
                           ├── sources/
                           └── notebook_id.txt
 
-每個 stock 挑最新 Vn (數字最大) 抓 png + pdf 的 file id。
+每個 stock 挑最新版本(季別→F 排序最大)抓 png + pdf 的 file id。
+「_產業鏈總覽」無財報季別,仍沿用 V{n} 命名。
 
 env:
   GOOGLE_CREDENTIALS  service account JSON (跟 fetch/parse 共用)
@@ -58,7 +60,8 @@ DEFAULT_ROOT_FOLDER_ID = "1pck7m3BIKw69CtvByhhMV6D_wmbhHW1w"
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 CODE_RE = re.compile(r"(\d{4,6})$")  # 子資料夾名尾的股號
-V_RE = re.compile(r"^V(\d+)$", re.I)
+V_RE = re.compile(r"^V(\d+)$", re.I)                      # 產業鏈總覽仍用 V{n}
+VER_RE = re.compile(r"^(\d{2})Q([1-4])(?:F(\d+))?$")       # 個股報告版本:26Q2 / 26Q2F1
 
 
 def log(msg: str) -> None:
@@ -76,6 +79,17 @@ def pick_latest_v(subfolders: list[dict]) -> dict | None:
         return None
     vs.sort(key=lambda t: t[0], reverse=True)
     return vs[0][1]
+
+
+def ver_key(name: str):
+    """個股版本排序鍵 (年, 季, F);非版本名回 None。"""
+    m = VER_RE.match(name)
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)) if m else None
+
+
+def pick_latest_ver(subfolders: list[dict]) -> dict | None:
+    vs = [(ver_key(f["name"]), f) for f in subfolders if ver_key(f["name"])]
+    return max(vs, key=lambda t: t[0])[1] if vs else None
 
 
 def find_files(files: list[dict], code: str) -> tuple[str | None, str | None]:
@@ -154,12 +168,12 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
             continue
         code = m.group(1)
 
-        # 列子資料夾找最新 V
+        # 列子資料夾找最新版本(26Q2F1 > 26Q2 > 26Q1F2 …)
         sub = drive.list_children(c["id"], mime_filter=FOLDER_MIME)
-        latest_v = pick_latest_v(sub)
+        latest_v = pick_latest_ver(sub)
         if not latest_v:
             if verbose:
-                log(f"  [{i}/{len(companies)}] {folder_name} → 沒有 Vn,skip")
+                log(f"  [{i}/{len(companies)}] {folder_name} → 沒有版本資料夾,skip")
             skipped_no_v += 1
             continue
 
@@ -179,11 +193,11 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
             "version": latest_v["name"],
             "folder_name": folder_name,
         }
-        # 多版本:若有 >1 個 V 資料夾,收各版本 png/pdf 供 modal 切換
+        # 多版本:若有 >1 個版本資料夾,收各版本 png/pdf 供 modal 切換
         if len(sub) > 1:
             vmap = {}
-            for vs_ in sub:
-                if not V_RE.match(vs_["name"]):
+            for vs_ in sorted(sub, key=lambda f: ver_key(f["name"]) or (0, 0, 0)):
+                if not ver_key(vs_["name"]):
                     continue
                 vf_ = v_files if vs_["id"] == latest_v["id"] else drive.list_children(vs_["id"])
                 vpng, vpdf = find_files(vf_, code)

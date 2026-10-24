@@ -5,7 +5,11 @@ const ReportsView = (() => {
   let _opts = {};
   let _keyword = '';
   let _sort = 'code';        // code | name | version
-  let _verFilter = 'all';    // all | V1 | V2
+  let _verFilter = 'all';    // all | 財報季別(26Q1、26Q2…;含該季 F1/F2 法說版)
+
+  // 版本名 26Q2F1 → 財報季 26Q2;排序鍵 (季別→法說場次)
+  const verQuarter = (v) => { const m = /^(\d{2}Q[1-4])/.exec(v || ''); return m ? m[1] : (v || ''); };
+  const verKey = (v) => { const m = /^(\d{2})Q([1-4])(?:F(\d+))?$/.exec(v || ''); return m ? (+m[1]) * 10000 + (+m[2]) * 100 + (+(m[3] || 0)) : 0; };
 
   // folder_name 去尾股號 → 公司名(如「金利食安7743」→「金利食安」)
   function nameFromFolder(folder, code) {
@@ -19,7 +23,7 @@ const ReportsView = (() => {
       const info = _reports[code] || {};
       // 優先用 company_reports.json 注入的官方簡稱(info.name),再退回網站 stockMap、最後解析資料夾名
       const name = info.name || (_opts.stockName && _opts.stockName(code)) || nameFromFolder(info.folder_name, code);
-      out.push({ code, name, version: info.version || 'V1',
+      out.push({ code, name, version: info.version || '',
                  hasPng: !!info.png_id, hasPdf: !!info.pdf_id });
     }
     return out;
@@ -27,12 +31,12 @@ const ReportsView = (() => {
 
   function filtered() {
     let r = rows();
-    if (_verFilter !== 'all') r = r.filter(x => x.version === _verFilter);
+    if (_verFilter !== 'all') r = r.filter(x => verQuarter(x.version) === _verFilter);
     const kw = _keyword.trim().toLowerCase();
     if (kw) r = r.filter(x => (x.code + ' ' + x.name).toLowerCase().includes(kw));
     r.sort((a, b) => {
       if (_sort === 'name') return a.name.localeCompare(b.name, 'zh-Hant');
-      if (_sort === 'version') return (b.version).localeCompare(a.version) || (a.code - b.code);
+      if (_sort === 'version') return (verKey(b.version) - verKey(a.version)) || (a.code - b.code);
       return (a.code - b.code) || a.code.localeCompare(b.code);
     });
     return r;
@@ -42,16 +46,21 @@ const ReportsView = (() => {
     const p = document.getElementById(containerId);
     if (!p) return;
     const all = rows();
-    const v2 = all.filter(x => x.version === 'V2').length;
+    // 各財報季份數(新→舊),供摘要與篩選鈕
+    const qCount = {};
+    for (const x of all) { const q = verQuarter(x.version); qCount[q] = (qCount[q] || 0) + 1; }
+    const quarters = Object.keys(qCount).sort((a, b) => verKey(b) - verKey(a));
+    if (_verFilter !== 'all' && !qCount[_verFilter]) _verFilter = 'all';
     p.innerHTML = `
       <div class="rv-panel">
         <div class="rv-sum"><span class="rv-sum-n">${all.length}</span> 檔有企業報告</div>
-        <div class="rv-sub">V1 ${all.length - v2} · V2 ${v2}</div>
+        <div class="rv-sub">${quarters.map(q => `${q} ${qCount[q]}`).join(' · ')}</div>
         <input id="rv-search" class="rv-search" type="text" placeholder="搜尋股號或名稱…" value="${_keyword}">
-        <div class="rv-group-label">版本</div>
+        <div class="rv-group-label">版本(最新財報季)</div>
         <div class="rv-btns" id="rv-ver">
-          ${['all','V1','V2'].map(v => `<button class="rv-chip${_verFilter===v?' on':''}" data-v="${v}">${v==='all'?'全部':v}</button>`).join('')}
+          ${['all', ...quarters].map(v => `<button class="rv-chip${_verFilter===v?' on':''}" data-v="${v}">${v==='all'?'全部':v}</button>`).join('')}
         </div>
+        <div class="rv-hint">版本 = 最新財報季,F1/F2 = 季底後第 1/2 場法說(如 26Q2F1)。</div>
         <div class="rv-group-label">排序</div>
         <div class="rv-btns" id="rv-sort">
           ${[['code','股號'],['name','名稱'],['version','版本']].map(([s,l]) => `<button class="rv-chip${_sort===s?' on':''}" data-s="${s}">${l}</button>`).join('')}
@@ -78,11 +87,12 @@ const ReportsView = (() => {
     const host = document.getElementById(_mainId);
     if (!host) return;
     const r = filtered();
+    const newestQ = r.reduce((m, x) => verKey(verQuarter(x.version)) > verKey(m) ? verQuarter(x.version) : m, '');
     const body = r.map(x => `
       <tr class="rv-row" data-code="${x.code}" data-name="${x.name}">
         <td class="rv-code">${x.code}</td>
         <td class="rv-name">${x.name || '—'}</td>
-        <td class="rv-ver-cell"><span class="rv-badge${x.version==='V2'?' v2':''}">${x.version}</span></td>
+        <td class="rv-ver-cell"><span class="rv-badge${verQuarter(x.version)===newestQ?' v2':''}">${x.version}</span></td>
       </tr>`).join('');
     const ov = _opts.overview;
     const ovCard = ov ? `
