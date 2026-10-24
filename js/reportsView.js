@@ -11,10 +11,10 @@ const ReportsView = (() => {
   const verQuarter = (v) => { const m = /^(\d{2}Q[1-4])/.exec(v || ''); return m ? m[1] : (v || ''); };
   const verKey = (v) => { const m = /^(\d{2})Q([1-4])(?:F(\d+))?$/.exec(v || ''); return m ? (+m[1]) * 10000 + (+m[2]) * 100 + (+(m[3] || 0)) : 0; };
 
-  // folder_name 去尾股號 → 公司名(如「金利食安7743」→「金利食安」)
+  // folder_name 去開頭股號 → 公司名(資料夾為 <股號><名稱>,如「7743金利食安」→「金利食安」)
   function nameFromFolder(folder, code) {
     if (!folder) return code;
-    return folder.replace(new RegExp(code + '$'), '').replace(/\d{4,6}$/, '') || folder;
+    return folder.replace(new RegExp('^' + code), '') || folder;
   }
 
   function rows() {

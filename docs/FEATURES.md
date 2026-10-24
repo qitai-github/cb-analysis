@@ -403,7 +403,7 @@ CB 端：
 
 **📄 企業報告流程**:
 - 後端 [build_company_reports_index.py](../scripts/build_company_reports_index.py) 掃 Drive 根 folder `1pck7m3BIKw69CtvByhhMV6D_wmbhHW1w`
-- 每個子資料夾命名 `{name}{4-6位股號}/`,內含**依內容命名的版本子資料夾** (2026-10-24 起取代 V1/V2…):
+- 每個子資料夾命名 `{4位股號}{name}/` (如 `2330台積電/`;2026-10-24 起由名稱在前改為股號在前,內部檔名前綴同步 `2330台積電_報告.pdf`),內含**依內容命名的版本子資料夾** (2026-10-24 起取代 V1/V2…):
   `26Q2` = 最新財報 2026Q2;`26Q2F1`/`26Q2F2` = 再含 Q2 季底後第 1/2 場法說;`26Q3`、`26Q3F1`…
   排序 = (年, 季, F)。同內容基礎的舊重跑版放 `_封存/` (不收)。`_產業鏈總覽` 無財報季別,仍用 `V{n}`
 - 版本名由企業報告 skill 的 `scripts/report_version.py` 依 sources 推算 (最新 `季報_YYYYQn.pdf` + 逐字稿日期);

@@ -1,7 +1,7 @@
 """掃 Drive「企業報告/」資料夾,拼 data/company_reports.json。
 
 Drive 結構:
-  Telegram Bot/企業報告/{name}{4位股號}/
+  Telegram Bot/企業報告/{4位股號}{name}/  (如 2330台積電)
                           ├── 26Q1/    ├── {code}.png      (簡易報告)
                           │            └── {code}_報告.pdf (完整報告)
                           ├── 26Q2F1/  (版本依內容命名:最新財報季 + 季底後第 k 場法說 F<k>)
@@ -59,7 +59,7 @@ OUT_JSON = REPO_ROOT / "data" / "company_reports.json"
 DEFAULT_ROOT_FOLDER_ID = "1pck7m3BIKw69CtvByhhMV6D_wmbhHW1w"
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
-CODE_RE = re.compile(r"(\d{4,6})$")  # 子資料夾名尾的股號
+CODE_RE = re.compile(r"^(\d{4})")  # 子資料夾名開頭的股號(2026-10-24 起 <股號><名稱>,如 2330台積電、674191APP)
 V_RE = re.compile(r"^V(\d+)$", re.I)                      # 產業鏈總覽仍用 V{n}
 VER_RE = re.compile(r"^(\d{2})Q([1-4])(?:F(\d+))?$")       # 個股報告版本:26Q2 / 26Q2F1
 
@@ -136,7 +136,7 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
 
     for i, c in enumerate(companies, 1):
         folder_name = c["name"]
-        m = CODE_RE.search(folder_name)
+        m = CODE_RE.match(folder_name)
         if not m:
             # 特例:「_產業鏈總覽」無股號,取最新 V 的 png + _報告.pdf 當總覽卡片
             if "產業鏈總覽" in folder_name:
@@ -187,7 +187,15 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
             skipped_no_files += 1
             continue
 
+        # 同股號有兩個資料夾(如 4569六方科 / 4569六方科技):取最新版本 > 版本數多 > 名稱長(全名)者,
+        # 結果不受 Drive 列出順序影響
+        n_ver = sum(1 for f in sub if ver_key(f["name"]))
+        rank = (ver_key(latest_v["name"]), n_ver, len(folder_name))
+        if code in stocks and stocks[code].get("_rank", (0, 0, 0)) >= rank:
+            log(f"  [{i}/{len(companies)}] {folder_name} → 同股號 {code} 已有 {stocks[code]['folder_name']},略過")
+            continue
         stocks[code] = {
+            "_rank": rank,
             "png_id": png_id,
             "pdf_id": pdf_id,
             "version": latest_v["name"],
@@ -213,6 +221,9 @@ def build_index(root_folder_id: str, verbose: bool = False) -> dict:
                 tag.append("pdf")
             log(f"  [{i}/{len(companies)}] {folder_name} → {code} "
                 f"({latest_v['name']}) [{'+'.join(tag)}]")
+
+    for info in stocks.values():
+        info.pop("_rank", None)
 
     # 注入官方簡稱(給報告清單頁用):data/stock_names.json = {code: 簡稱}(由 TWSE/TPEx 日檔產)
     try:
