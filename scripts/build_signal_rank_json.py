@@ -156,7 +156,24 @@ def archive_history(payload, today):
             entries = json.load(open(index_path, encoding='utf-8'))
         except Exception:
             entries = []
-    entries = [e for e in entries if e['date'] != report_date]
+    # 同一份掃描(asOf 相同)只留一期:重跑時評論日期若改了(如 10/24→10/22),
+    # 舊日期那期要撤掉,否則網頁會出現兩顆內容相同的週報按鈕
+    asof = payload['_meta'].get('asOf')
+    kept = []
+    for e in entries:
+        if e['date'] == report_date:
+            continue
+        p = os.path.join(hist_dir, '%s.json' % e['date'])
+        try:
+            same_scan = asof and json.load(open(p, encoding='utf-8'))['_meta'].get('asOf') == asof
+        except Exception:
+            same_scan = False
+        if same_scan:
+            os.remove(p)
+            print('撤掉重複往期週報 %s(與 %s 同為 asOf %s)' % (e['date'], report_date, asof))
+            continue
+        kept.append(e)
+    entries = kept
     entries.append({
         'date': report_date,
         'title': rep.get('title') or ('%s 正向訊號榜' % report_date),
