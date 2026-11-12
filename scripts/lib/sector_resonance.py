@@ -21,7 +21,9 @@ def _load(name):
     if not os.path.exists(p):
         return None
     with open(p, encoding='utf-8') as f:
-        return json.load(f)
+        obj = json.load(f)
+    from lib import asof   # CB_ASOF 補跑歷史時截到該日
+    return asof.apply(name, obj)
 
 
 def resonance(hit_codes, min_hits=2, top=10, names=None):

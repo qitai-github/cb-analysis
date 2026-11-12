@@ -72,7 +72,8 @@ def main():
     cur_path = os.path.join(OUT, 'positive_scan.json')
     cur = json.load(open(cur_path, encoding='utf-8'))
 
-    today = datetime.now().strftime('%Y%m%d')
+    # CB_REPORT_DATE=YYYYMMDD:補跑歷史週報時指定週報日(否則用今天找帳本裡的上一份)
+    today = (os.environ.get('CB_REPORT_DATE') or '').replace('-', '') or datetime.now().strftime('%Y%m%d')
     prev_date = WS.previous_report_date(today)
     prev_map = {}
     if prev_date:

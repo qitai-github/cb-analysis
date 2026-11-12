@@ -18,7 +18,9 @@ D = os.path.join(BASE, 'data')
 
 def load(name):
     with open(os.path.join(D, name), encoding='utf-8') as f:
-        return json.load(f)
+        obj = json.load(f)
+    from lib import asof   # CB_ASOF=YYYYMMDD 時截到該日(補跑歷史日報/週報用)
+    return asof.apply(name, obj)
 
 
 def to_f(x):
@@ -96,6 +98,11 @@ def analyze(codes):
             continue
 
         n = trim_zero_tail([close, vol], len(st_dates))
+        if n < 2:   # 全 0(如 CB_ASOF 截到掛牌前)→ 視同無資料
+            r['ok'] = False
+            r['note'] = '無個股價量資料'
+            results.append(r)
+            continue
         c = close[:n]
         v = [x / 1000 for x in vol[:n]]     # 股 → 張
         r['asOf'] = st_dates[n - 1]
