@@ -1,0 +1,302 @@
+<title>正向訊號榜 1114</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root{
+    --bg:#eaedf1; --surface:#ffffff; --surface-2:#f4f6f9; --line:#d3d9e2;
+    --ink:#151a21; --muted:#5c6674; --faint:#8b95a3;
+    --accent:#1c5a80; --accent-soft:#e2eef5;
+    --up:#c8322f; --down:#0f7a55; --flat:#5c6674;
+    --tierA:#0f7a55; --tierB:#1c5a80; --tierC:#8b95a3;
+    --shadow:0 1px 2px rgba(19,32,48,.06), 0 8px 24px -16px rgba(19,32,48,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1216; --surface:#161c23; --surface-2:#1b222b; --line:#2a333e;
+      --ink:#e7ecf2; --muted:#9aa6b4; --faint:#6d7987;
+      --accent:#63b0d8; --accent-soft:#17303e;
+      --up:#e8615c; --down:#3fb98a; --flat:#9aa6b4;
+      --tierA:#3fb98a; --tierB:#63b0d8; --tierC:#6d7987;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1216; --surface:#161c23; --surface-2:#1b222b; --line:#2a333e;
+    --ink:#e7ecf2; --muted:#9aa6b4; --faint:#6d7987;
+    --accent:#63b0d8; --accent-soft:#17303e;
+    --up:#e8615c; --down:#3fb98a; --flat:#9aa6b4;
+    --tierA:#3fb98a; --tierB:#63b0d8; --tierC:#6d7987;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px; margin:0 auto; padding:40px 20px 72px; display:flex; flex-direction:column; gap:34px}
+  h1,h2,h3{font-family:"Noto Serif TC",serif; text-wrap:balance; margin:0}
+  .n{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+
+  header{display:flex; flex-direction:column; gap:14px; border-bottom:2px solid var(--ink); padding-bottom:20px}
+  .eyebrow{font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); font-weight:700}
+  h1{font-size:clamp(27px,4vw,38px); line-height:1.2; font-weight:700}
+  .lede{color:var(--muted); max-width:70ch; margin:0}
+  .meta{display:flex; flex-wrap:wrap; gap:8px 20px; font-size:12.5px; color:var(--faint)}
+  .meta b{color:var(--muted); font-weight:500}
+
+  .tiers{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px}
+  .tier{background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--tierC); border-radius:4px; padding:16px 18px; box-shadow:var(--shadow)}
+  .tier.a{border-top-color:var(--tierA)} .tier.b{border-top-color:var(--tierB)}
+  .tier .sc{font-size:12px; letter-spacing:.08em; color:var(--faint); font-weight:600}
+  .tier .n2{font-size:32px; font-weight:600; line-height:1.15; font-family:"IBM Plex Mono",monospace; display:flex; align-items:baseline; gap:8px}
+  .tier .n2 em{font-size:13px; font-style:normal; font-weight:500}
+  .tier.a .n2{color:var(--tierA)} .tier.b .n2{color:var(--tierB)}
+  .tier .d{font-size:13px; color:var(--muted); margin-top:4px}
+
+  section{display:flex; flex-direction:column; gap:14px}
+  .sec-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:8px}
+  .sec-head h2{font-size:21px}
+  .sec-head .badge{font-family:"IBM Plex Mono",monospace; font-size:12px; padding:2px 8px; border-radius:3px; background:var(--accent-soft); color:var(--accent); font-weight:600}
+  .sec-head p{margin:0; font-size:13px; color:var(--faint)}
+
+  .cards{display:flex; flex-direction:column; gap:12px}
+  .card{background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--tierA); border-radius:4px; padding:16px 18px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:10px}
+  .card.b{border-left-color:var(--tierB)}
+  .c-top{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .c-score{font-family:"IBM Plex Mono",monospace; font-size:22px; font-weight:600; color:var(--tierA)}
+  .c-code{font-size:13px; color:var(--faint); font-family:"IBM Plex Mono",monospace}
+  .c-name{font-size:18px; font-weight:700; font-family:"Noto Serif TC",serif}
+  .c-tagnew{font-size:10.5px; letter-spacing:.06em; padding:1px 6px; border-radius:2px; background:var(--accent-soft); color:var(--accent); font-weight:700}
+  .c-price{margin-left:auto; display:flex; align-items:baseline; gap:10px}
+  .c-price .p{font-size:19px; font-weight:600; font-family:"IBM Plex Mono",monospace}
+  .chg{font-weight:600; font-size:14px; font-family:"IBM Plex Mono",monospace}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+  .note{margin:0; font-size:13.5px; color:var(--muted)}
+  .note strong{color:var(--ink); font-weight:600}
+  .cb-line{font-size:13px; color:var(--muted); padding:8px 10px; background:var(--surface-2); border-radius:3px; border:1px dashed var(--line)}
+  .cb-line b{color:var(--ink); font-family:"IBM Plex Mono",monospace}
+
+  .method{background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:18px 20px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:12px}
+  .method h3{font-size:16px}
+  .formula{font-family:"IBM Plex Mono",monospace; font-size:13.5px; background:var(--surface-2); border:1px solid var(--line); border-radius:3px; padding:10px 12px; overflow-x:auto}
+
+  .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:4px; background:var(--surface); box-shadow:var(--shadow)}
+  table{border-collapse:collapse; width:100%; min-width:1060px; font-size:12.5px}
+  table.track{min-width:760px}
+  th,td{padding:6px 9px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap}
+  th{position:sticky; top:0; z-index:2; background:var(--surface-2); color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.03em}
+  td:nth-child(2),th:nth-child(2){text-align:left}
+  table:not(.track) td:nth-child(3),table:not(.track) th:nth-child(3){text-align:left}
+  table.track td:last-child,table.track th:last-child{text-align:left}
+  td.n{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+  td.score{font-weight:600; color:var(--accent)}
+  td.faintcell,.faintcell{color:var(--faint); font-size:11px}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--surface-2)}
+  tbody tr.out td{color:var(--faint)}
+  td.chips{text-align:left; padding-right:14px}
+  .chip{display:inline-block; font-size:10px; line-height:1.5; padding:0 5px; margin:1px 2px 1px 0; border-radius:2px; background:var(--accent-soft); color:var(--accent); font-weight:600; white-space:nowrap}
+  .chip.off{display:none}
+
+  .caveats{background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:16px 18px}
+  .caveats h3{font-size:15px; margin-bottom:8px}
+  .caveats ul{margin:0; padding-left:18px; color:var(--muted); font-size:13.5px; display:flex; flex-direction:column; gap:5px}
+  .caveats code{font-family:"IBM Plex Mono",monospace; font-size:12.5px; background:var(--surface); padding:1px 5px; border-radius:3px; border:1px solid var(--line)}
+  footer{border-top:1px solid var(--line); padding-top:16px; font-size:12.5px; color:var(--faint)}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">全網頁掃描 · 含 11/8 追蹤</div>
+    <h1>11 月 14 日正向訊號榜：70 分以上暴增到 13 檔，9 檔新面孔一口氣衝進來</h1>
+    <p class="lede">上次（11/8）70 分以上只有 6 檔、80 分以上掛零。這次 70 分以上直接翻倍到 13 檔，9 檔是全新進榜的面孔——撼訊 78.4 分領跑，碩天、事欣科、中鼎並列 77.5 分緊追。80 分以上仍然是 0 檔，代表市場雖然轉強但還沒出現「全面正向」的領頭羊。上次的 6 檔裡，川湖因資料不足無法評分，訊映從 70.9 掉到 62.5 出局，其餘 4 檔全數留在榜上。</p>
+    <div class="meta">
+      <span><b>價量／法人／CB</b> 2026-11-13</span>
+      <span><b>融資融券</b> 2026-11-13</span>
+      <span><b>集保大戶</b> 2026-11-06</span>
+      <span><b>掃描池</b> 41 檔</span>
+      <span><b>有效樣本</b> 41 檔</span>
+      <span><b>入榜</b> 35 檔</span>
+    </div>
+  </header>
+
+  <div class="tiers">
+    <div class="tier a">
+      <div class="sc">80 分以上</div>
+      <div class="n2">0 <em>持平</em></div>
+      <div class="d">上次也是 0 檔 — 仍沒有全面正向的標的</div>
+    </div>
+    <div class="tier b">
+      <div class="sc">70 – 79 分</div>
+      <div class="n2">13 <em>+7</em></div>
+      <div class="d">從 6 檔倍增到 13 檔，市場廣度明顯轉強</div>
+    </div>
+    <div class="tier">
+      <div class="sc">60 – 69 分</div>
+      <div class="n2">22 <em>+10</em></div>
+      <div class="d">觀察池也從 12 檔擴到 22 檔</div>
+    </div>
+    <div class="tier">
+      <div class="sc">未入榜</div>
+      <div class="n2">6</div>
+      <div class="d">跌破月線或 20 日負報酬，籌碼再好也不計入</div>
+    </div>
+  </div>
+
+  <!-- ===== 70+ 逐檔卡片（本次無 80+ 但 70+ 值得逐檔看） ===== -->
+  <section>
+    <div class="sec-head"><h2>70 分以上 · 逐檔解讀</h2><span class="badge">13 檔</span>
+      <p>本次無 80 分以上，以下針對 70+ 的前幾檔寫卡片</p></div>
+    <div class="cards">
+
+      <article class="card b">
+        <div class="c-top"><span class="c-score" style="color:var(--tierB)">78.4</span><span class="c-code">6150</span><span class="c-name">撼訊</span><span class="c-tagnew">新進 · 第一名</span>
+          <span class="c-price"><span class="p">81.60</span><span class="chg up">+4.1%</span></span></div>
+        <p class="note"><strong>命中 9 項（12 項中），是本期最高分。</strong>量能 2.92x、當日漲 4.1%、5 日漲 31.6%、位階 100%、多頭排列，外資 5 日買 1,815 張，大戶 4 週 +2.57%、散戶 4 週 -1.83%，CB 放量 2.8x。未命中：20 日漲幅不到 10%（+9.5%，差一點）、投信未進場、融資 5 日增 25.4%。<strong>融資大增是主要扣分項</strong>——代表散戶槓桿資金在追，與法人/大戶買超並存，需留意籌碼是否開始分歧。</p>
+        <div class="cb-line"><b>撼訊六 61506</b> 近 5 日累量 221 張、量比 <b>2.8x</b>，CB 價尚在面額附近（102.25），CB 端反應尚溫和。</div>
+      </article>
+
+      <article class="card b">
+        <div class="c-top"><span class="c-score" style="color:var(--tierB)">77.5</span><span class="c-code">3617</span><span class="c-name">碩天</span><span class="c-tagnew">新進</span>
+          <span class="c-price"><span class="p">279</span><span class="chg up">+3.9%</span></span></div>
+        <p class="note">命中 9 項：放量 2.04x、日漲 3.9%、5 日漲 31.0%、位階 100%、多頭排列，<strong>外資+投信雙買</strong>（外資 +675 張、投信 +340 張），散戶 4 週減少。未命中：20 日漲不到 10%、大戶 4 週增幅不足、融資增加。雙法人同買是這檔的亮點。</p>
+        <div class="cb-line"><b>碩天三 36173</b> 量比 <b>2.2x</b>，CB 與現股同步放量。</div>
+      </article>
+
+      <article class="card b">
+        <div class="c-top"><span class="c-score" style="color:var(--tierB)">77.5</span><span class="c-code">4916</span><span class="c-name">事欣科</span><span class="c-tagnew">新進</span>
+          <span class="c-price"><span class="p">112</span><span class="chg up">+9.8%</span></span></div>
+        <p class="note">命中 9 項：<strong>量能爆發 6.34x</strong>（全榜最高）、日漲 9.8%、5 日漲 35.5%、20 日漲 10.8%、位階 100%、外資 5 日買超 12,912 張（全榜最多），大戶 +4.74%、散戶減少。未命中：多頭排列（可能剛突破還沒完成均線排列）、投信未買、融資增加。<strong>CB 量比高達 98.8x</strong>，但這類極端倍數通常來自 CB 均量極低（基數效應），請以絕對張數判斷。</p>
+        <div class="cb-line"><b>事欣科五 49165</b> 量比 <b>98.8x</b>（均量極低導致倍數失真，看絕對量即可）。</div>
+      </article>
+
+      <article class="card b">
+        <div class="c-top"><span class="c-score" style="color:var(--tierB)">77.5</span><span class="c-code">9933</span><span class="c-name">中鼎</span><span class="c-tagnew">新進</span>
+          <span class="c-price"><span class="p">51.60</span><span class="chg up">+3.6%</span></span></div>
+        <p class="note">命中 9 項：日漲 3.6%、5 日漲 16.2%、<strong>20 日漲 21.3%</strong>、位階 100%、多頭排列，外資 5 日買超 21,263 張，大戶 4 週 +1.23%、散戶減少，CB 放量 2.6x。未命中：量能 1.18x 不到 1.8x 門檻、投信未買、融資增加。外資大量買超搭配 20 日漲幅突出，但個股量能並未明顯放大，屬於「穩健型」正向。</p>
+        <div class="cb-line"><b>中鼎二 99332</b> 量比 <b>2.6x</b>，CB 端跟進放量。</div>
+      </article>
+
+      <article class="card b">
+        <div class="c-top"><span class="c-score" style="color:var(--tierB)">76.6</span><span class="c-code">6425</span><span class="c-name">易發</span><span class="c-tagnew">新進</span>
+          <span class="c-price"><span class="p">80.00</span><span class="chg down">-6.3%</span></span></div>
+        <p class="note">命中 8 項：放量 4.07x、5 日漲 32.7%、位階 81%、多頭排列、外資 5 日買超 2,285 張、大戶增、散戶減、CB 放量。未命中：<strong>當日跌 6.3%</strong>、20 日漲不到 10%、投信未買、融資增加。分數來自 5 日累積漲幅與籌碼面，但當日大跌代表正在高檔換手，需注意後續是否止穩。CB 量比 570x 同樣是均量極低的失真。</p>
+        <div class="cb-line"><b>易發一 64251</b> 量比 <b>570.0x</b>（CB 均量極低，倍數失真）。</div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ===== 上次名單追蹤 ===== -->
+  <section>
+    <div class="sec-head"><h2>11/8 名單追蹤</h2><span class="badge">2 檔出局</span>
+      <p>上次 70 分以上的 6 檔，一週後的變化</p></div>
+
+    <p class="note">6 檔中 <strong>4 檔留在榜上、2 檔出局</strong>。</p>
+
+    <p class="note"><strong>留榜 4 檔：</strong><br>
+    <b>2610 華航</b> 75.6 → 74.7（-0.9），新增命中「20 日漲 ≥10%」但失去「量能放大」，整體微降，籌碼面依然穩健（外資 5 日買 134,507 張、大戶持續增加）。<br>
+    <b>5209 新鼎</b> 70.0 → 71.9（+1.9），新增命中「當日漲」「5 日漲」「60 日位階」，但外資轉賣、融資增加，動能是靠價格慣性而非法人加碼。<br>
+    <b>3691 碩禾</b> 72.8 → 70.9（-1.9），新增 CB 放量但失去個股放量與融資退潮，今日回檔 4.5%，5 日漲幅只剩 1.5%，動能明顯放緩。<br>
+    <b>6486 互動</b> 71.9 → 70.0（-1.9），新增 5 日漲與融資退潮但失去放量與外資買超，分數逼近 70 分邊緣。</p>
+
+    <p class="note"><strong>出局 2 檔：</strong><br>
+    <b>2059 川湖</b>（上次 70.9 分）：本週無法評分（資料不足或日均量 < 50 張）。<br>
+    <b>4155 訊映</b>（上次 70.9 分 → 本週 62.5 分）：分數降到 62.5，仍過多頭門檻但籌碼與量價轉弱。失去的項目：量能放大、5 日漲 ≥5%、20 日漲 ≥10%、外資買超、融資退潮。5 日跌 3.1%、20 日持平，外資轉賣 349 張、大戶 4 週 -1.13%，訊號全面退潮。</p>
+
+    <div class="tablewrap"><table class="track"><thead><tr><th>代碼</th><th>名稱</th><th>上次分數</th><th>本次分數</th><th>變化</th><th>新增命中</th><th>失去命中</th><th>狀態</th></tr></thead><tbody>
+      <tr><td class="n">2610</td><td>華航</td><td class="n">75.6</td><td class="n">74.7</td><td class="n down">-0.9</td><td>20 日漲</td><td>放量</td><td>留榜</td></tr>
+      <tr><td class="n">5209</td><td>新鼎</td><td class="n">70.0</td><td class="n">71.9</td><td class="n up">+1.9</td><td>日漲、5 日漲、高位階</td><td>外資買、融資退</td><td>留榜</td></tr>
+      <tr><td class="n">3691</td><td>碩禾</td><td class="n">72.8</td><td class="n">70.9</td><td class="n down">-1.9</td><td>CB 放量</td><td>放量、融資退</td><td>留榜</td></tr>
+      <tr><td class="n">6486</td><td>互動</td><td class="n">71.9</td><td class="n">70.0</td><td class="n down">-1.9</td><td>5 日漲、融資退</td><td>放量、外資買</td><td>留榜</td></tr>
+      <tr class="out"><td class="n">2059</td><td>川湖</td><td class="n">70.9</td><td class="n">—</td><td class="n">—</td><td>—</td><td>—</td><td>資料不足</td></tr>
+      <tr class="out"><td class="n">4155</td><td>訊映</td><td class="n">70.9</td><td class="n">62.5</td><td class="n down">-8.4</td><td>—</td><td>放量、5日漲、20日漲、外資買、融資退</td><td>降級出局</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <!-- ===== 新進 70+ ===== -->
+  <section>
+    <div class="sec-head"><h2>新進 70 分以上</h2><span class="badge">9 檔</span>
+      <p>上次不在 70+ 名單、這次升上來的</p></div>
+    <p class="note">9 檔全部是新進（上次未在榜上或未過多頭門檻）。除了前面卡片已介紹的 5 檔（撼訊、碩天、事欣科、中鼎、易發），其餘 4 檔：<b>6510 精測</b>（71.9，5 日漲 44.7% 但量比只有 1.4x，投信買 1,132 張、大戶增、融資退，可惜多頭排列未過且外資反賣——是投信主導的行情）；<b>3701 大眾控</b>（70.0，5 日漲 43.9%、放量 5.01x、外資買 10,221 張，但今日回跌 1.4%、大戶減少、散戶未減、CB 量比低）；<b>5230 雷笛克光學</b>（70.0，5 日漲 38.0%、20 日漲 16.2%、放量 3.99x、外資買，但今日跌 5.5%、大戶減少、散戶未減——高檔大幅換手中）；<b>9935 慶豐富</b>（70.0，放量 2.54x、CB 放量 2.9x、外資買、融資退，但多頭排列未過且大戶/散戶指標未命中）。</p>
+
+    <div class="tablewrap"><table class="track"><thead><tr><th>分數</th><th>代碼</th><th>名稱</th><th>當日</th><th>5日</th><th>量比</th><th>命中項數</th><th>上次狀態</th></tr></thead><tbody>
+      <tr><td class="n score">78.4</td><td class="n">6150</td><td>撼訊</td><td class="n up">+4.1%</td><td class="n up">+31.6%</td><td class="n">2.92x</td><td class="n">9/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">77.5</td><td class="n">3617</td><td>碩天</td><td class="n up">+3.9%</td><td class="n up">+31.0%</td><td class="n">2.04x</td><td class="n">9/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">77.5</td><td class="n">4916</td><td>事欣科</td><td class="n up">+9.8%</td><td class="n up">+35.5%</td><td class="n">6.34x</td><td class="n">9/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">77.5</td><td class="n">9933</td><td>中鼎</td><td class="n up">+3.6%</td><td class="n up">+16.2%</td><td class="n">1.18x</td><td class="n">9/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">76.6</td><td class="n">6425</td><td>易發</td><td class="n down">-6.3%</td><td class="n up">+32.7%</td><td class="n">4.07x</td><td class="n">8/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">71.9</td><td class="n">6510</td><td>精測</td><td class="n up">+4.4%</td><td class="n up">+44.7%</td><td class="n">1.40x</td><td class="n">7/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">70.0</td><td class="n">3701</td><td>大眾控</td><td class="n down">-1.4%</td><td class="n up">+43.9%</td><td class="n">5.01x</td><td class="n">6/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">70.0</td><td class="n">5230</td><td>雷笛克光學</td><td class="n down">-5.5%</td><td class="n up">+38.0%</td><td class="n">3.99x</td><td class="n">6/12</td><td>未過門檻</td></tr>
+      <tr><td class="n score">70.0</td><td class="n">9935</td><td>慶豐富</td><td class="n up">+1.8%</td><td class="n up">+11.6%</td><td class="n">2.54x</td><td class="n">6/12</td><td>未過門檻</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <!-- ===== B 級 ===== -->
+  <section>
+    <div class="sec-head"><h2>70 – 79 分 · 一半正向</h2><span class="badge">13 檔</span>
+      <p>依分數排序；標籤為命中的訊號</p></div>
+    <p class="note">B 級從 6 檔倍增到 13 檔。共同的缺口仍是<strong>融資增加</strong>（13 檔中只有 3 檔融資退潮）與<strong>投信缺席</strong>。要小心的型態：<b>6425 易發</b>當日跌 6.3% 但 5 日仍漲 32.7%，代表正在高檔劇烈換手；<b>5230 雷笛克光學</b>當日跌 5.5%、<b>3701 大眾控</b>跌 1.4%，也屬高檔回檔。量縮上漲方面，<b>9933 中鼎</b>量比 1.18x 偏低，趨勢到位但量能確認不足。</p>
+    <!--B-->
+<div class="tablewrap"><table><thead><tr><th>分數</th><th>代碼</th><th>名稱</th><th>收盤</th><th>當日</th><th>5日</th><th>20日</th><th>量比</th><th>位階</th><th>外資5日</th><th>投信5日</th><th>大戶4週</th><th>CB 最大量比</th><th>命中訊號</th></tr></thead><tbody><tr><td class="n score">78.4</td><td class="n">6150</td><td>撼訊</td><td class="n">81.60</td><td class="n up">+4.1%</td><td class="n up">+31.6%</td><td class="n up">+9.5%</td><td class="n">2.92x</td><td class="n">100%</td><td class="n up">+1815</td><td class="n flat">+0</td><td class="n up">+2.57</td><td class="n up">2.8x <span class="faintcell">61506</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">77.5</td><td class="n">3617</td><td>碩天</td><td class="n">279</td><td class="n up">+3.9%</td><td class="n up">+31.0%</td><td class="n up">+3.7%</td><td class="n">2.04x</td><td class="n">100%</td><td class="n up">+675</td><td class="n up">+340</td><td class="n up">+0.25</td><td class="n up">2.2x <span class="faintcell">36173</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">77.5</td><td class="n">4916</td><td>事欣科</td><td class="n">112</td><td class="n up">+9.8%</td><td class="n up">+35.5%</td><td class="n up">+10.8%</td><td class="n">6.34x</td><td class="n">100%</td><td class="n up">+12912</td><td class="n flat">+0</td><td class="n up">+4.74</td><td class="n up">98.8x <span class="faintcell">49165</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">77.5</td><td class="n">9933</td><td>中鼎</td><td class="n">51.60</td><td class="n up">+3.6%</td><td class="n up">+16.2%</td><td class="n up">+21.3%</td><td class="n">1.18x</td><td class="n">100%</td><td class="n up">+21263</td><td class="n up">+435</td><td class="n up">+1.23</td><td class="n up">2.6x <span class="faintcell">99332</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">76.6</td><td class="n">6425</td><td>易發</td><td class="n">80.00</td><td class="n down">-6.3%</td><td class="n up">+32.7%</td><td class="n up">+5.0%</td><td class="n">4.07x</td><td class="n">81%</td><td class="n up">+2285</td><td class="n flat">+0</td><td class="n up">+0.71</td><td class="n up">570.0x <span class="faintcell">64251</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">74.7</td><td class="n">2610</td><td>華航</td><td class="n">23.20</td><td class="n up">+1.8%</td><td class="n up">+9.4%</td><td class="n up">+12.3%</td><td class="n">1.10x</td><td class="n">92%</td><td class="n up">+134507</td><td class="n down">-13233</td><td class="n up">+1.53</td><td class="n">1.6x <span class="faintcell">26107</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">71.9</td><td class="n">5209</td><td>新鼎</td><td class="n">232</td><td class="n up">+4.3%</td><td class="n up">+20.2%</td><td class="n up">+25.3%</td><td class="n">1.49x</td><td class="n">100%</td><td class="n up">+85</td><td class="n up">+1</td><td class="n up">+1.53</td><td class="n">0.2x <span class="faintcell">52091</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">71.9</td><td class="n">6510</td><td>精測</td><td class="n">3,335</td><td class="n up">+4.4%</td><td class="n up">+44.7%</td><td class="n up">+3.4%</td><td class="n">1.40x</td><td class="n">74%</td><td class="n down">-104</td><td class="n up">+1132</td><td class="n up">+1.82</td><td class="n">1.6x <span class="faintcell">65101</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">70.9</td><td class="n">3691</td><td>碩禾</td><td class="n">137</td><td class="n down">-4.5%</td><td class="n up">+1.5%</td><td class="n up">+35.0%</td><td class="n">1.71x</td><td class="n">79%</td><td class="n down">-363</td><td class="n flat">+0</td><td class="n up">+4.12</td><td class="n up">2.2x <span class="faintcell">36913</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip off" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">70.0</td><td class="n">3701</td><td>大眾控</td><td class="n">68.50</td><td class="n down">-1.4%</td><td class="n up">+43.9%</td><td class="n up">+7.0%</td><td class="n">5.01x</td><td class="n">97%</td><td class="n up">+10221</td><td class="n flat">+0</td><td class="n down">-1.14</td><td class="n">0.5x <span class="faintcell">37012</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">70.0</td><td class="n">5230</td><td>雷笛克光學</td><td class="n">35.20</td><td class="n down">-5.5%</td><td class="n up">+38.0%</td><td class="n up">+16.2%</td><td class="n">3.99x</td><td class="n">90%</td><td class="n up">+3743</td><td class="n flat">+0</td><td class="n down">-1.75</td><td class="n">1.1x <span class="faintcell">52303</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">70.0</td><td class="n">6486</td><td>互動</td><td class="n">83.70</td><td class="n up">+1.2%</td><td class="n up">+5.5%</td><td class="n up">+6.0%</td><td class="n">1.39x</td><td class="n">95%</td><td class="n down">-25</td><td class="n flat">+0</td><td class="n up">+0.69</td><td class="n faintcell">—</td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">70.0</td><td class="n">9935</td><td>慶豐富</td><td class="n">20.20</td><td class="n up">+1.8%</td><td class="n up">+11.6%</td><td class="n up">+7.2%</td><td class="n">2.54x</td><td class="n">81%</td><td class="n up">+464</td><td class="n up">+9</td><td class="n up">+0.29</td><td class="n up">2.9x <span class="faintcell">99353</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr></tbody></table></div>
+  </section>
+
+  <!-- ===== C 級 ===== -->
+  <section>
+    <div class="sec-head"><h2>60 – 69 分 · 一些些正向</h2><span class="badge">22 檔</span>
+      <p>觀察池，非買點；表格可左右捲動</p></div>
+    <p class="note">這一級請當觀察池用。值得篩的仍是<strong>「只有 CB 在動」</strong>那一類——CB 常領先現股，可以從表格最右的「CB 最大量比」欄位挑倍數 ≥2 且現股還沒漲的標的。注意 <b>4155 訊映</b>（62.5 分）是從上次 70.9 分掉下來的，籌碼全面退潮。</p>
+    <!--C-->
+<div class="tablewrap"><table><thead><tr><th>分數</th><th>代碼</th><th>名稱</th><th>收盤</th><th>當日</th><th>5日</th><th>20日</th><th>量比</th><th>位階</th><th>外資5日</th><th>投信5日</th><th>大戶4週</th><th>CB 最大量比</th><th>命中訊號</th></tr></thead><tbody><tr><td class="n score">69.1</td><td class="n">6870</td><td>騰雲</td><td class="n">498</td><td class="n up">+1.2%</td><td class="n up">+34.0%</td><td class="n up">+67.7%</td><td class="n">1.65x</td><td class="n">100%</td><td class="n up">+426</td><td class="n flat">+0</td><td class="n down">-0.33</td><td class="n">1.8x <span class="faintcell">68702</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">69.1</td><td class="n">8171</td><td>天宇</td><td class="n">21.90</td><td class="n up">+9.8%</td><td class="n up">+31.9%</td><td class="n up">+0.5%</td><td class="n">1.16x</td><td class="n">92%</td><td class="n up">+107</td><td class="n flat">+0</td><td class="n up">+0.18</td><td class="n up">10.0x <span class="faintcell">81714</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">68.1</td><td class="n">1526</td><td>日馳</td><td class="n">16.55</td><td class="n down">-0.6%</td><td class="n up">+2.8%</td><td class="n up">+11.1%</td><td class="n">0.43x</td><td class="n">76%</td><td class="n down">-33</td><td class="n flat">+0</td><td class="n up">+0.64</td><td class="n">0.2x <span class="faintcell">15261</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip off" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">68.1</td><td class="n">1569</td><td>濱川</td><td class="n">97.30</td><td class="n down">-5.1%</td><td class="n up">+23.8%</td><td class="n up">+16.0%</td><td class="n">0.91x</td><td class="n">88%</td><td class="n up">+4147</td><td class="n flat">+0</td><td class="n up">+1.76</td><td class="n faintcell">—</td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">68.1</td><td class="n">1786</td><td>科妍</td><td class="n">50.60</td><td class="n up">+3.0%</td><td class="n up">+7.5%</td><td class="n up">+24.0%</td><td class="n">0.66x</td><td class="n">89%</td><td class="n up">+227</td><td class="n flat">+0</td><td class="n down">-0.47</td><td class="n faintcell">—</td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">68.1</td><td class="n">3147</td><td>大綜</td><td class="n">313</td><td class="n down">-4.0%</td><td class="n up">+7.8%</td><td class="n up">+4.2%</td><td class="n">1.26x</td><td class="n">70%</td><td class="n up">+902</td><td class="n flat">+0</td><td class="n up">+2.04</td><td class="n faintcell">—</td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">68.1</td><td class="n">3715</td><td>定穎投控</td><td class="n">142</td><td class="n down">-1.4%</td><td class="n up">+43.4%</td><td class="n up">+0.7%</td><td class="n">8.72x</td><td class="n">96%</td><td class="n up">+14511</td><td class="n flat">+0</td><td class="n down">-1.18</td><td class="n">1.1x <span class="faintcell">37151</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">67.2</td><td class="n">2466</td><td>冠西電</td><td class="n">393</td><td class="n down">-10.0%</td><td class="n up">+31.4%</td><td class="n up">+84.1%</td><td class="n">3.87x</td><td class="n">87%</td><td class="n down">-1061</td><td class="n up">+87</td><td class="n down">-1.14</td><td class="n faintcell">—</td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">67.2</td><td class="n">3305</td><td>昇貿</td><td class="n">115</td><td class="n up">+6.5%</td><td class="n up">+26.8%</td><td class="n up">+6.0%</td><td class="n">3.32x</td><td class="n">94%</td><td class="n up">+2391</td><td class="n flat">+0</td><td class="n down">-1.02</td><td class="n">0.2x <span class="faintcell">33055</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">66.2</td><td class="n">6269</td><td>台郡</td><td class="n">80.50</td><td class="n up">+5.2%</td><td class="n up">+23.9%</td><td class="n up">+18.6%</td><td class="n">0.87x</td><td class="n">71%</td><td class="n up">+9258</td><td class="n flat">+0</td><td class="n down">-1.15</td><td class="n">0.3x <span class="faintcell">62696</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">65.3</td><td class="n">3491</td><td>昇達科</td><td class="n">1,430</td><td class="n down">-1.7%</td><td class="n up">+31.8%</td><td class="n up">+1.4%</td><td class="n">2.83x</td><td class="n">55%</td><td class="n up">+428</td><td class="n up">+319</td><td class="n down">-1.61</td><td class="n">1.3x <span class="faintcell">34913</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">65.3</td><td class="n">3713</td><td>新晶投控</td><td class="n">16.60</td><td class="n up">+1.5%</td><td class="n up">+20.7%</td><td class="n up">+9.9%</td><td class="n">4.90x</td><td class="n">100%</td><td class="n up">+5</td><td class="n flat">+0</td><td class="n up">+0.19</td><td class="n faintcell">—</td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">64.4</td><td class="n">1815</td><td>富喬</td><td class="n">142</td><td class="n up">+3.6%</td><td class="n up">+20.9%</td><td class="n up">+6.0%</td><td class="n">1.01x</td><td class="n">80%</td><td class="n up">+31315</td><td class="n up">+2850</td><td class="n down">-6.21</td><td class="n faintcell">—</td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">64.4</td><td class="n">6670</td><td>復盛應用</td><td class="n">271</td><td class="n up">+1.5%</td><td class="n up">+6.5%</td><td class="n up">+0.4%</td><td class="n">1.92x</td><td class="n">50%</td><td class="n up">+350</td><td class="n down">-4</td><td class="n down">-0.25</td><td class="n">0.3x <span class="faintcell">66702</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">64.4</td><td class="n">6890</td><td>來億-KY</td><td class="n">162</td><td class="n up">+9.9%</td><td class="n up">+9.9%</td><td class="n up">+6.6%</td><td class="n">2.31x</td><td class="n">64%</td><td class="n down">-130</td><td class="n up">+308</td><td class="n up">+0.15</td><td class="n">0.9x <span class="faintcell">68901</span></td><td class="chips"><span class="chip" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">63.4</td><td class="n">2221</td><td>大甲</td><td class="n">151</td><td class="n up">+0.3%</td><td class="n up">+5.2%</td><td class="n up">+7.5%</td><td class="n">0.86x</td><td class="n">68%</td><td class="n down">-1134</td><td class="n flat">+0</td><td class="n up">+1.38</td><td class="n">0.1x <span class="faintcell">22211</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">63.4</td><td class="n">2548</td><td>華固</td><td class="n">95.20</td><td class="n flat">+0.0%</td><td class="n up">+4.0%</td><td class="n up">+4.3%</td><td class="n">0.80x</td><td class="n">68%</td><td class="n up">+1773</td><td class="n up">+21</td><td class="n up">+0.71</td><td class="n">0.6x <span class="faintcell">25484</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip off" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">63.4</td><td class="n">3141</td><td>晶宏</td><td class="n">81.60</td><td class="n up">+4.0%</td><td class="n up">+15.2%</td><td class="n up">+7.5%</td><td class="n">1.49x</td><td class="n">36%</td><td class="n up">+2368</td><td class="n flat">+0</td><td class="n down">-0.98</td><td class="n">0.5x <span class="faintcell">31413</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">62.5</td><td class="n">2236</td><td>百達-KY</td><td class="n">92.60</td><td class="n up">+0.5%</td><td class="n up">+3.2%</td><td class="n up">+15.2%</td><td class="n">0.36x</td><td class="n">27%</td><td class="n down">-127</td><td class="n flat">+0</td><td class="n up">+0.70</td><td class="n">0.6x <span class="faintcell">22363</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip off" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">62.5</td><td class="n">4155</td><td>訊映</td><td class="n">17.35</td><td class="n up">+3.9%</td><td class="n down">-3.1%</td><td class="n flat">+0.0%</td><td class="n">1.24x</td><td class="n">94%</td><td class="n down">-349</td><td class="n flat">+0</td><td class="n down">-1.13</td><td class="n faintcell">—</td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip off" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">62.5</td><td class="n">6199</td><td>天品</td><td class="n">169</td><td class="n up">+0.6%</td><td class="n up">+3.4%</td><td class="n up">+22.5%</td><td class="n">1.02x</td><td class="n">100%</td><td class="n up">+1728</td><td class="n flat">+0</td><td class="n down">-1.78</td><td class="n">0.1x <span class="faintcell">61994</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip off" title="當日漲 ≥2%">日漲</span><span class="chip off" title="5 日漲 ≥5%">5日漲</span><span class="chip" title="20 日漲 ≥10%">20日漲</span><span class="chip" title="60 日位階 ≥70%">高位階</span><span class="chip" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip off" title="CB 量能放大 ≥2x">CB放量</span></td></tr><tr><td class="n score">61.6</td><td class="n">6874</td><td>倍力</td><td class="n">75.30</td><td class="n up">+7.9%</td><td class="n up">+10.6%</td><td class="n up">+6.5%</td><td class="n">1.49x</td><td class="n">47%</td><td class="n up">+53</td><td class="n flat">+0</td><td class="n down">-0.97</td><td class="n up">9.2x <span class="faintcell">68741</span></td><td class="chips"><span class="chip off" title="量能放大 ≥1.8x">放量</span><span class="chip" title="當日漲 ≥2%">日漲</span><span class="chip" title="5 日漲 ≥5%">5日漲</span><span class="chip off" title="20 日漲 ≥10%">20日漲</span><span class="chip off" title="60 日位階 ≥70%">高位階</span><span class="chip off" title="多頭排列 收>月>季線">多頭排列</span><span class="chip off" title="外資 5 日買超">外資買</span><span class="chip off" title="投信 5 日買超">投信買</span><span class="chip off" title="大戶 100 張+ 4 週增加">大戶增</span><span class="chip off" title="散戶 4 週減少">散戶減</span><span class="chip off" title="融資 5 日未增 / 減少">融資退</span><span class="chip" title="CB 量能放大 ≥2x">CB放量</span></td></tr></tbody></table></div>
+  </section>
+
+  <!-- ===== 上週點名追蹤 ===== -->
+  <section>
+    <div class="sec-head"><h2>上週點名追蹤</h2><span class="badge">6 檔 → 5 漲 1 跌</span>
+      <p>11/6 → 11/13 的實際報酬</p></div>
+    <p class="note">上次（11/8 報告，對照基準 11/6）70 分以上共 6 檔，一週後（11/13）結果：<strong>5 檔上漲、1 檔下跌</strong>，中位數報酬 +4.86%，同期網站內 CB 個股中位數 +5.42%（434 檔），勝過市場中位數的有 3 檔。樣本只有 6 檔，無法得出統計結論。逐檔：新鼎 +20.2%、華航 +9.4%、互動 +5.6%、川湖 +4.2%、碩禾 +1.5%、訊映 -3.1%。</p>
+  </section>
+
+  <!-- ===== 盤下鎖碼觀察 ===== -->
+  <section>
+    <div class="sec-head"><h2>盤下鎖碼觀察</h2><span class="badge">8 檔 CB</span>
+      <p>近 5 個交易日內法人（多為自營商）CB 淨買超異常的標的</p></div>
+    <p class="note">「盤下鎖碼」是網路上流傳的技巧觀察：盤面成交量很小（看似冷門），但收盤後三大法人（多為自營商＝券商做 CBAS 拆解）淨買超遠大於盤面量或佔發行餘額很高，推測是特定人在盤下鎖碼。<strong>這只是資料現象、不等於一定是特定人</strong>，且歷史回測（225 次事件）顯示 5 日 CB 超額報酬中位數 0.0%、個股中位數 -0.13%，單日觸發的中位數超額報酬接近 0，僅作觀察。</p>
+    <div class="tablewrap"><table class="track"><thead><tr><th>CB</th><th>個股</th><th>觸發日</th><th>盤面量</th><th>法人淨買</th><th>佔餘額</th><th>觸發天數</th><th>原因</th></tr></thead><tbody>
+      <tr><td class="n">37024 大聯大四</td><td class="n">3702</td><td class="n">11/12</td><td class="n">16,587</td><td class="n">32,637</td><td class="n">21.8%</td><td class="n">2 天</td><td>淨買 ≥ 盤面量 1.5 倍 + 佔餘額 21.8%</td></tr>
+      <tr><td class="n">62855 啟碁五</td><td class="n">6285</td><td class="n">11/9</td><td class="n">145</td><td class="n">-33</td><td class="n">—</td><td class="n">1 天</td><td>5 日累計淨買 9,664 張(盤面 5 日量 2,903 張),佔餘額 48.3%</td></tr>
+      <tr><td class="n">24922 華新科二</td><td class="n">2492</td><td class="n">11/13</td><td class="n">11,061</td><td class="n">12,789</td><td class="n">28.4%</td><td class="n">2 天</td><td>佔餘額 28.4%</td></tr>
+      <tr><td class="n">30166 嘉晶六</td><td class="n">3016</td><td class="n">11/11</td><td class="n">242</td><td class="n">203</td><td class="n">5.8%</td><td class="n">1 天</td><td>佔餘額 5.8%</td></tr>
+      <tr><td class="n">61012 寬魚國際二</td><td class="n">6101</td><td class="n">11/12</td><td class="n">106</td><td class="n">100</td><td class="n">5.6%</td><td class="n">1 天</td><td>佔餘額 5.6%</td></tr>
+      <tr><td class="n">12951 生合一</td><td class="n">1295</td><td class="n">11/9</td><td class="n">303</td><td class="n">178</td><td class="n">4.5%</td><td class="n">2 天</td><td>佔餘額 4.5%</td></tr>
+      <tr><td class="n">30811 聯亞一</td><td class="n">3081</td><td class="n">11/9</td><td class="n">65</td><td class="n">222</td><td class="n">1.8%</td><td class="n">1 天</td><td>淨買 222 張 ≥ 盤面量 65 張的 1.5 倍</td></tr>
+      <tr><td class="n">49731 廣穎電通一</td><td class="n">4973</td><td class="n">11/9</td><td class="n">156</td><td class="n">153</td><td class="n">3.1%</td><td class="n">1 天</td><td>佔餘額 3.1%</td></tr>
+    </tbody></table></div>
+    <p class="note" style="font-size:12.5px">其中<b>大聯大四 37024</b>（自營商單日淨買 45,240 張、佔餘額 21.8%）與<b>啟碁五 62855</b>（5 日累計淨買佔餘額 48.3%）的規模最大。大聯大四的盤面量也有 16,587 張並非冷門，但自營商淨買金額遠超過盤面成交。</p>
+  </section>
+
+  <div class="method">
+    <h3>評分方法</h3>
+    <div class="formula">分數 = 55 + 30 × (命中權重 ÷ 16)　　→　全中 85 分、命中一半 70 分、命中兩成 61 分</div>
+    <p class="note">12 項條件：量能 ≥1.8×（1.5）、當日漲 ≥2%（1.0）、5 日漲 ≥5%（1.0）、20 日漲 ≥10%（1.0）、60 日位階 ≥70%（1.5）、多頭排列（1.5）、外資 5 日買超 ≥0.3× 日均量（1.5）、投信 5 日買超 ≥0.15× 日均量（1.5）、大戶 100 張+ 4 週增加 ≥0.5%（2.0）、散戶 4 週減少 ≥0.3%（1.0）、融資 5 日未增（1.0）、CB 量能 ≥2×（1.5）。<strong>兩道排除條件：</strong>跌破月線或 20 日負報酬一律不列榜；日均量低於 50 張剔除。</p>
+  </div>
+
+  <div class="caveats">
+    <h3>使用前要知道的事</h3>
+    <ul>
+      <li>掃描池是網頁資料庫裡<strong>有 CB 對應的 41 檔個股</strong>，不是全台股。沒有 CB 的個股不在其中。</li>
+      <li>41 檔全數取得完整評分，扣掉未過多頭門檻（跌破月線或 20 日負報酬）的 6 檔，入榜 35 檔。</li>
+      <li>集保大戶資料到 <code>20261106</code>，與上次（11/8）是同一批，所以「大戶 4 週」欄位數值不變——本次分數變化主要來自價量與法人。</li>
+      <li>倍數失真提醒：CB 均量低於 5 張時倍數沒有意義（事欣科五 49165 量比 98.8x、易發一 64251 量比 570.0x），請一律回頭看絕對張數。</li>
+      <li>分數只描述<strong>當下訊號的一致性</strong>，不含基本面與評價。78.4 分代表「12 項正向條件命中 9 項」，不代表報酬期望最高。</li>
+      <li>腳本：<code>scripts/positive_scan.py</code>、<code>scripts/build_positive_report.py</code>、<code>scripts/weekly_diff.py</code>；本次執行前已 <code>git pull</code> 取得 11/13 資料。</li>
+    </ul>
+  </div>
+
+  <footer>全網頁正向訊號掃描 · 資料截至 2026-11-13 盤後 · 41 檔掃描 / 35 檔入榜 · 對照 11/8（快照 20261108） · 本頁為資料整理，非投資建議</footer>
+
+</div>
