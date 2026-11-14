@@ -1280,8 +1280,23 @@ const App = (() => {
     if (meta) meta.innerHTML = `最新 ${last.y}/Q${last.q} <strong class="${cc(last.eps)}">${last.eps.toFixed(2)}元</strong>`;
 
     const get = (y, q) => entry.q[`${y}-${q}`] ?? null;
-    const pct = (cur, base) => (cur == null || base == null || base === 0) ? null : (cur / base - 1) * 100;
-    const fmtPct = (v) => v == null ? '-' : `<span class="${cc(v)}">${v >= 0 ? '+' : ''}${v.toFixed(1)}</span>`;
+    // EPS 會有負值,cur/base-1 在基期為負時方向會反(例 -0.11→0.32 算出 -390.9%)。
+    // 只有基期 > 0 才算百分比;跨正負或兩期皆虧改用文字標示。
+    const tag = (text, sign) => `<span class="${cc(sign)}">${text}</span>`;
+    const epsChg = (cur, base) => {
+      if (cur == null || base == null || base === 0) return '-';
+      if (base > 0) {
+        if (cur < 0) return tag('轉虧', -1);
+        const v = (cur / base - 1) * 100;
+        return tag(`${v >= 0 ? '+' : ''}${v.toFixed(1)}`, v);
+      }
+      // base < 0
+      if (cur > 0) return tag('轉盈', 1);
+      if (cur === 0) return tag('虧轉平', 1);
+      if (cur > base) return tag('虧損縮小', 1);
+      if (cur < base) return tag('虧損擴大', -1);
+      return tag('持平', 0);
+    };
     const fmtEps = (v) => v == null ? '-' : v.toFixed(2);
 
     const years = [epsYearEnd - 1, epsYearEnd];
@@ -1289,9 +1304,9 @@ const App = (() => {
     for (let q = 1; q <= 4; q++) {
       const cells = years.map(y => {
         const cur = get(y, q);
-        const qoq = pct(cur, q === 1 ? get(y - 1, 4) : get(y, q - 1));
-        const yoy = pct(cur, get(y - 1, q));
-        return `<td>${fmtEps(cur)}</td><td>${fmtPct(qoq)}</td><td>${fmtPct(yoy)}</td>`;
+        const qoq = epsChg(cur, q === 1 ? get(y - 1, 4) : get(y, q - 1));
+        const yoy = epsChg(cur, get(y - 1, q));
+        return `<td>${fmtEps(cur)}</td><td>${qoq}</td><td>${yoy}</td>`;
       }).join('');
       rows.push(`<tr><td class="broker-name">Q${q}</td>${cells}</tr>`);
     }
