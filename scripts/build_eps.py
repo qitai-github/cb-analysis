@@ -8,8 +8,8 @@ workflow revenue-fetch.yml 觸發,每月 1~15 日一起跑),只是頻率是「�
 cbInstitutional 三表 union,FEATURES.md 10.3),不是全市場。
 
 兩段式來源:
-  1) 快速路徑 (每次都跑): TWSE OpenAPI 整批單季 EPS t187ap14_L (只有上市;上櫃/興櫃
-     找不到對應 bulk dataset,一律靠路徑 2 FinMind 補),單季全市場一次拿齊。
+  1) 偵測路徑 (每次都跑): TWSE OpenAPI 整批 EPS t187ap14_L (只有上市)。它的 EPS 是
+     「年度累計」不是單季,所以不寫入數值,只用來找出公布了新一季的股號,排進路徑 2。
   2) 回補/更新路徑: FinMind TaiwanStockFinancialStatements (type=EPS 那幾列即單季
      EPS,已驗證非累計數字),逐檔拉完整歷史。用「這檔股號目前最新一季 < 這個時間點
      照公告截止日推算應該要有的季別」判斷是否過期 (stale),過期或從沒抓過的才排進
@@ -105,29 +105,27 @@ def _get_json_status(url, retries=4, timeout=30):
     return None, None
 
 
-def bulk_update(data, allowed):
-    """路徑 1: TWSE OpenAPI 整批單季 EPS (只有上市),只挑 allowed 內的股號寫回 data。"""
+def bulk_new_quarter_codes(data, allowed):
+    """路徑 1: TWSE OpenAPI t187ap14_L (只有上市) 只用來「偵測哪些股號公布了新一季」。
+    注意:這個 dataset 的「基本每股盈餘」是**年度累計** (Q3 = Q1+Q2+Q3),不是單季,
+    不能直接寫進 eps.json (2026-11 盟立 2464 Q3 被寫成累計 3.57,實際單季 2.81)。
+    也不能用累計相減還原單季:每季加權股數不同,相減會差 (3.57-0.24-0.42=2.91≠2.81)。
+    所以這裡只回傳「bulk 季別比 data 內最新季還新」的股號,交給 FinMind 抓單季正確值。"""
     rows, _ = _get_json_status(TWSE_BULK_URL)
-    touched = 0
+    codes = set()
     for r in rows or []:
         code = (r.get("公司代號") or "").strip()
         yy = (r.get("年度") or "").strip()
         qq = (r.get("季別") or "").strip()
-        eps = r.get("基本每股盈餘(元)")
-        name = (r.get("公司名稱") or "").strip()
-        if not code or code not in allowed or not yy or qq not in ("1", "2", "3", "4") or eps in (None, "", "-"):
+        if not code or code not in allowed or not yy or qq not in ("1", "2", "3", "4"):
             continue
         try:
-            year = int(yy) + 1911
-            eps_v = round(float(eps), 2)
-        except (ValueError, TypeError):
+            yq = (int(yy) + 1911, int(qq))
+        except ValueError:
             continue
-        entry = data.setdefault(code, {"n": name, "q": {}})
-        if name:
-            entry["n"] = name
-        entry["q"][f"{year}-{qq}"] = eps_v
-        touched += 1
-    return touched
+        if (latest_quarter(data.get(code)) or (0, 0)) < yq:
+            codes.add(code)
+    return codes
 
 
 def latest_quarter(entry):
@@ -208,9 +206,9 @@ def main():
     data.pop("_meta", None)
     data = {c: v for c, v in data.items() if c in site_codes}
 
-    print("路徑 1/2: TWSE OpenAPI 整批單季 EPS (上市) ...")
-    touched = bulk_update(data, site_codes)
-    print(f"  更新 {touched} 筆股號x季")
+    print("路徑 1/2: TWSE OpenAPI 整批 EPS (上市,累計值只用來偵測新一季) ...")
+    bulk_new = bulk_new_quarter_codes(data, site_codes)
+    print(f"  公布新一季: {len(bulk_new)} 檔")
 
     exp = expected_quarter(datetime.now(TAIPEI).date())
     MIN_HISTORY_Q = 5  # 路徑 1 bulk 只給當季 1 筆,即使「不算過期」也還沒做過 FinMind 全歷史回補
@@ -221,7 +219,8 @@ def main():
     else:
         want = sorted(
             c for c in site_codes
-            if (latest_quarter(data.get(c)) or (0, 0)) < exp
+            if c in bulk_new
+            or (latest_quarter(data.get(c)) or (0, 0)) < exp
             or len(data.get(c, {}).get("q", {})) < MIN_HISTORY_Q
         )
 
