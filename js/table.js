@@ -23,9 +23,12 @@ const Table = (() => {
     { key: 'latestVolume', label: '成交量(張)', width: '75px', format: 'volume', align: 'right' },
     { key: 'avgVolume5',   label: '5日均量', width: '70px', format: 'volume', align: 'right' },
     { key: 'avgVolume20',  label: '20日均量', width: '75px', format: 'volume', align: 'right' },
-    { key: 'foreign_1d', label: '外資1日', width: '70px', format: 'inst', align: 'right' },
-    { key: 'investment_1d', label: '投信1日', width: '70px', format: 'inst', align: 'right' },
-    { key: 'dealer_1d', label: '自營1日', width: '70px', format: 'inst', align: 'right' },
+    { key: 'foreign_1d', label: '外資1日', width: '70px', format: 'inst', align: 'right', inst: 'foreign' },
+    { key: 'foreignAmt_1d', label: '外資金額(億)', width: '80px', format: 'amount_yi', align: 'right', instAmt: 'foreign' },
+    { key: 'investment_1d', label: '投信1日', width: '70px', format: 'inst', align: 'right', inst: 'investment' },
+    { key: 'investmentAmt_1d', label: '投信金額(億)', width: '80px', format: 'amount_yi', align: 'right', instAmt: 'investment' },
+    { key: 'dealer_1d', label: '自營1日', width: '70px', format: 'inst', align: 'right', inst: 'dealer' },
+    { key: 'dealerAmt_1d', label: '自營金額(億)', width: '80px', format: 'amount_yi', align: 'right', instAmt: 'dealer' },
     { key: 'totalInst_1d', label: '法人合計', width: '70px', format: 'inst', align: 'right' },
     { key: 'latestMarginBalance', label: '融資餘額', width: '75px', format: 'volume', align: 'right' },
     { key: 'latestMarginChange',  label: '融資增減', width: '75px', format: 'inst',   align: 'right' },
@@ -348,6 +351,14 @@ const Table = (() => {
         td.classList.add('text-right', n > 0 ? 'text-up' : n < 0 ? 'text-down' : 'text-neutral');
         break;
       }
+      case 'amount_yi': {
+        // 元 → 億,保留 2 位;紅買綠賣
+        const yi = Number(val) / 1e8;
+        const r = Math.round(yi * 100) / 100;
+        td.textContent = r === 0 ? '0.00' : (r > 0 ? '+' : '') + r.toFixed(2);
+        td.classList.add('text-right', r > 0 ? 'text-up' : r < 0 ? 'text-down' : 'text-neutral');
+        break;
+      }
       case 'industry':
         td.textContent = String(val);
         td.title = String(val);
@@ -521,6 +532,10 @@ for (const pubName of PublicWatchlist.getLists()) {
 
   function updateInstDays(days) {
     for (const col of STOCK_COLUMNS) {
+      if (col.instAmt) {
+        col.key = `${col.instAmt}Amt_${days}d`;   // 金額欄 label 固定,只換 key
+        continue;
+      }
       if (col.label.startsWith('外資')) {
         col.label = `外資${days}日`;
         col.key = `foreign_${days}d`;

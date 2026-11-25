@@ -324,6 +324,7 @@ def compute_holding_changes(etfs, prev_etfs):
 
         summary = {"added": 0, "removed": 0, "increased": 0, "decreased": 0, "unchanged": 0}
         etf["prevDate"] = prev["date"] if prev else None
+        etf["prevNav"] = prev.get("nav") if prev else None  # 前一日淨資產,前端算金額增減
 
         for h in etf["holdings"]:
             ph = prev_map.pop(h["code"], None)

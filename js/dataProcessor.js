@@ -911,6 +911,31 @@ const DataProcessor = (() => {
     return entry;
   }
 
+  /** 當日均價:(最高+最低+收盤)/3,缺高低時退回收盤價 */
+  function dayAvgPrice(stock, date) {
+    const t = stock.trading || {};
+    const hi = Number(t['最高價']?.[date]), lo = Number(t['最低價']?.[date]), cl = Number(t['收盤價']?.[date]);
+    if (hi > 0 && lo > 0 && cl > 0) return (hi + lo + cl) / 3;
+    return cl > 0 ? cl : null;
+  }
+
+  /** 近 days 個法人日的 Σ(買賣超股數 × 當日均價),單位:元;全無資料回 null */
+  function calcInstAmount(stock, field, instDates, days) {
+    const series = stock.institutional?.[field];
+    if (!series) return null;
+    const dates = instDates.slice(-days);
+    let sum = 0, has = false;
+    for (const d of dates) {
+      const sh = Number(series[d]);
+      if (!sh || isNaN(sh)) continue;
+      const px = dayAvgPrice(stock, d);
+      if (px == null) continue;
+      sum += sh * px;
+      has = true;
+    }
+    return has ? sum : (dates.length ? 0 : null);
+  }
+
   /**
    * 計算衍生欄位
    */
@@ -966,6 +991,10 @@ const DataProcessor = (() => {
           (stock[`foreign_${suffix}`] || 0) +
           (stock[`investment_${suffix}`] || 0) +
           (stock[`dealer_${suffix}`] || 0);
+        // 法人買賣金額(元) = Σ 每日(買賣超股數 × 當日均價);均價 = (最高+最低+收盤)/3 (無成交金額資料)
+        stock[`foreignAmt_${suffix}`] = calcInstAmount(stock, '外資買賣超', instDates, days);
+        stock[`investmentAmt_${suffix}`] = calcInstAmount(stock, '投信買賣超', instDates, days);
+        stock[`dealerAmt_${suffix}`] = calcInstAmount(stock, '自營商買賣超', instDates, days);
       }
 
       // === 連續買超天數 ===

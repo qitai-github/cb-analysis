@@ -2308,7 +2308,7 @@ body {
 /* === ETF 7-欄佈局 === */
 .etf-columns-wrapper {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   padding: 8px 4px;
   min-height: calc(100vh - 60px);
@@ -2347,6 +2347,40 @@ body {
   font-size: 10px;
   color: var(--text-dim);
   margin-top: 2px;
+}
+
+/* 標題列右側:每單位淨值 / 資產項目 / 期貨明細 */
+.etf-column-header-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.etf-column-header-left { flex: 0 0 auto; min-width: 0; }
+.etf-header-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.etf-header-info table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.etf-header-info th,
+.etf-header-info td {
+  padding: 1px 3px;
+  white-space: nowrap;
+  text-align: left;
+}
+.etf-header-info th { color: var(--text-dim); font-weight: 500; }
+.etf-header-info .num { text-align: right; }
+.etf-header-info .etf-hi-nav { margin-bottom: 2px; }
+.etf-header-info .etf-hi-nav b { color: var(--text); font-weight: 600; }
+.etf-header-info .etf-hi-sec {
+  margin-top: 3px;
+  padding-top: 2px;
+  border-top: 1px dashed var(--border-dim);
+  color: var(--text-dim);
 }
 
 /* ETF 欄內表格 */
@@ -3394,3 +3428,16 @@ input[type="number"] { -moz-appearance: textfield; }
 .revenue-table thead tr:first-child th:nth-child(2),
 .revenue-table thead tr:first-child th:nth-child(3) { border-left: 1px solid rgba(71,85,105,0.5); }
 .revenue-table tbody td:nth-child(2), .revenue-table tbody td:nth-child(5) { border-left: 1px solid rgba(71,85,105,0.35); }
+
+/* 期貨(名目本金)獨立區塊:標題列與股票表之間 */
+.etf-futures-block {
+  border-bottom: 2px solid var(--border);
+  background: rgba(245, 158, 11, 0.05);
+}
+.etf-futures-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f59e0b;
+  padding: 4px 6px 2px;
+}
+.etf-futures-block td { white-space: nowrap; }
