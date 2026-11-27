@@ -2611,6 +2611,8 @@ const App = (() => {
     for (const t of ['cb', 'etf', 'vcp', 'strength', 'calendar', 'reports', 'sector']) {
       document.getElementById(`tab-${t}`)?.classList.toggle('active', tab === t);
     }
+    // 手機版分頁列可橫滑:把目前分頁捲進可視範圍
+    document.getElementById(`tab-${tab}`)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
 
     // 關閉 detail panel
     closeDetail();

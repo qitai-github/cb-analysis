@@ -61,6 +61,104 @@ const Table = (() => {
   // 給外部讀 (updateInstDays) — 只動股票欄位
   const columns = STOCK_COLUMNS;
 
+  // === 使用者自訂顯示欄位 (固定欄 ☆/代碼/名稱 永遠顯示) ===
+  // 存 localStorage (每台裝置各自記憶);讀寫失敗 (無痕/封鎖) 就當全部顯示
+  const COL_PREF_KEY = 'cbTableHiddenCols_v1';
+  const COL_PRESETS = {
+    stock: { '精簡': ['latestClose','priceChangePercent', 'latestVolume', 'totalInst_1d'] },
+    cb:    { '精簡': ['close', 'priceChangePercent', 'volume', 'conversionPrice', 'premiumRate'] }
+  };
+  let hiddenCols = loadHiddenCols();
+
+  function loadHiddenCols() {
+    try {
+      const o = JSON.parse(localStorage.getItem(COL_PREF_KEY) || '{}');
+      return { stock: Array.isArray(o.stock) ? o.stock : [], cb: Array.isArray(o.cb) ? o.cb : [] };
+    } catch (e) { return { stock: [], cb: [] }; }
+  }
+  function saveHiddenCols() {
+    try { localStorage.setItem(COL_PREF_KEY, JSON.stringify(hiddenCols)); } catch (e) { /* ignore */ }
+  }
+  function prefTab() { return currentTab === 'stock' ? 'stock' : 'cb'; }
+  function visibleColumns() {
+    const hidden = new Set(hiddenCols[prefTab()]);
+    return activeColumns().filter(c => c.sticky || !hidden.has(c.key));
+  }
+
+  function openColPicker() {
+    closeColPicker();
+    const tabKey = prefTab();
+    const optional = activeColumns().filter(c => !c.sticky);
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'col-picker-backdrop';
+    backdrop.id = 'col-picker';
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeColPicker(); });
+
+    const box = document.createElement('div');
+    box.className = 'col-picker';
+    box.innerHTML = `
+      <div class="col-picker-head">
+        <b>顯示欄位 · ${tabKey === 'stock' ? '個股' : '可轉債'}</b>
+        <span class="col-picker-count"></span>
+        <button class="col-picker-x" type="button" aria-label="關閉">&times;</button>
+      </div>
+      <div class="col-picker-presets"></div>
+      <div class="col-picker-note">代碼 / 名稱 為固定欄,永遠顯示</div>
+      <div class="col-picker-list"></div>
+      <button class="col-picker-done" type="button">完成</button>`;
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+
+    const list = box.querySelector('.col-picker-list');
+    const countEl = box.querySelector('.col-picker-count');
+
+    const apply = () => {
+      saveHiddenCols();
+      const hidden = new Set(hiddenCols[tabKey]);
+      countEl.textContent = `${optional.filter(c => !hidden.has(c.key)).length} / ${optional.length}`;
+      list.querySelectorAll('input').forEach(inp => { inp.checked = !hidden.has(inp.value); });
+      render(currentContainerId, currentData);
+    };
+
+    for (const col of optional) {
+      const lab = document.createElement('label');
+      lab.className = 'col-picker-item';
+      lab.innerHTML = `<input type="checkbox" value="${col.key}"><span>${col.label}</span>`;
+      lab.querySelector('input').addEventListener('change', e => {
+        const set = new Set(hiddenCols[tabKey]);
+        if (e.target.checked) set.delete(col.key); else set.add(col.key);
+        hiddenCols[tabKey] = [...set];
+        apply();
+      });
+      list.appendChild(lab);
+    }
+
+    const presets = box.querySelector('.col-picker-presets');
+    const addPreset = (label, showKeys) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'col-picker-preset';
+      b.textContent = label;
+      b.addEventListener('click', () => {
+        const show = new Set(showKeys);
+        hiddenCols[tabKey] = optional.filter(c => !show.has(c.key)).map(c => c.key);
+        apply();
+      });
+      presets.appendChild(b);
+    };
+    addPreset('全部', optional.map(c => c.key));
+    for (const [name, keys] of Object.entries(COL_PRESETS[tabKey])) addPreset(name, keys);
+    addPreset('全不選', []);
+
+    box.querySelector('.col-picker-x').addEventListener('click', closeColPicker);
+    box.querySelector('.col-picker-done').addEventListener('click', closeColPicker);
+    apply();
+  }
+  function closeColPicker() {
+    document.getElementById('col-picker')?.remove();
+  }
+
   /**
    * CB 分頁的列。優先用呼叫端算好的逐檔 CB 篩選結果 (options.cbRows);
    * 沒提供時退回攤平目前個股的 cbs。
@@ -83,7 +181,7 @@ const Table = (() => {
     container.innerHTML = '';
 
     // === CB / 分布圖分頁攤平成逐檔 CB,股票分頁保持原樣 ===
-    const cols = activeColumns();
+    const cols = visibleColumns();
     const rows = currentTab === 'stock' ? data : cbRows(data);
 
     // === 工具列:左邊 folder-tab,右邊 共 N 檔標的 ===
@@ -103,6 +201,17 @@ const Table = (() => {
     const stats = document.createElement('div');
     stats.className = 'table-stats';
     stats.textContent = `共 ${rows.length} 檔${currentTab === 'stock' ? '標的' : '可轉債'}`;
+    if (currentTab === 'stock' || currentTab === 'cb') {
+      const nOpt = activeColumns().filter(c => !c.sticky).length;
+      const nShow = cols.filter(c => !c.sticky).length;
+      const colBtn = document.createElement('button');
+      colBtn.type = 'button';
+      colBtn.className = 'col-picker-btn';
+      colBtn.title = '自訂顯示欄位';
+      colBtn.textContent = `⚙ 欄位 ${nShow}/${nOpt}`;
+      colBtn.addEventListener('click', openColPicker);
+      stats.appendChild(colBtn);
+    }
 
     toolbar.append(tabs, stats);
     container.appendChild(toolbar);
@@ -165,6 +274,7 @@ const Table = (() => {
 
     const table = document.createElement('table');
     table.className = 'data-table';
+    table.dataset.tab = currentTab;   // 手機版固定欄寬度依分頁不同 (mobile.css)
 
     // 表頭
     const thead = document.createElement('thead');

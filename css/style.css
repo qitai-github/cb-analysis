@@ -3441,3 +3441,48 @@ input[type="number"] { -moz-appearance: textfield; }
   padding: 4px 6px 2px;
 }
 .etf-futures-block td { white-space: nowrap; }
+
+/* === 自訂顯示欄位 (Table 工具列 ⚙ 欄位) === */
+.table-stats { display: flex; align-items: center; gap: 10px; }
+.col-picker-btn {
+  background: var(--bg-hover); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px 10px; font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.col-picker-btn:hover { border-color: var(--accent); color: var(--accent); }
+.col-picker-backdrop {
+  position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.col-picker {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  width: min(460px, 100%); max-height: 85vh; display: flex; flex-direction: column;
+  padding: 14px 16px; gap: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.col-picker-head { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.col-picker-count { color: var(--text-muted); font-size: 12px; }
+.col-picker-x {
+  margin-left: auto; background: none; border: 0; color: var(--text-muted);
+  font-size: 24px; line-height: 1; cursor: pointer; width: 36px; height: 36px;
+}
+.col-picker-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.col-picker-preset {
+  background: var(--bg-hover); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 5px 14px; font-size: 12px; cursor: pointer;
+}
+.col-picker-preset:hover { border-color: var(--accent); }
+.col-picker-note { font-size: 11px; color: var(--text-dim); }
+.col-picker-list {
+  overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 10px; min-height: 0;
+}
+.col-picker-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 6px;
+  font-size: 13px; cursor: pointer; color: var(--text);
+}
+.col-picker-item:hover { background: var(--bg-hover); }
+.col-picker-item input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.col-picker-done {
+  background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+}

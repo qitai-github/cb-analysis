@@ -1,0 +1,261 @@
+/* =====================================================================
+ * 手機版版面 (≤768px) — 2026-11 重新設計
+ * 只在窄螢幕生效,桌機版完全不受影響。放在所有 css 之後載入以覆蓋舊規則。
+ *  1. App shell:header 兩列(品牌+動作 / 分頁可橫滑),內容區佔滿剩餘高度
+ *  2. 側欄 → 左側抽屜 (☰ 篩選)
+ *  3. 表格:橫向捲動 + 首欄固定,字級/間距縮小
+ *  4. ETF:4 欄 → 單欄堆疊
+ *  5. CB 日曆:月曆格 → 依日期條列 (只列有事件的日子)
+ *  6. 詳情面板 / modal:全螢幕
+ * ===================================================================== */
+@media (max-width: 768px) {
+
+  /* ---------- 1. App shell ---------- */
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .header {
+    flex: none;
+    flex-wrap: wrap;
+    padding: 8px 12px 0;
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 0;
+    row-gap: 6px;
+  }
+  .header-title { order: 1; font-size: 15px; gap: 6px; min-width: 0; }
+  .header-title .logo { width: 26px; height: 26px; font-size: 13px; flex: none; }
+  .header-title span { display: inline !important; white-space: nowrap; }
+
+  .header-actions { order: 2; margin-left: auto; gap: 6px; }
+  .header-date {
+    display: inline !important;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .header-status { display: none; }
+  .header-actions .btn-icon { width: 36px; height: 36px; font-size: 17px; }
+  .mobile-filter-toggle {
+    display: inline-flex !important; align-items: center; justify-content: center;
+    width: auto !important; padding: 0 10px; gap: 4px;
+  }
+  .mobile-filter-toggle::after { content: '篩選'; font-size: 13px; font-weight: 600; }
+
+  /* 分頁:整列橫向捲動,不換行 */
+  .header-tabs {
+    order: 3;
+    flex: 0 0 100%;
+    margin: 0 -12px;
+    padding: 0 12px 8px;
+    width: calc(100% + 24px);
+    max-width: none;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    gap: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .header-tabs::-webkit-scrollbar { display: none; }
+  .header-tab {
+    flex: none;
+    white-space: nowrap;
+    padding: 7px 12px !important;
+    font-size: 13px !important;
+    border-radius: 999px;
+    border-color: var(--border-light);
+  }
+  .header-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .main-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto !important;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .content {
+    padding: 8px !important;
+    gap: 8px;
+    min-width: 0;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---------- 2. 側欄抽屜 ---------- */
+  .sidebar,
+  body.sv2-active .sidebar {
+    display: none;
+    position: fixed !important;
+    top: 0; left: 0;
+    width: 88% !important;
+    max-width: 340px !important;
+    min-width: 0 !important;
+    height: 100vh; height: 100dvh;
+    z-index: 300;
+    padding: 14px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    box-shadow: 4px 0 24px rgba(0,0,0,.5);
+  }
+  .sidebar.mobile-open { display: flex !important; }
+  .mobile-filter-backdrop { z-index: 290; }
+
+  /* ---------- 3. 表格 ---------- */
+  .table-toolbar { flex-wrap: wrap; align-items: stretch; gap: 4px; }
+  .table-folder-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .table-folder-tabs::-webkit-scrollbar { display: none; }
+  .table-folder-tab { flex: none; white-space: nowrap; padding: 7px 12px; }
+  .table-stats { order: -1; width: 100%; padding: 0 2px 2px; font-size: 12px; }
+
+  .table-wrapper { -webkit-overflow-scrolling: touch; }
+  .data-table { font-size: 13px; }
+  .data-table th { padding: 8px 6px; font-size: 12px; }
+  .data-table td { padding: 9px 6px; }
+  /* 固定欄 (☆/代碼/名稱):原本三欄都 left:0 + 透明底會疊字,手機版給各自寬度與位移 */
+  .data-table .sticky-col { background: var(--bg); }
+  .data-table thead .sticky-col { background: var(--bg-card); }
+  /* 個股:☆ / 代碼 / 名稱 */
+  .data-table[data-tab="stock"] tr > .sticky-col:nth-child(1) { left: 0;    width: 28px !important; min-width: 28px !important; max-width: 28px; padding-left: 4px; padding-right: 2px; }
+  .data-table[data-tab="stock"] tr > .sticky-col:nth-child(2) { left: 28px; width: 46px !important; min-width: 46px !important; max-width: 46px; }
+  .data-table[data-tab="stock"] tr > .sticky-col:nth-child(3) {
+    left: 74px; width: 78px !important; min-width: 78px !important; max-width: 78px;
+    overflow: hidden; text-overflow: ellipsis;
+    box-shadow: 3px 0 4px -1px rgba(0,0,0,.5);
+  }
+  /* 可轉債:CB代號 / CB名稱 */
+  .data-table[data-tab="cb"] tr > .sticky-col:nth-child(1) { left: 0;    width: 56px !important; min-width: 56px !important; max-width: 56px; }
+  .data-table[data-tab="cb"] tr > .sticky-col:nth-child(2) {
+    left: 56px; width: 84px !important; min-width: 84px !important; max-width: 84px;
+    overflow: hidden; text-overflow: ellipsis;
+    box-shadow: 3px 0 4px -1px rgba(0,0,0,.5);
+  }
+
+  /* ⚙ 欄位:統計列左、按鈕右;選單改底部抽屜 */
+  .table-stats { justify-content: space-between; }
+  .col-picker-btn { padding: 7px 12px; font-size: 13px; }
+  .col-picker-backdrop { align-items: flex-end; padding: 0; }
+  .col-picker {
+    width: 100%; max-height: 80dvh; border-radius: 16px 16px 0 0;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .col-picker-item { padding: 10px 6px; font-size: 14px; }
+  .col-picker-item input { width: 20px; height: 20px; }
+  .col-picker-preset { padding: 8px 16px; font-size: 13px; }
+  .col-picker-done { padding: 13px; font-size: 15px; }
+
+  /* 通用:任何寬表格容器都允許橫滑,不撐破頁面 */
+  .vcp-table, .sec-tbl, .sv2-tbl { font-size: 12px; }
+  .vcp-table th, .vcp-table td { white-space: nowrap; padding: 8px 6px; }
+  .vcp-wrap, .sec-card, .reports-table-wrap { overflow-x: auto; }
+
+  /* ---------- 4. ETF 持股 ---------- */
+  .etf-columns-wrapper {
+    grid-template-columns: 1fr !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    gap: 10px !important;
+  }
+  .etf-column-header { position: static; }
+  .etf-column-header-row { flex-wrap: wrap; }
+  .etf-column-header-left { flex: 1 1 100%; }
+  .etf-header-info { flex: 1 1 100%; font-size: 11px; }
+  .etf-col-table { font-size: 13px; }
+  .etf-col-table th, .etf-col-table td { padding: 6px 8px; }
+  .etf-cell-name { max-width: none !important; }
+
+  /* ---------- 5. CB 日曆:條列模式 ---------- */
+  .cal-wrap { padding: 10px; }
+  .cal-nav { gap: 8px; }
+  .cal-nav-btn { width: 40px; height: 40px; }
+  .cal-today-btn { padding: 9px 14px; }
+  .cal-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0;
+    background: none;
+    border: none;
+  }
+  .cal-weekday,
+  .cal-cell.cal-other { display: none; }
+  .cal-cell {
+    position: relative;
+    min-height: 51px !important;   /* 沒事件的日子也保留一列空白 */
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 10px 4px 10px 72px;   /* 左側留給日期欄,事件換行時對齊 */
+    border-bottom: 1px solid var(--border-light);
+    background: transparent;
+  }
+  .cal-cell.cal-today { box-shadow: none; background: rgba(59,130,246,.08); border-radius: 6px; }
+  .cal-daynum {
+    position: absolute; left: 4px; top: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 30px;
+  }
+  .cal-daynum[data-wd]::after {
+    content: ' ' attr(data-wd);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+  .cal-cell.cal-today .cal-daynum { color: var(--accent); }
+  .cal-chip {
+    font-size: 13px !important;
+    padding: 5px 10px !important;
+    border-radius: 6px;
+    line-height: 20px;
+    white-space: nowrap;
+  }
+  .cal-chip-wrap { display: contents; }
+  .cal-empty-month {
+    padding: 30px 0; text-align: center; color: var(--text-dim); font-size: 13px;
+  }
+
+  /* ---------- 6. 詳情面板 / modal ---------- */
+  .detail-panel {
+    top: 0 !important;
+    height: 100vh !important; height: 100dvh !important;
+    width: 100% !important;
+    right: -100%;
+    z-index: 400;
+    padding: 12px 14px 40px;
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  .detail-header {
+    position: sticky; top: -12px; z-index: 5;
+    background: var(--bg-card);
+    margin: -12px -14px 8px; padding: 12px 14px 10px;
+  }
+  .detail-close { font-size: 28px; width: 44px; height: 44px; }
+  .detail-section-head { flex-wrap: wrap; gap: 6px; }
+  .info-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .info-grid-sm { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pm-estimate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .info-item { min-width: 0; overflow-wrap: anywhere; }
+
+  /* ---------- 產業族群 v1 ---------- */
+  .sec-layout { flex-direction: column; }
+  .sec-aside { width: 100% !important; position: static; border-left: 0; border-top: 1px solid #1e293b; }
+  .sec-card { margin: 8px 0; }
+  .sec-tools { padding: 4px 0 8px; }
+  .sec-role { max-width: none; }
+
+  img, canvas, svg { max-width: 100%; }
+}
+
+/* 更窄的手機 (≤380px):標題縮短 */
+@media (max-width: 380px) {
+  .header-title span { font-size: 14px; }
+  .info-grid, .info-grid-sm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

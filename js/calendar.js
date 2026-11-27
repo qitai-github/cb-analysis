@@ -139,7 +139,8 @@ const Calendar = (() => {
         + (isToday ? ' cal-today' : '');
 
       html += `<div class="${cls}">`;
-      html += `<div class="cal-daynum">${cur.getDate()}</div>`;
+      // data-wd:手機版條列模式顯示「11/2 週一」用 (桌機版不顯示)
+      html += `<div class="cal-daynum" data-wd="週${'日一二三四五六'[cur.getDay()]}">${cur.getDate()}</div>`;
 
       const evs = (eventsByDate.get(iso) || [])
         .filter(e => enabledTypes.has(e.type));
